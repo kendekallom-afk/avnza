@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Avenza-Style Navigation PWA</title>
+  
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+  html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Mencegah scrollbar muncul */
+}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #dcdcdc;
+  display: flex;
+  flex-direction: column;
+}
+
+
+    .top-bar {
+      height: 50px;
+      background-color: #5d839e;
+      width: 100%;
+      flex-shrink: 0;
+    }
+
+    .toolbar {
+      height: 56px;
+      background-color: #484848;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+
+    .tool-btn {
+      background: none;
+      border: none;
+      color: #ffffff;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+    }
+
+    .tool-btn:active {
+      opacity: 0.7;
+    }
+
+    .coords-display {
+      color: #ffffff;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.2;
+      font-family: monospace;
+    }
+
+    /* VIEW CONTROLLER */
+    .view {
+  display: none;
+  flex: 1; /* Mengisi sisa ruang secara dinamis */
+  position: relative;
+  overflow: hidden;
+  height: calc(100vh - 106px); /* 106px adalah total tinggi top-bar + toolbar */
+}
+
+    .view.active {
+  display: flex;
+  flex-direction: column;
+}
+
+    /* MAP VIEW */
+    #map-view {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background-color: #cccccc;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background: #e2e2e2;
+    }
+
+    /* Reticle / Crosshair */
+    .crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      border: 2px solid #333333;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 500;
+    }
+
+    .crosshair::before,
+    .crosshair::after {
+      content: "";
+      position: absolute;
+      background-color: #333333;
+    }
+
+    .crosshair::before { width: 2px; height: 76px; }
+    .crosshair::after { width: 76px; height: 2px; }
+
+    .crosshair-center {
+      width: 4px;
+      height: 4px;
+      background-color: #333333;
+      border-radius: 50%;
+      z-index: 2;
+    }
+
+    /* STYLING OVERLAY GPS (KIRI BAWAH MAP) */
+    .gps-overlay {
+  position: absolute;
+  bottom: 20px; /* Jarak aman dari navigasi bawah Android */
+  left: 12px;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+    .gps-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .gps-overlay .label {
+      color: #cccccc;
+    }
+
+    .gps-overlay .value {
+      font-weight: 600;
+    }
+
+    /* Status Warna Sinyal */
+    .status-no-signal { color: #ff4d4d; }
+    .status-weak      { color: #ffa500; }
+    .status-medium    { color: #ffeb3b; }
+    .status-strong    { color: #4caf50; }
+
+    /* LAYERS & LIBRARY VIEW */
+    .layers-section {
+      flex: 1;
+      min-height: 0;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      border-bottom: 2px solid #a0a0a0;
+      background-color: #e2e2e2;
+    }
+
+    .section-title {
+      font-size: 16px;
+      color: #333333;
+      font-weight: 500;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+
+    .active-layers-list {
+      flex: 1;
+      overflow-y: auto;
+      border: 2px dashed #a0a0a0;
+      border-radius: 4px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .active-layers-list:empty::before {
+      content: "Belum ada layer aktif. Pilih dari Library di bawah.";
+      color: #777;
+      font-size: 13px;
+      text-align: center;
+      margin: auto;
+    }
+
+    .library-section {
+      flex: 1.2;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background-color: #dcdcdc;
+    }
+
+    .tab-bar {
+      display: flex;
+      height: 42px;
+      background-color: #484848;
+      border-top: 1px solid #555;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background-color: #484848;
+      color: #ffffff;
+      border: none;
+      border-right: 1px solid #555;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background-color: #dcdcdc;
+      color: #333333;
+      font-weight: 500;
+    }
+
+    .library-content {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+    }
+
+    .file-item {
+      background-color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .file-info i {
+      color: #5d839e;
+      font-size: 18px;
+    }
+
+    .file-name {
+      font-size: 14px;
+      color: #333;
+      word-break: break-all;
+    }
+
+    .add-btn, .remove-btn, .action-btn {
+      background: #5d839e;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .remove-btn {
+      background: #c94a4a;
+    }
+
+    /* MODAL SETTINGS STYLING */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 3000;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #f4f4f4;
+      width: 90%;
+      max-width: 420px;
+      border-radius: 6px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-header {
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 8px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: #666;
+    }
+
+    .setting-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .setting-label {
+      font-size: 13px;
+      color: #555;
+      font-weight: 500;
+    }
+
+    .setting-value-box {
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar"></div>
+
+  <!-- Toolbar Header -->
+  <div class="toolbar">
+    <!-- PERBAIKAN: Tombol Lokasi Menggunakan Ikon Crosshair FontAwesome & Event Onclick yang Kuat -->
+    <button class="tool-btn map-only-control" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS">
+      <i class="fa-solid fa-crosshairs"></i>
+    </button>
+
+    <button class="tool-btn map-only-control" id="btn-pin" onclick="addWaypointAtReticle()" title="Tambah Titik">
+      <i class="fa-solid fa-map-pin"></i>
+    </button>
+
+    <div class="coords-display map-only-control">
+      <div id="lat">0.00000</div>
+      <div id="lng">0.00000</div>
+    </div>
+
+    <button class="tool-btn" id="btn-toggle-view" onclick="toggleView()" title="Beralih Tampilan">
+      <i class="fa-solid fa-layer-group" id="nav-icon"></i>
+    </button>
+
+    <button class="tool-btn" id="btn-tools" onclick="openSettings()" title="Pengaturan">
+      <i class="fa-solid fa-wrench"></i>
+    </button>
+  </div>
+
+  <!-- VIEW 1: MAP INTERFACE -->
+  <div id="map-view" class="view active">
+    <div id="map"></div>
+    <div class="crosshair">
+      <div class="crosshair-center"></div>
+    </div>
+
+    <!-- ELEMEN OVERLAY GPS KIRI BAWAH -->
+    <div id="gps-overlay" class="gps-overlay map-only-control">
+      <div class="gps-item">
+        <span class="label">Sinyal GPS:</span>
+        <span id="gps-status" class="value status-no-signal">Memeriksa...</span>
+      </div>
+      <div class="gps-item">
+        <span class="label">Akurasi GPS:</span>
+        <span id="gps-accuracy" class="value">-</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: LAYERS & LIBRARY MANAGER -->
+  <div id="layers-view" class="view">
+    <div class="layers-section">
+      <h2 class="section-title">Layers</h2>
+      <div class="active-layers-list" id="active-layers"></div>
+    </div>
+
+    <div class="library-section">
+      <div class="tab-bar">
+        <button class="tab-btn" onclick="switchTab('maps', event)">Maps</button>
+        <button class="tab-btn active" onclick="switchTab('kmz', event)">KMZ</button>
+        <button class="tab-btn" onclick="switchTab('basemap', event)">Basemap</button>
+      </div>
+
+      <div class="library-content" id="library-content">
+        <!-- Content KMZ -->
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL DIALOG -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>Pengaturan Aplikasi</span>
+        <button class="modal-close" onclick="closeSettings()">&times;</button>
+      </div>
+      <div class="setting-group">
+        <span class="setting-label">Folder Default KMZ:</span>
+        <div class="setting-value-box">
+          <span id="folder-path-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;">Belum dipilih</span>
+          <button class="action-btn" onclick="selectDefaultKMZFolder()">Pilih Folder</button>
+        </div>
+        <span style="font-size: 11px; color: #777;">Semua file KMZ/KML di dalam folder ini akan otomatis dimuat ke tab KMZ.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet & JSZip -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <script>
+    let map;
+    let userLocationMarker = null;
+    let currentView = 'map';
+    let waypointCount = 1;
+    let latestCoords = null; // Menyimpan posisi GPS terakhir yang dikirim sensor
+
+    let activeLayers = {};
+    let scannedKmzFiles = [];
+    let defaultDirHandle = null;
+
+    const BASEMAP_PROVIDERS = {
+      'google_sat': { name: 'Google Satellite', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', icon: 'fa-earth-americas' },
+      'google_map': { name: 'Google Map', url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', icon: 'fa-map' },
+      'google_hybrid': { name: 'Google Hybrid', url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', icon: 'fa-layer-group' },
+      'google_terrain': { name: 'Google Terrain', url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', icon: 'fa-mountain-sun' },
+      'osm': { name: 'OpenStreetMap (OSM)', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: 'fa-globe' }
+    };
+
+    function initMap() {
+      map = L.map('map', { zoomControl: false }).setView([-6.2088, 106.8456], 15);
+      map.on('move', updateReticleCoordinates);
+      updateReticleCoordinates();
+
+      initStoredKMZFolder();
+      initGPSWatcher();
+    }
+
+    function updateReticleCoordinates() {
+      const center = map.getCenter();
+      document.getElementById('lat').innerText = center.lat.toFixed(5);
+      document.getElementById('lng').innerText = center.lng.toFixed(5);
+    }
+
+    /* --- PERBAIKAN FUNGSI PUSATKAN LOKASI (GPS BUTTON) --- */
+    function centerToGPS() {
+      if (!navigator.geolocation) {
+        alert("Geolocation tidak didukung oleh browser ini.");
+        return;
+      }
+
+      // Gunakan data lokasi dari watcher jika ada, atau minta posisi terbaru
+      if (latestCoords) {
+        map.flyTo([latestCoords.lat, latestCoords.lng], 17);
+        updateUserMarker(latestCoords.lat, latestCoords.lng);
+      } else {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            latestCoords = { lat, lng };
+            map.flyTo([lat, lng], 17);
+            updateUserMarker(lat, lng);
+          },
+          (err) => {
+            let errorMsg = "Gagal mendapatkan lokasi.";
+            if (err.code === 1) errorMsg = "Izin lokasi ditolak. Harap izinkan akses lokasi di browser HP Anda.";
+            else if (err.code === 2) errorMsg = "Sinyal GPS tidak tersedia.";
+            else if (err.code === 3) errorMsg = "Waktu permintaan lokasi habis (Timeout).";
+            alert(errorMsg);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+    }
+
+    function updateUserMarker(lat, lng) {
+      if (userLocationMarker) {
+        userLocationMarker.setLatLng([lat, lng]);
+      } else {
+        userLocationMarker = L.circleMarker([lat, lng], {
+          radius: 9,
+          fillColor: "#007aff",
+          color: "#ffffff",
+          weight: 3,
+          fillOpacity: 1
+        }).addTo(map);
+      }
+    }
+
+    /* --- LOGIKA PENGAWASAN SINYAL & AKURASI GPS --- */
+    function initGPSWatcher() {
+      const statusEl = document.getElementById('gps-status');
+      const accuracyEl = document.getElementById('gps-accuracy');
+
+      if ('geolocation' in navigator) {
+        const options = {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        };
+
+        navigator.geolocation.watchPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = Math.round(position.coords.accuracy);
+
+            latestCoords = { lat, lng };
+            updateUserMarker(lat, lng);
+
+            accuracyEl.textContent = `± ${accuracy} m`;
+
+            if (accuracy <= 10) {
+              statusEl.textContent = 'Sinyal Kuat';
+              statusEl.className = 'value status-strong';
+            } else if (accuracy <= 30) {
+              statusEl.textContent = 'Sinyal Sedang';
+              statusEl.className = 'value status-medium';
+            } else {
+              statusEl.textContent = 'Sinyal Lemah';
+              statusEl.className = 'value status-weak';
+            }
+          },
+          (error) => {
+            accuracyEl.textContent = '-';
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                statusEl.textContent = 'Izin Ditolak';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                statusEl.textContent = 'GPS Tdk Terdeteksi';
+                break;
+              case error.TIMEOUT:
+                statusEl.textContent = 'Mencari Sinyal...';
+                break;
+              default:
+                statusEl.textContent = 'GPS Tdk Terdeteksi';
+                break;
+            }
+            statusEl.className = 'value status-no-signal';
+          },
+          options
+        );
+      } else {
+        statusEl.textContent = 'Tidak Didukung';
+        statusEl.className = 'value status-no-signal';
+        accuracyEl.textContent = 'API tidak ada';
+      }
+    }
+
+    /* --- INDEXEDDB STORAGE --- */
+    function openIDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('AvenzaNavDB', 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore('config');
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = e => reject(e.target.error);
+      });
+    }
+
+    async function saveHandleToIDB(handle) {
+      const db = await openIDB();
+      const tx = db.transaction('config', 'readwrite');
+      tx.objectStore('config').put(handle, 'defaultKMZFolder');
+    }
+
+    async function getHandleFromIDB() {
+      const db = await openIDB();
+      return new Promise(resolve => {
+        const tx = db.transaction('config', 'readonly');
+        const req = tx.objectStore('config').get('defaultKMZFolder');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    async function initStoredKMZFolder() {
+      defaultDirHandle = await getHandleFromIDB();
+      if (defaultDirHandle) {
+        document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+        const opts = { mode: 'read' };
+        if ((await defaultDirHandle.queryPermission(opts)) === 'granted') {
+          await scanFilesFromHandle(defaultDirHandle);
+        } else {
+          document.getElementById('folder-path-text').innerText = `${defaultDirHandle.name} (Izin diperlukan)`;
+        }
+      }
+      renderKMZLibrary();
+    }
+
+    async function selectDefaultKMZFolder() {
+      try {
+        if ('showDirectoryPicker' in window) {
+          defaultDirHandle = await window.showDirectoryPicker();
+          await saveHandleToIDB(defaultDirHandle);
+          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+          await scanFilesFromHandle(defaultDirHandle);
+          renderKMZLibrary();
+          alert("Folder default KMZ/KML berhasil disimpan!");
+        } else {
+          alert("Browser Anda tidak mendukung File System Access API.");
+        }
+      } catch (err) {
+        console.warn("Pemilihan folder dibatalkan:", err);
+      }
+    }
+
+    async function scanFilesFromHandle(dirHandle) {
+      scannedKmzFiles = [];
+      try {
+        for await (const entry of dirHandle.values()) {
+          if (entry.kind === 'file' && (entry.name.endsWith('.kmz') || entry.name.endsWith('.kml'))) {
+            const file = await entry.getFile();
+            scannedKmzFiles.push(file);
+          }
+        }
+        renderKMZFileList();
+      } catch (err) {
+        console.warn("Gagal membaca isi folder:", err);
+      }
+    }
+
+    /* --- KONVERSI WARNA KML (AABBGGRR) KE HEX & OPACITY --- */
+    function kmlColorToLeaflet(kmlColor) {
+      if (!kmlColor || kmlColor.trim().length !== 8) {
+        return { color: '#3388ff', opacity: 1 };
+      }
+      const hexStr = kmlColor.trim();
+      const a = parseInt(hexStr.substring(0, 2), 16) / 255;
+      const b = hexStr.substring(2, 4);
+      const g = hexStr.substring(4, 6);
+      const r = hexStr.substring(6, 8);
+      
+      return {
+        color: `#${r}${g}${b}`,
+        opacity: isNaN(a) ? 1 : a
+      };
+    }
+
+    /* --- PARSER KML HANDAL (SUPPORT MULTI-WARNA & NO OUTLINE) --- */
+    function parseKMLToLeaflet(kmlText) {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(kmlText, "text/xml");
+      const layerGroup = L.featureGroup();
+
+      const styleMap = {};
+
+      const styles = xmlDoc.getElementsByTagName("Style");
+      for (let i = 0; i < styles.length; i++) {
+        const style = styles[i];
+        const id = style.getAttribute("id");
+        if (!id) continue;
+
+        styleMap[id] = {};
+
+        const lineStyle = style.getElementsByTagName("LineStyle")[0];
+        if (lineStyle) {
+          const c = lineStyle.getElementsByTagName("color")[0]?.textContent;
+          const w = lineStyle.getElementsByTagName("width")[0]?.textContent;
+          if (c) styleMap[id].line = kmlColorToLeaflet(c);
+          if (w) styleMap[id].weight = parseFloat(w);
+        }
+
+        const polyStyle = style.getElementsByTagName("PolyStyle")[0];
+        if (polyStyle) {
+          const c = polyStyle.getElementsByTagName("color")[0]?.textContent;
+          const fill = polyStyle.getElementsByTagName("fill")[0]?.textContent;
+          const outline = polyStyle.getElementsByTagName("outline")[0]?.textContent;
+          
+          if (c) styleMap[id].poly = kmlColorToLeaflet(c);
+          if (fill !== undefined) styleMap[id].hasFill = fill.trim() !== '0';
+          if (outline !== undefined) styleMap[id].hasOutline = outline.trim() !== '0';
+        }
+      }
+
+      const styleMaps = xmlDoc.getElementsByTagName("StyleMap");
+      for (let i = 0; i < styleMaps.length; i++) {
+        const sm = styleMaps[i];
+        const smId = sm.getAttribute("id");
+        if (!smId) continue;
+
+        const pairs = sm.getElementsByTagName("Pair");
+        for (let j = 0; j < pairs.length; j++) {
+          const key = pairs[j].getElementsByTagName("key")[0]?.textContent?.trim();
+          if (key === "normal") {
+            const styleUrl = pairs[j].getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#", "");
+            if (styleUrl && styleMap[styleUrl]) {
+              styleMap[smId] = styleMap[styleUrl];
+            }
+          }
+        }
+      }
+
+      const placemarks = xmlDoc.getElementsByTagName("Placemark");
+      for (let i = 0; i < placemarks.length; i++) {
+        const pm = placemarks[i];
+        const nameEl = pm.getElementsByTagName("name")[0];
+        const name = nameEl ? nameEl.textContent : "Elemen " + (i + 1);
+
+        const sUrl = pm.getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#", "");
+        const activeStyle = styleMap[sUrl] || {};
+
+        const isOutlineActive = activeStyle.hasOutline !== undefined ? activeStyle.hasOutline : false;
+        const lineHex = activeStyle.line?.color || '#000000';
+        const lineOpacity = activeStyle.line?.opacity !== undefined ? activeStyle.opacity : 1;
+        const strokeWidth = isOutlineActive ? (activeStyle.weight || 1) : 0;
+
+        const isFillActive = activeStyle.hasFill !== undefined ? activeStyle.hasFill : true;
+        const fillHex = activeStyle.poly?.color || lineHex;
+        const fillOpacity = activeStyle.poly?.opacity !== undefined ? activeStyle.poly.opacity : 0.6;
+
+        const points = pm.getElementsByTagName("Point");
+        for (let j = 0; j < points.length; j++) {
+          const coords = points[j].getElementsByTagName("coordinates")[0];
+          if (coords) {
+            const parts = coords.textContent.trim().split(",");
+            if (parts.length >= 2) {
+              const lng = parseFloat(parts[0]);
+              const lat = parseFloat(parts[1]);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                L.circleMarker([lat, lng], {
+                  radius: 6,
+                  color: lineHex,
+                  fillColor: fillHex,
+                  fillOpacity: 0.9,
+                  weight: 1.5
+                }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+              }
+            }
+          }
+        }
+
+        const lines = pm.getElementsByTagName("LineString");
+        for (let j = 0; j < lines.length; j++) {
+          const coordsEl = lines[j].getElementsByTagName("coordinates")[0];
+          if (coordsEl) {
+            const rawCoords = coordsEl.textContent.trim().split(/\s+/);
+            const latLngs = [];
+            rawCoords.forEach(c => {
+              const parts = c.split(",");
+              if (parts.length >= 2) {
+                const lng = parseFloat(parts[0]);
+                const lat = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lng)) latLngs.push([lat, lng]);
+              }
+            });
+            if (latLngs.length > 0) {
+              L.polyline(latLngs, {
+                color: lineHex,
+                opacity: lineOpacity,
+                weight: activeStyle.weight || 3
+              }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+            }
+          }
+        }
+
+        const polygons = pm.getElementsByTagName("Polygon");
+        for (let j = 0; j < polygons.length; j++) {
+          const coordsEl = polygons[j].getElementsByTagName("coordinates")[0];
+          if (coordsEl) {
+            const rawCoords = coordsEl.textContent.trim().split(/\s+/);
+            const latLngs = [];
+            rawCoords.forEach(c => {
+              const parts = c.split(",");
+              if (parts.length >= 2) {
+                const lng = parseFloat(parts[0]);
+                const lat = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lng)) latLngs.push([lat, lng]);
+              }
+            });
+
+            if (latLngs.length > 0) {
+              L.polygon(latLngs, {
+                stroke: isOutlineActive && strokeWidth > 0,
+                color: lineHex,
+                opacity: lineOpacity,
+                weight: strokeWidth,
+                fill: isFillActive,
+                fillColor: fillHex,
+                fillOpacity: fillOpacity
+              }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+            }
+          }
+        }
+      }
+
+      return layerGroup;
+    }
+
+    async function activateKMZFile(index) {
+      const file = scannedKmzFiles[index];
+      if (!file) return;
+
+      try {
+        let kmlText = "";
+
+        if (file.name.toLowerCase().endsWith('.kmz')) {
+          const zip = await JSZip.loadAsync(file);
+          const kmlFile = Object.keys(zip.files).find(fileName => fileName.toLowerCase().endsWith('.kml'));
+
+          if (!kmlFile) {
+            alert('File KML internal tidak ditemukan di dalam KMZ.');
+            return;
+          }
+          kmlText = await zip.files[kmlFile].async("string");
+        } else if (file.name.toLowerCase().endsWith('.kml')) {
+          kmlText = await file.text();
+        }
+
+        const featureGroup = parseKMLToLeaflet(kmlText);
+
+        if (featureGroup.getLayers().length === 0) {
+          alert('Tidak ada fitur spasial valid yang dapat dibaca pada file ini.');
+          return;
+        }
+
+        featureGroup.addTo(map);
+
+        const bounds = featureGroup.getBounds();
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [20, 20] });
+        }
+
+        addLayerToActiveStack(`kmz_${index}`, file.name, 'fa-file-code', featureGroup);
+
+      } catch (err) {
+        console.error(err);
+        alert('Gagal memuat file: ' + err.message);
+      }
+    }
+
+    /* --- MANAGEMENT LAYERS UI --- */
+    function setBasemap(key) {
+      const provider = BASEMAP_PROVIDERS[key];
+      if (!provider) return;
+
+      if (activeLayers['basemap']) {
+        map.removeLayer(activeLayers['basemap'].layer);
+      }
+
+      const tileLayer = L.tileLayer(provider.url, { maxZoom: 20, attribution: provider.name }).addTo(map);
+      addLayerToActiveStack('basemap', provider.name, provider.icon, tileLayer);
+    }
+
+    function addLayerToActiveStack(id, name, icon, leafletLayer) {
+      if (activeLayers[id]) {
+        map.removeLayer(activeLayers[id].layer);
+      }
+
+      activeLayers[id] = { name, icon, layer: leafletLayer };
+      updateActiveLayersUI();
+    }
+
+    function removeLayerFromStack(id) {
+      if (activeLayers[id]) {
+        map.removeLayer(activeLayers[id].layer);
+        delete activeLayers[id];
+        updateActiveLayersUI();
+      }
+    }
+
+    function updateActiveLayersUI() {
+      const activeContainer = document.getElementById('active-layers');
+      let html = '';
+
+      Object.keys(activeLayers).forEach(id => {
+        const item = activeLayers[id];
+        html += `
+          <div class="file-item">
+            <div class="file-info">
+              <i class="fa-solid ${item.icon}"></i>
+              <span class="file-name">${item.name}</span>
+            </div>
+            <button class="remove-btn" onclick="removeLayerFromStack('${id}')">Hapus</button>
+          </div>
+        `;
+      });
+
+      activeContainer.innerHTML = html;
+    }
+
+    /* --- RENDER LIBRARY TABS --- */
+    function renderKMZLibrary() {
+      const container = document.getElementById('library-content');
+      container.innerHTML = `
+        <div style="font-size:12px; color:#555; margin-bottom:8px;">
+          Folder Aktif: <b id="current-folder-label">${defaultDirHandle ? defaultDirHandle.name : 'Belum diatur'}</b>
+        </div>
+        <div id="kmz-file-list"></div>
+      `;
+      renderKMZFileList();
+    }
+
+    function renderKMZFileList() {
+      const listContainer = document.getElementById('kmz-file-list');
+      if (!listContainer) return;
+
+      if (!defaultDirHandle) {
+        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Atur folder default KMZ melalui menu Setting (ikon <i class="fa-solid fa-wrench"></i>).</p>`;
+        return;
+      }
+
+      if (scannedKmzFiles.length === 0) {
+        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Tidak ada file .kmz/.kml di dalam folder ini.</p>`;
+        return;
+      }
+
+      let html = '';
+      scannedKmzFiles.forEach((file, index) => {
+        html += `
+          <div class="file-item">
+            <div class="file-info">
+              <i class="fa-solid fa-file-code"></i>
+              <span class="file-name">${file.name}</span>
+            </div>
+            <button class="add-btn" onclick="activateKMZFile(${index})">+ Aktifkan</button>
+          </div>
+        `;
+      });
+      listContainer.innerHTML = html;
+    }
+
+    function renderLibraryBasemaps() {
+      const container = document.getElementById('library-content');
+      let html = '';
+
+      Object.keys(BASEMAP_PROVIDERS).forEach(key => {
+        const item = BASEMAP_PROVIDERS[key];
+        html += `
+          <div class="file-item">
+            <div class="file-info">
+              <i class="fa-solid ${item.icon}"></i>
+              <span class="file-name">${item.name}</span>
+            </div>
+            <button class="add-btn" onclick="setBasemap('${key}')">+ Aktifkan</button>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    /* --- MODAL CONTROL --- */
+    function openSettings() {
+      document.getElementById('settings-modal').classList.add('active');
+    }
+    function closeSettings() {
+      document.getElementById('settings-modal').classList.remove('active');
+    }
+
+    function addWaypointAtReticle() {
+      const center = map.getCenter();
+      const marker = L.marker([center.lat, center.lng]).addTo(map);
+      marker.bindPopup(`<b>Waypoint ${waypointCount++}</b><br>Lat: ${center.lat.toFixed(5)}<br>Lng: ${center.lng.toFixed(5)}`).openPopup();
+    }
+
+    function toggleView() {
+      const mapView = document.getElementById('map-view');
+      const layersView = document.getElementById('layers-view');
+      const navIcon = document.getElementById('nav-icon');
+      const mapControls = document.querySelectorAll('.map-only-control');
+
+      if (currentView === 'map') {
+        mapView.classList.remove('active');
+        layersView.classList.add('active');
+        navIcon.className = 'fa-solid fa-map';
+        mapControls.forEach(el => el.style.visibility = 'hidden');
+        currentView = 'layers';
+      } else {
+        layersView.classList.remove('active');
+        mapView.classList.add('active');
+        navIcon.className = 'fa-solid fa-layer-group';
+        mapControls.forEach(el => el.style.visibility = 'visible');
+        currentView = 'map';
+        setTimeout(() => map.invalidateSize(), 100);
+      }
+    }
+
+    function switchTab(tabName, event) {
+      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      if (tabName === 'basemap') renderLibraryBasemaps();
+      else if (tabName === 'kmz') renderKMZLibrary();
+      else if (tabName === 'maps') {
+        document.getElementById('library-content').innerHTML = `
+          <div class="file-item">
+            <div class="file-info"><i class="fa-solid fa-file-pdf"></i><span class="file-name">Peta_Topografi_Zone48S.pdf</span></div>
+          </div>`;
+      }
+    }
+
+    /* --- TAMBAHKAN DI SINI (DILUAR FUNGSI LAIN) --- */
+    window.addEventListener('resize', () => {
+      if (map) {
+        map.invalidateSize();
+      }
+    });
+
+    window.onload = initMap;
+  </script>
+</body>
+</html>
