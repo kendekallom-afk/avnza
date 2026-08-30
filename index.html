@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Avenza-Style Navigation PWA</title>
   
-  <!-- Font Awesome CDN -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
@@ -78,6 +76,7 @@
     font-family: monospace;
   }
 
+  /* VIEW CONTROLLER */
   .view {
     display: none;
     flex: 1;
@@ -91,6 +90,7 @@
     flex-direction: column;
   }
 
+  /* MAP VIEW */
   #map-view {
     position: relative;
     width: 100%;
@@ -105,6 +105,7 @@
     background: #e2e2e2;
   }
 
+  /* Reticle / Crosshair */
   .crosshair {
     position: absolute;
     top: 50%;
@@ -139,6 +140,7 @@
     z-index: 2;
   }
 
+  /* STYLING OVERLAY GPS (KIRI BAWAH MAP) */
   .gps-overlay {
     position: absolute;
     bottom: 20px;
@@ -167,11 +169,93 @@
     font-weight: 600;
   }
 
+  /* Status Warna Sinyal */
   .status-no-signal { color: #ff4d4d; }
   .status-weak      { color: #ffa500; }
   .status-medium    { color: #ffeb3b; }
   .status-strong    { color: #4caf50; }
 
+  /* ============================================
+     KOMPAS MARKER - SEPERTI AVENZA
+     ============================================ */
+  .compass-marker {
+    position: relative;
+    width: 36px;
+    height: 36px;
+  }
+
+  .compass-marker .dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    background: #007aff;
+    border: 2.5px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    z-index: 2;
+  }
+
+  .compass-marker .dot::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+  }
+
+  .compass-marker .heading-arrow {
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%) rotate(0deg);
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 18px solid #007aff;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    z-index: 3;
+    transform-origin: center bottom;
+    transition: transform 0.1s ease;
+  }
+
+  .compass-marker .heading-arrow::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 10px solid rgba(255, 255, 255, 0.5);
+  }
+
+  /* Lingkaran akurasi GPS */
+  .accuracy-circle {
+    animation: pulse-ring 2s ease-out infinite;
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1.1);
+      opacity: 0.5;
+    }
+  }
+
+  /* LAYERS & LIBRARY VIEW */
   .layers-section {
     flex: 1;
     min-height: 0;
@@ -291,6 +375,7 @@
     background: #c94a4a;
   }
 
+  /* MODAL SETTINGS STYLING */
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -419,7 +504,8 @@
         <button class="tab-btn" onclick="switchTab('basemap', event)">Basemap</button>
       </div>
 
-      <div class="library-content" id="library-content"></div>
+      <div class="library-content" id="library-content">
+        </div>
     </div>
   </div>
 
@@ -444,43 +530,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <script>
-    /* --- INTEGRASI SERVICE WORKER (Pengecekan Sinyal Hanya Saat Init/Refresh) --- */
-    function checkSignalOnce(registration) {
-      const sw = registration.active || registration.controller;
-      if (sw) {
-        const messageChannel = new MessageChannel();
-        messageChannel.port1.onmessage = (event) => {
-          if (event.data.type === 'SIGNAL_STRENGTH') {
-            console.log(`[PWA Initial Check] Sinyal Terdeteksi SW: ${event.data.strength}% (${event.data.quality})`);
-          }
-        };
-        sw.postMessage({ type: 'CHECK_SIGNAL' }, [messageChannel.port2]);
-      }
-    }
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(registration => {
-            console.log('ServiceWorker registered with scope:', registration.scope);
-            
-            // Eksekusi jika SW sudah langsung aktif
-            checkSignalOnce(registration);
-
-            // Eksekusi jika SW baru selesai mengaktifkan diri (first load)
-            navigator.serviceWorker.ready.then(readyReg => {
-              checkSignalOnce(readyReg);
-            });
-          })
-          .catch(err => console.error('ServiceWorker registration failed:', err));
-      });
-    }
-
+    // ================================================================
+    // VARIABEL UTAMA
+    // ================================================================
     let map;
-    let userLocationMarker = null;
     let currentView = 'layers';
     let waypointCount = 1;
     let latestCoords = null;
+
+    // VARIABEL UNTUK KOMPAS
+    let userCompassMarker = null;
+    let userAccuracyCircle = null;
+    let currentHeading = 0;
 
     let activeLayers = {};
     let scannedKmzFiles = [];
@@ -494,6 +555,9 @@
       'osm': { name: 'OpenStreetMap (OSM)', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: 'fa-globe' }
     };
 
+    // ================================================================
+    // INISIALISASI MAP
+    // ================================================================
     function initMap() {
       map = L.map('map', { zoomControl: false }).setView([-6.2088, 106.8456], 15);
       map.on('move', updateReticleCoordinates);
@@ -501,6 +565,7 @@
 
       initStoredKMZFolder();
       initGPSWatcher();
+      startHeadingWatcher();
     }
 
     function updateReticleCoordinates() {
@@ -509,6 +574,123 @@
       document.getElementById('lng').innerText = center.lng.toFixed(5);
     }
 
+    // ================================================================
+    // FUNGSI KOMPAS - MEMBUAT MARKER DENGAN ARAH
+    // ================================================================
+    function createCompassMarkerHTML(heading) {
+      return `
+        <div class="compass-marker">
+          <div class="dot"></div>
+          <div class="heading-arrow" style="transform: translateX(-50%) rotate(${heading || 0}deg);"></div>
+        </div>
+      `;
+    }
+
+    function updateCompassMarker(lat, lng, heading) {
+      if (!userCompassMarker) {
+        const icon = L.divIcon({
+          html: createCompassMarkerHTML(heading || 0),
+          className: '',
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+          popupAnchor: [0, -22]
+        });
+        userCompassMarker = L.marker([lat, lng], { icon: icon })
+          .addTo(map)
+          .bindPopup('📍 Lokasi Anda');
+      } else {
+        userCompassMarker.setLatLng([lat, lng]);
+        const el = userCompassMarker._icon;
+        if (el) {
+          const arrow = el.querySelector('.heading-arrow');
+          if (arrow) {
+            arrow.style.transform = 'translateX(-50%) rotate(' + (heading || 0) + 'deg)';
+          }
+        }
+      }
+    }
+
+    function updateAccuracyCircle(lat, lng, accuracy) {
+      if (!userAccuracyCircle) {
+        userAccuracyCircle = L.circle([lat, lng], {
+          radius: accuracy || 10,
+          color: '#007aff',
+          weight: 1.5,
+          fillColor: '#007aff',
+          fillOpacity: 0.15,
+          className: 'accuracy-circle'
+        }).addTo(map);
+      } else {
+        userAccuracyCircle.setLatLng([lat, lng]);
+        userAccuracyCircle.setRadius(accuracy || 10);
+      }
+    }
+
+    // ================================================================
+    // HEADING / KOMPAS (Device Orientation)
+    // ================================================================
+    function startHeadingWatcher() {
+      if (!window.DeviceOrientationEvent) {
+        console.log('DeviceOrientation tidak didukung');
+        return;
+      }
+
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(state => {
+            if (state === 'granted') {
+              window.addEventListener('deviceorientation', handleHeading);
+            }
+          })
+          .catch(err => console.warn('Izin orientasi ditolak:', err));
+      } else {
+        window.addEventListener('deviceorientation', handleHeading);
+      }
+    }
+
+    function handleHeading(event) {
+      let heading = null;
+      
+      if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+        heading = event.webkitCompassHeading;
+      } else if (event.alpha !== null) {
+        heading = event.alpha;
+      }
+
+      if (heading !== null) {
+        currentHeading = heading;
+        
+        // Update marker jika ada
+        if (userCompassMarker) {
+          const el = userCompassMarker._icon;
+          if (el) {
+            const arrow = el.querySelector('.heading-arrow');
+            if (arrow) {
+              arrow.style.transform = 'translateX(-50%) rotate(' + heading + 'deg)';
+            }
+          }
+        }
+        
+        updateHeadingDisplay(heading);
+      }
+    }
+
+    function updateHeadingDisplay(heading) {
+      const statusEl = document.getElementById('gps-status');
+      const currentText = statusEl.textContent;
+      
+      if (!statusEl.className.includes('status-no-signal')) {
+        const directions = ['U', 'TL', 'T', 'TG', 'S', 'BD', 'B', 'BL'];
+        const index = Math.round(heading / 45) % 8;
+        const dir = directions[index];
+        const baseText = currentText.split(' •')[0];
+        statusEl.textContent = baseText + ' • ' + Math.round(heading) + '° ' + dir;
+      }
+    }
+
+    // ================================================================
+    // GPS - DENGAN KOMPAS
+    // ================================================================
     function centerToGPS() {
       if (!navigator.geolocation) {
         alert("Geolocation tidak didukung oleh browser ini.");
@@ -517,15 +699,18 @@
 
       if (latestCoords) {
         map.flyTo([latestCoords.lat, latestCoords.lng], 17);
-        updateUserMarker(latestCoords.lat, latestCoords.lng);
+        updateCompassMarker(latestCoords.lat, latestCoords.lng, currentHeading);
+        updateAccuracyCircle(latestCoords.lat, latestCoords.lng, 10);
       } else {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
+            const accuracy = Math.round(pos.coords.accuracy);
             latestCoords = { lat, lng };
             map.flyTo([lat, lng], 17);
-            updateUserMarker(lat, lng);
+            updateCompassMarker(lat, lng, currentHeading);
+            updateAccuracyCircle(lat, lng, accuracy);
           },
           (err) => {
             let errorMsg = "Gagal mendapatkan lokasi.";
@@ -536,20 +721,6 @@
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
-      }
-    }
-
-    function updateUserMarker(lat, lng) {
-      if (userLocationMarker) {
-        userLocationMarker.setLatLng([lat, lng]);
-      } else {
-        userLocationMarker = L.circleMarker([lat, lng], {
-          radius: 9,
-          fillColor: "#007aff",
-          color: "#ffffff",
-          weight: 3,
-          fillOpacity: 1
-        }).addTo(map);
       }
     }
 
@@ -571,20 +742,34 @@
             const accuracy = Math.round(position.coords.accuracy);
 
             latestCoords = { lat, lng };
-            updateUserMarker(lat, lng);
+            updateCompassMarker(lat, lng, currentHeading);
+            updateAccuracyCircle(lat, lng, accuracy);
 
-            accuracyEl.textContent = `± ${accuracy} m`;
+            accuracyEl.textContent = '± ' + accuracy + ' m';
+
+            let statusText = '';
+            let statusClass = '';
 
             if (accuracy <= 10) {
-              statusEl.textContent = 'Sinyal Kuat';
-              statusEl.className = 'value status-strong';
+              statusText = 'Sinyal Kuat';
+              statusClass = 'status-strong';
             } else if (accuracy <= 30) {
-              statusEl.textContent = 'Sinyal Sedang';
-              statusEl.className = 'value status-medium';
+              statusText = 'Sinyal Sedang';
+              statusClass = 'status-medium';
             } else {
-              statusEl.textContent = 'Sinyal Lemah';
-              statusEl.className = 'value status-weak';
+              statusText = 'Sinyal Lemah';
+              statusClass = 'status-weak';
             }
+
+            if (currentHeading !== null && currentHeading !== undefined) {
+              const directions = ['U', 'TL', 'T', 'TG', 'S', 'BD', 'B', 'BL'];
+              const index = Math.round(currentHeading / 45) % 8;
+              const dir = directions[index];
+              statusText += ' • ' + Math.round(currentHeading) + '° ' + dir;
+            }
+
+            statusEl.textContent = statusText;
+            statusEl.className = 'value ' + statusClass;
           },
           (error) => {
             accuracyEl.textContent = '-';
@@ -613,6 +798,9 @@
       }
     }
 
+    // ================================================================
+    // INDEXEDDB STORAGE
+    // ================================================================
     function openIDB() {
       return new Promise((resolve, reject) => {
         const req = indexedDB.open('AvenzaNavDB', 1);
@@ -646,7 +834,7 @@
         if ((await defaultDirHandle.queryPermission(opts)) === 'granted') {
           await scanFilesFromHandle(defaultDirHandle);
         } else {
-          document.getElementById('folder-path-text').innerText = `${defaultDirHandle.name} (Izin diperlukan)`;
+          document.getElementById('folder-path-text').innerText = defaultDirHandle.name + ' (Izin diperlukan)';
         }
       }
       renderKMZLibrary();
@@ -684,6 +872,9 @@
       }
     }
 
+    // ================================================================
+    // PARSER KML
+    // ================================================================
     function kmlColorToLeaflet(kmlColor) {
       if (!kmlColor || kmlColor.trim().length !== 8) {
         return { color: '#3388ff', opacity: 1 };
@@ -695,7 +886,7 @@
       const r = hexStr.substring(6, 8);
       
       return {
-        color: `#${r}${g}${b}`,
+        color: '#' + r + g + b,
         opacity: isNaN(a) ? 1 : a
       };
     }
@@ -786,7 +977,7 @@
                   fillColor: fillHex,
                   fillOpacity: 0.9,
                   weight: 1.5
-                }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+                }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
               }
             }
           }
@@ -811,7 +1002,7 @@
                 color: lineHex,
                 opacity: lineOpacity,
                 weight: activeStyle.weight || 3
-              }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+              }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
             }
           }
         }
@@ -840,7 +1031,7 @@
                 fill: isFillActive,
                 fillColor: fillHex,
                 fillOpacity: fillOpacity
-              }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+              }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
             }
           }
         }
@@ -849,6 +1040,9 @@
       return layerGroup;
     }
 
+    // ================================================================
+    // ACTIVATE KMZ/KML
+    // ================================================================
     async function activateKMZFile(index) {
       const file = scannedKmzFiles[index];
       if (!file) return;
@@ -883,7 +1077,7 @@
           map.fitBounds(bounds, { padding: [20, 20] });
         }
 
-        addLayerToActiveStack(`kmz_${index}`, file.name, 'fa-file-code', featureGroup);
+        addLayerToActiveStack('kmz_' + index, file.name, 'fa-file-code', featureGroup);
 
       } catch (err) {
         console.error(err);
@@ -891,6 +1085,9 @@
       }
     }
 
+    // ================================================================
+    // MANAGEMENT LAYERS
+    // ================================================================
     function setBasemap(key) {
       const provider = BASEMAP_PROVIDERS[key];
       if (!provider) return;
@@ -908,7 +1105,7 @@
         map.removeLayer(activeLayers[id].layer);
       }
 
-      activeLayers[id] = { name, icon, layer: leafletLayer };
+      activeLayers[id] = { name: name, icon: icon, layer: leafletLayer };
       updateActiveLayersUI();
     }
 
@@ -940,6 +1137,9 @@
       activeContainer.innerHTML = html;
     }
 
+    // ================================================================
+    // RENDER LIBRARY
+    // ================================================================
     function renderKMZLibrary() {
       const container = document.getElementById('library-content');
       container.innerHTML = `
@@ -956,12 +1156,12 @@
       if (!listContainer) return;
 
       if (!defaultDirHandle) {
-        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Atur folder default KMZ melalui menu Setting (ikon <i class="fa-solid fa-wrench"></i>).</p>`;
+        listContainer.innerHTML = '<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Atur folder default KMZ melalui menu Setting (ikon <i class="fa-solid fa-wrench"></i>).</p>';
         return;
       }
 
       if (scannedKmzFiles.length === 0) {
-        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Tidak ada file .kmz/.kml di dalam folder ini.</p>`;
+        listContainer.innerHTML = '<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Tidak ada file .kmz/.kml di dalam folder ini.</p>';
         return;
       }
 
@@ -1000,6 +1200,9 @@
       container.innerHTML = html;
     }
 
+    // ================================================================
+    // MODAL CONTROL
+    // ================================================================
     function openSettings() {
       document.getElementById('settings-modal').classList.add('active');
     }
@@ -1007,10 +1210,14 @@
       document.getElementById('settings-modal').classList.remove('active');
     }
 
+    // ================================================================
+    // WAYPOINT & NAVIGASI
+    // ================================================================
     function addWaypointAtReticle() {
       const center = map.getCenter();
       const marker = L.marker([center.lat, center.lng]).addTo(map);
-      marker.bindPopup(`<b>Waypoint ${waypointCount++}</b><br>Lat: ${center.lat.toFixed(5)}<br>Lng: ${center.lng.toFixed(5)}`).openPopup();
+      marker.bindPopup('<b>Waypoint ' + waypointCount + '</b><br>Lat: ' + center.lat.toFixed(5) + '<br>Lng: ' + center.lng.toFixed(5)).openPopup();
+      waypointCount++;
     }
 
     function toggleView() {
@@ -1049,6 +1256,9 @@
       }
     }
 
+    // ================================================================
+    // EVENT LISTENER
+    // ================================================================
     window.addEventListener('resize', () => {
       if (map) {
         map.invalidateSize();
