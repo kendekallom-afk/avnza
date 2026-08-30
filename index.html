@@ -436,6 +436,26 @@
     justify-content: space-between;
     align-items: center;
   }
+  .fullscreen-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 12px;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.31);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: monospace;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.fullscreen-btn:active {
+  background-color: rgba(0, 0, 0, 0.9);
+}
   </style>
 </head>
 <body>
@@ -481,6 +501,9 @@
         <span id="gps-accuracy" class="value">-</span>
       </div>
     </div>
+	<button id="btn-fullscreen" class="fullscreen-btn map-only-control" onclick="toggleFullScreen()" title="Full Screen" style="visibility: hidden;">
+  [ ]
+</button>
   </div>
 
   <div id="layers-view" class="view active">
@@ -516,6 +539,7 @@
       </div>
     </div>
   </div>
+  
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -1155,6 +1179,43 @@
     });
 
     window.onload = initMap;
+  </script>
+  <script>
+  function toggleFullScreen() {
+  const fsBtn = document.getElementById('btn-fullscreen');
+
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    // Masuk mode Full Screen
+    const docEl = document.documentElement;
+    if (docEl.requestFullscreen) {
+      docEl.requestFullscreen();
+    } else if (docEl.webkitRequestFullscreen) { /* Safari / Chrome iOS/Android lama */
+      docEl.webkitRequestFullscreen();
+    }
+  } else {
+    // Keluar mode Full Screen
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }
+}
+
+// Event listener untuk memantau perubahan status full screen (misal jika pengguna keluar lewat gestur HP)
+function updateFullscreenButton() {
+  const fsBtn = document.getElementById('btn-fullscreen');
+  if (!fsBtn) return;
+
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    fsBtn.innerText = '[x]';
+  } else {
+    fsBtn.innerText = '[ ]';
+  }
+}
+
+document.addEventListener('fullscreenchange', updateFullscreenButton);
+document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
   </script>
 </body>
 </html>
