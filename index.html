@@ -2,15 +2,12 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#484848">
   <title>Avenza-Style Navigation PWA</title>
-  
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
-  <!-- 1. CSS TAMBAHAN UNTUK LEAFLET ROTATE -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.css" />
 
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 
@@ -36,6 +33,19 @@
     flex-direction: column;
   }
 
+  /* ICON SVG INLINE — menggantikan Font Awesome.
+     Tidak bergantung pada CDN/font eksternal, jadi tidak akan pernah
+     "kosong" walau browser (mis. Samsung Internet) memblokir request CDN. */
+  svg.icon {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    display: block;
+    flex-shrink: 0;
+  }
+
   .top-bar {
     height: 50px;
     background-color: #5d839e;
@@ -59,13 +69,17 @@
     background: none;
     border: none;
     color: #ffffff;
-    font-size: 22px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 40px;
     height: 40px;
+  }
+
+  .tool-btn svg.icon {
+    width: 22px;
+    height: 22px;
   }
 
   .tool-btn:active {
@@ -101,13 +115,11 @@
     background-color: #cccccc;
   }
 
-  /* 2. MENCEGAH INTERSEPSI GESTURE BROWSER DEFAUL */
   #map {
     width: 100%;
     height: 100%;
     z-index: 1;
     background: #e2e2e2;
-    touch-action: none;
   }
 
   .crosshair {
@@ -177,6 +189,7 @@
   .status-medium    { color: #ffeb3b; }
   .status-strong    { color: #4caf50; }
 
+  /* STYLING UNTUK INDIKATOR LOKASI & HADAP HP */
   .user-location-container {
     position: relative;
     width: 60px;
@@ -346,9 +359,10 @@
     gap: 12px;
   }
 
-  .file-info i {
+  .file-info svg.icon {
     color: #5d839e;
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
   }
 
   .file-name {
@@ -465,15 +479,67 @@
 </head>
 <body>
 
+  <!-- SVG ICON SPRITE — semua icon didefinisikan sekali di sini, dipakai lewat <use>.
+       Ini menggantikan Font Awesome supaya icon tidak pernah gagal tampil
+       gara-gara CDN font diblokir (mis. oleh proteksi pelacakan Samsung Internet). -->
+  <svg style="position:absolute; width:0; height:0; overflow:hidden;" aria-hidden="true">
+    <defs>
+      <symbol id="icon-crosshair" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="6"/>
+        <line x1="12" y1="2" x2="12" y2="6"/>
+        <line x1="12" y1="18" x2="12" y2="22"/>
+        <line x1="2" y1="12" x2="6" y2="12"/>
+        <line x1="18" y1="12" x2="22" y2="12"/>
+      </symbol>
+      <symbol id="icon-pin" viewBox="0 0 24 24">
+        <path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7z"/>
+        <circle cx="12" cy="9" r="2.3"/>
+      </symbol>
+      <symbol id="icon-wrench" viewBox="0 0 24 24">
+        <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2z"/>
+      </symbol>
+      <symbol id="icon-map" viewBox="0 0 24 24">
+        <path d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2z"/>
+        <line x1="9" y1="3" x2="9" y2="19"/>
+        <line x1="15" y1="5" x2="15" y2="21"/>
+      </symbol>
+      <symbol id="icon-layers" viewBox="0 0 24 24">
+        <polygon points="12,3 21,8 12,13 3,8"/>
+        <polyline points="3,13 12,18 21,13"/>
+        <polyline points="3,17.5 12,22.5 21,17.5"/>
+      </symbol>
+      <symbol id="icon-globe" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>
+      </symbol>
+      <symbol id="icon-mountain" viewBox="0 0 24 24">
+        <path d="M3 20 9 8l4 6 2-3 6 9z"/>
+        <circle cx="17" cy="6" r="2"/>
+      </symbol>
+      <symbol id="icon-file-code" viewBox="0 0 24 24">
+        <rect x="4" y="2" width="16" height="20" rx="2"/>
+        <polyline points="9,13 7,15 9,17"/>
+        <polyline points="15,13 17,15 15,17"/>
+      </symbol>
+      <symbol id="icon-file-pdf" viewBox="0 0 24 24">
+        <rect x="4" y="2" width="16" height="20" rx="2"/>
+        <line x1="8" y1="9" x2="16" y2="9"/>
+        <line x1="8" y1="13" x2="16" y2="13"/>
+        <line x1="8" y1="17" x2="12" y2="17"/>
+      </symbol>
+    </defs>
+  </svg>
+
   <div class="top-bar"></div>
 
   <div class="toolbar">
     <button class="tool-btn map-only-control" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS" style="visibility: hidden;">
-      <i class="fa-solid fa-crosshairs"></i>
+      <svg class="icon"><use href="#icon-crosshair"></use></svg>
     </button>
 
     <button class="tool-btn map-only-control" id="btn-pin" onclick="addWaypointAtReticle()" title="Tambah Titik" style="visibility: hidden;">
-      <i class="fa-solid fa-map-pin"></i>
+      <svg class="icon"><use href="#icon-pin"></use></svg>
     </button>
 
     <div class="coords-display map-only-control" style="visibility: hidden;">
@@ -482,11 +548,11 @@
     </div>
 
     <button class="tool-btn" id="btn-toggle-view" onclick="toggleView()" title="Beralih Tampilan">
-      <i class="fa-solid fa-map" id="nav-icon"></i>
+      <svg class="icon" id="nav-icon"><use id="nav-icon-use" href="#icon-map"></use></svg>
     </button>
 
     <button class="tool-btn" id="btn-tools" onclick="openSettings()" title="Pengaturan">
-      <i class="fa-solid fa-wrench"></i>
+      <svg class="icon"><use href="#icon-wrench"></use></svg>
     </button>
   </div>
 
@@ -540,10 +606,14 @@
           <span id="folder-path-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;">Belum dipilih</span>
           <button class="action-btn" onclick="selectDefaultKMZFolder()">Pilih Folder</button>
         </div>
-        <span style="font-size: 11px; color: #777;">Semua file KMZ/KML di dalam folder ini akan otomatis dimuat ke tab KMZ.</span>
+        <span style="font-size: 11px; color: #777;">Semua file KMZ/KML di dalam folder ini akan otomatis dimuat ke tab KMZ. Di browser yang tidak mendukung penyimpanan folder permanen (Samsung Internet, Firefox, Safari), folder perlu dipilih ulang tiap sesi.</span>
       </div>
     </div>
   </div>
+
+  <!-- Fallback untuk browser tanpa File System Access API (showDirectoryPicker).
+       Tidak bisa mengingat folder permanen, tapi tetap bisa memuat file per-sesi. -->
+  <input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
@@ -560,32 +630,29 @@
     let defaultDirHandle = null;
 
     const BASEMAP_PROVIDERS = {
-      'google_sat': { name: 'Google Satellite', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', icon: 'fa-earth-americas' },
-      'google_map': { name: 'Google Map', url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', icon: 'fa-map' },
-      'google_hybrid': { name: 'Google Hybrid', url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', icon: 'fa-layer-group' },
-      'google_terrain': { name: 'Google Terrain', url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', icon: 'fa-mountain-sun' },
-      'osm': { name: 'OpenStreetMap (OSM)', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: 'fa-globe' }
+      'google_sat':     { name: 'Google Satellite', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', icon: 'icon-globe',    maxNativeZoom: 20 },
+      'google_map':     { name: 'Google Map',       url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', icon: 'icon-map',      maxNativeZoom: 20 },
+      'google_hybrid':  { name: 'Google Hybrid',    url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', icon: 'icon-layers',   maxNativeZoom: 20 },
+      'google_terrain': { name: 'Google Terrain',   url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', icon: 'icon-mountain', maxNativeZoom: 16 },
+      'osm':            { name: 'OpenStreetMap (OSM)', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: 'icon-globe', maxNativeZoom: 19 }
     };
 
     function initMap() {
-      // 3. INISIALISASI OPSI OPSI LEAFLET ROTATE
-      map = L.map('map', { 
+      map = L.map('map', {
         zoomControl: false,
-        maxZoom: 50,
+        maxZoom: 22,
         rotate: true,
-        bearing: 0,
-        touchRotate: true,
-        rotateControl: false,
-        touchZoom: true
+        touchRotate: true
       }).setView([-2.66491, 118.85193], 15);
-
-      // Aktifkan handler gestur rotasi secara manual jika belum terikat
-      if (map.touchRotate && !map.touchRotate.enabled()) {
-        map.touchRotate.enable();
-      }
 
       map.on('move', updateReticleCoordinates);
       updateReticleCoordinates();
+
+      // Basemap default dimuat otomatis supaya peta tidak pernah tampil kosong/abu-abu.
+      // OSM dipakai sebagai default karena endpoint tile-nya publik & resmi,
+      // sedangkan endpoint Google di bawah tidak resmi/didokumentasikan dan
+      // bisa diblokir oleh proteksi jaringan/browser tertentu (termasuk Samsung Internet).
+      setBasemap('osm');
 
       initStoredKMZFolder();
       initGPSWatcher();
@@ -760,57 +827,94 @@
 
     function openIDB() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open('AvenzaNavDB', 1);
-        req.onupgradeneeded = e => e.target.result.createObjectStore('config');
-        req.onsuccess = e => resolve(e.target.result);
-        req.onerror = e => reject(e.target.error);
+        try {
+          const req = indexedDB.open('AvenzaNavDB', 1);
+          req.onupgradeneeded = e => e.target.result.createObjectStore('config');
+          req.onsuccess = e => resolve(e.target.result);
+          req.onerror = e => reject(e.target.error);
+        } catch (err) {
+          reject(err);
+        }
       });
     }
 
     async function saveHandleToIDB(handle) {
-      const db = await openIDB();
-      const tx = db.transaction('config', 'readwrite');
-      tx.objectStore('config').put(handle, 'defaultKMZFolder');
+      try {
+        const db = await openIDB();
+        const tx = db.transaction('config', 'readwrite');
+        tx.objectStore('config').put(handle, 'defaultKMZFolder');
+      } catch (err) {
+        console.warn('IndexedDB tidak tersedia, folder tidak akan diingat antar sesi:', err);
+      }
     }
 
     async function getHandleFromIDB() {
-      const db = await openIDB();
-      return new Promise(resolve => {
-        const tx = db.transaction('config', 'readonly');
-        const req = tx.objectStore('config').get('defaultKMZFolder');
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
-      });
+      try {
+        const db = await openIDB();
+        return new Promise(resolve => {
+          const tx = db.transaction('config', 'readonly');
+          const req = tx.objectStore('config').get('defaultKMZFolder');
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        });
+      } catch (err) {
+        return null;
+      }
     }
 
     async function initStoredKMZFolder() {
-      defaultDirHandle = await getHandleFromIDB();
-      if (defaultDirHandle) {
-        document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
-        const opts = { mode: 'read' };
-        if ((await defaultDirHandle.queryPermission(opts)) === 'granted') {
-          await scanFilesFromHandle(defaultDirHandle);
-        } else {
-          document.getElementById('folder-path-text').innerText = `${defaultDirHandle.name} (Izin diperlukan)`;
+      try {
+        defaultDirHandle = await getHandleFromIDB();
+        if (defaultDirHandle) {
+          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+          // queryPermission hanya ada pada handle dari File System Access API
+          // (Chrome/Edge). Browser lain tidak akan sampai sini karena handle-nya
+          // adalah object biasa dari fallback <input webkitdirectory>.
+          if (defaultDirHandle.queryPermission) {
+            const opts = { mode: 'read' };
+            if ((await defaultDirHandle.queryPermission(opts)) === 'granted') {
+              await scanFilesFromHandle(defaultDirHandle);
+            } else {
+              document.getElementById('folder-path-text').innerText = `${defaultDirHandle.name} (Izin diperlukan)`;
+            }
+          }
         }
+      } catch (err) {
+        console.warn('Gagal memuat folder tersimpan:', err);
       }
       renderKMZLibrary();
     }
 
     async function selectDefaultKMZFolder() {
-      try {
-        if ('showDirectoryPicker' in window) {
+      if ('showDirectoryPicker' in window) {
+        try {
           defaultDirHandle = await window.showDirectoryPicker();
           await saveHandleToIDB(defaultDirHandle);
           document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
           await scanFilesFromHandle(defaultDirHandle);
           renderKMZLibrary();
           alert("Folder default KMZ/KML berhasil disimpan!");
-        } else {
-          alert("Browser Anda tidak mendukung File System Access API.");
+        } catch (err) {
+          console.warn("Pemilihan folder dibatalkan:", err);
         }
-      } catch (err) {
-        console.warn("Pemilihan folder dibatalkan:", err);
+      } else {
+        // Fallback: File System Access API tidak didukung
+        // (Samsung Internet, Firefox, Safari). Tetap bisa memilih file,
+        // tapi tidak bisa diingat otomatis di sesi berikutnya.
+        document.getElementById('folder-fallback-input').click();
+      }
+    }
+
+    function handleFallbackFolderSelect(event) {
+      const files = Array.from(event.target.files).filter(f =>
+        f.name.toLowerCase().endsWith('.kmz') || f.name.toLowerCase().endsWith('.kml')
+      );
+      scannedKmzFiles = files;
+      defaultDirHandle = { name: 'Folder dipilih (khusus sesi ini)' };
+      document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+      renderKMZLibrary();
+      if (files.length === 0) {
+        alert('Tidak ditemukan file .kmz/.kml pada folder yang dipilih.');
       }
     }
 
@@ -838,7 +942,7 @@
       const b = hexStr.substring(2, 4);
       const g = hexStr.substring(4, 6);
       const r = hexStr.substring(6, 8);
-      
+
       return {
         color: `#${r}${g}${b}`,
         opacity: isNaN(a) ? 1 : a
@@ -873,7 +977,7 @@
           const c = polyStyle.getElementsByTagName("color")[0]?.textContent;
           const fill = polyStyle.getElementsByTagName("fill")[0]?.textContent;
           const outline = polyStyle.getElementsByTagName("outline")[0]?.textContent;
-          
+
           if (c) styleMap[id].poly = kmlColorToLeaflet(c);
           if (fill !== undefined) styleMap[id].hasFill = fill.trim() !== '0';
           if (outline !== undefined) styleMap[id].hasOutline = outline.trim() !== '0';
@@ -1028,7 +1132,7 @@
           map.fitBounds(bounds, { padding: [20, 20] });
         }
 
-        addLayerToActiveStack(`kmz_${index}`, file.name, 'fa-file-code', featureGroup);
+        addLayerToActiveStack(`kmz_${index}`, file.name, 'icon-file-code', featureGroup);
 
       } catch (err) {
         console.error(err);
@@ -1044,7 +1148,12 @@
         map.removeLayer(activeLayers['basemap'].layer);
       }
 
-      const tileLayer = L.tileLayer(provider.url, { maxZoom: 50, attribution: provider.name }).addTo(map);
+      const tileLayer = L.tileLayer(provider.url, {
+        maxZoom: 22,
+        maxNativeZoom: provider.maxNativeZoom || 19,
+        attribution: provider.name
+      }).addTo(map);
+
       addLayerToActiveStack('basemap', provider.name, provider.icon, tileLayer);
     }
 
@@ -1074,7 +1183,7 @@
         html += `
           <div class="file-item">
             <div class="file-info">
-              <i class="fa-solid ${item.icon}"></i>
+              <svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#${item.icon}"></use></svg>
               <span class="file-name">${item.name}</span>
             </div>
             <button class="remove-btn" onclick="removeLayerFromStack('${id}')">Hapus</button>
@@ -1101,7 +1210,7 @@
       if (!listContainer) return;
 
       if (!defaultDirHandle) {
-        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Atur folder default KMZ melalui menu Setting (ikon <i class="fa-solid fa-wrench"></i>).</p>`;
+        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Atur folder default KMZ melalui menu Setting (ikon kunci pas).</p>`;
         return;
       }
 
@@ -1115,7 +1224,7 @@
         html += `
           <div class="file-item">
             <div class="file-info">
-              <i class="fa-solid fa-file-code"></i>
+              <svg class="icon"><use href="#icon-file-code"></use></svg>
               <span class="file-name">${file.name}</span>
             </div>
             <button class="add-btn" onclick="activateKMZFile(${index})">+ Aktifkan</button>
@@ -1134,7 +1243,7 @@
         html += `
           <div class="file-item">
             <div class="file-info">
-              <i class="fa-solid ${item.icon}"></i>
+              <svg class="icon"><use href="#${item.icon}"></use></svg>
               <span class="file-name">${item.name}</span>
             </div>
             <button class="add-btn" onclick="setBasemap('${key}')">+ Aktifkan</button>
@@ -1161,19 +1270,19 @@
     function toggleView() {
       const mapView = document.getElementById('map-view');
       const layersView = document.getElementById('layers-view');
-      const navIcon = document.getElementById('nav-icon');
+      const navIconUse = document.getElementById('nav-icon-use');
       const mapControls = document.querySelectorAll('.map-only-control');
 
       if (currentView === 'map') {
         mapView.classList.remove('active');
         layersView.classList.add('active');
-        navIcon.className = 'fa-solid fa-map';
+        navIconUse.setAttribute('href', '#icon-map');
         mapControls.forEach(el => el.style.visibility = 'hidden');
         currentView = 'layers';
       } else {
         layersView.classList.remove('active');
         mapView.classList.add('active');
-        navIcon.className = 'fa-solid fa-layer-group';
+        navIconUse.setAttribute('href', '#icon-layers');
         mapControls.forEach(el => el.style.visibility = 'visible');
         currentView = 'map';
         setTimeout(() => map.invalidateSize(), 100);
@@ -1189,7 +1298,10 @@
       else if (tabName === 'maps') {
         document.getElementById('library-content').innerHTML = `
           <div class="file-item">
-            <div class="file-info"><i class="fa-solid fa-file-pdf"></i><span class="file-name">Peta_Topografi_Zone48S.pdf</span></div>
+            <div class="file-info">
+              <svg class="icon"><use href="#icon-file-pdf"></use></svg>
+              <span class="file-name">Peta_Topografi_Zone48S.pdf</span>
+            </div>
           </div>`;
       }
     }
@@ -1201,15 +1313,24 @@
     });
 
     window.onload = initMap;
+  </script>
 
+  <script>
     function toggleFullScreen() {
+      const docEl = document.documentElement;
+
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        const docEl = document.documentElement;
-        if (docEl.requestFullscreen) docEl.requestFullscreen();
-        else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen();
+        } else if (docEl.webkitRequestFullscreen) {
+          docEl.webkitRequestFullscreen();
+        }
       } else {
-        if (document.exitFullscreen) document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
       }
     }
 
