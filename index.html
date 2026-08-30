@@ -14,7 +14,9 @@
   <!-- ============================================ -->
   <!-- gdal3.js - Untuk konversi GeoPDF ke WebP+JSON -->
   <!-- ============================================ -->
-  <script src="https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/gdal3.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package/gdal3.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
 
   <style>
   html, body {
@@ -861,6 +863,7 @@
     let latestCoords = null;
     let activeMapId = null; // ID peta yang sedang aktif
     let gdalReady = false;
+    let gdal = null;
 
     let activeLayers = {};
     let scannedKmzFiles = [];
@@ -883,7 +886,7 @@
 
     function openDB() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 2);
+        const req = indexedDB.open(DB_NAME, 3);
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -965,21 +968,24 @@
     // ================================================================
     async function initGDAL() {
       try {
-        // Tunggu gdal3.js siap
-        if (typeof gdal !== 'undefined') {
-          // Inisialisasi dengan path yang benar
-          const result = await gdal.init({
-            path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package'
-          });
-          gdalReady = true;
-          console.log('✅ gdal3.js siap digunakan');
-          showNotification('✅ gdal3.js siap untuk konversi GeoPDF', 2000);
-        } else {
-          console.warn('⚠️ gdal3.js tidak ditemukan, konversi GeoPDF tidak tersedia');
+        if (typeof initGdalJs !== 'function') {
+          console.warn('gdal3.js tidak ditemukan.');
+          gdalReady = false;
+          return;
         }
+
+        gdal = await initGdalJs({
+          path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',
+          useWorker: false
+        });
+
+        gdalReady = !!gdal;
+        console.log('GDAL siap:', Object.keys(gdal.drivers?.raster || {}).length, 'driver raster');
+        showNotification('✅ Mesin GIS siap', 1800);
       } catch (err) {
-        console.warn('⚠️ Gagal inisialisasi gdal3.js:', err);
+        console.warn('GDAL tidak dapat diinisialisasi:', err);
         gdalReady = false;
+        gdal = null;
       }
     }
 
@@ -1198,86 +1204,234 @@
     }
 
     // ================================================================
-    // KONVERSI GEOPDF DENGAN gdal3.js
+    // KONVERSI GEOPDF -> WebP + JSON
     // ================================================================
+    // Alur:
+    // 1. Coba GDAL bila build browser mendukung PDF read.
+    // 2. Bila PDF driver tidak tersedia, render halaman dengan PDF.js.
+    // 3. Ambil georeferensi GeoPDF dari dictionary GPTS/EPSG bila tersedia.
+    // 4. Simpan WebP + JSON georeferensi dalam SATU record IndexedDB.
+    //
+    // Catatan penting: gdal3.js CDN resmi 2.8.1 tidak membawa backend
+    // Poppler/PDFium, sehingga PDF read biasanya tidak tersedia. Karena itu
+    // PDF.js dipakai sebagai fallback untuk rasterisasi halaman.
     async function convertGeoPDFToWebP(fileData, filename) {
-      return new Promise(async (resolve, reject) => {
-        try {
-          // Cek apakah gdal3.js tersedia
-          if (!gdalReady || typeof gdal === 'undefined') {
-            // Fallback: gunakan data placeholder untuk testing
-            showNotification('⚠️ gdal3.js tidak tersedia. Gunakan mode placeholder.', 3000);
-            const mockResult = {
-              tilesData: new ArrayBuffer(0),
-              metadata: {
-                name: filename,
-                bounds: [-6.5, 106.5, -5.5, 107.5],
-                minZoom: 8,
-                maxZoom: 18,
-                format: 'webp',
-                tileSize: 256,
-                scheme: 'xyz'
-              }
-            };
-            resolve(mockResult);
-            return;
-          }
+      const bytes = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
 
-          // ============================================
-          // IMPLEMENTASI DENGAN gdal3.js
-          // ============================================
-          // Catatan: API gdal3.js mungkin berbeda, sesuaikan dengan dokumentasi
-          // https://gdal3.js.org/
-          
-          // 1. Buka dataset dari file
-          const dataArray = new Uint8Array(fileData);
-          const dataBlob = new Blob([dataArray], { type: 'application/pdf' });
-          const dataUrl = URL.createObjectURL(dataBlob);
-          
-          // 2. Gunakan gdal untuk membaca
-          // Perhatikan: gdal3.js mungkin membutuhkan path file atau URL
-          // Untuk browser, kita bisa menggunakan virtual file system
-          
-          // 3. Generate tile
-          // Ini adalah contoh konsep - API aktual mungkin berbeda
-          /*
-          const dataset = await gdal.open(dataUrl);
-          const metadata = await dataset.getMetadata();
-          
-          // Generate tiles dalam format WebP
-          const tiles = await dataset.generateTiles({
-            format: 'webp',
-            zoomLevels: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-            tileSize: 256
-          });
-          */
-          
-          // Fallback sementara: gunakan placeholder
-          // TODO: Implementasi aktual dengan API gdal3.js yang benar
-          showNotification('⚠️ Konversi GeoPDF masih dalam pengembangan. Data disimpan sebagai placeholder.', 4000);
-          
-          const fallbackResult = {
-            tilesData: new ArrayBuffer(0),
-            metadata: {
-              name: filename,
-              bounds: [-6.5, 106.5, -5.5, 107.5],
-              minZoom: 8,
-              maxZoom: 18,
-              format: 'webp',
-              tileSize: 256,
-              scheme: 'xyz',
-              note: 'Placeholder - Konversi dengan gdal3.js belum sepenuhnya diimplementasikan'
+      // ---- A. Jalur GDAL, jika PDF driver tersedia ----
+      if (gdalReady && gdal) {
+        try {
+          const file = new File([bytes], filename, { type: 'application/pdf' });
+          const opened = await gdal.open(file);
+
+          if (opened && opened.datasets && opened.datasets.length) {
+            const dataset = opened.datasets[0];
+            const info = await gdal.getInfo(dataset);
+
+            if (info && info.type === 'raster' && info.corners?.length) {
+              const webpPath = await gdal.gdal_translate(
+                dataset,
+                ['-of', 'WEBP', '-co', 'QUALITY=90'],
+                filename.replace(/\.[^/.]+$/, '')
+              );
+              const webpBytes = await gdal.getFileBytes(webpPath);
+
+              const bounds = await cornersToLeafletBounds(info.corners, info.projectionWkt);
+              if (!bounds) throw new Error('GDAL membaca PDF tetapi tidak menemukan georeferensi yang dapat dipetakan ke WGS84.');
+
+              try { gdal.close(dataset); } catch (_) {}
+
+              return {
+                webpData: toArrayBuffer(webpBytes),
+                metadata: {
+                  name: filename,
+                  bounds,
+                  width: info.width,
+                  height: info.height,
+                  projectionWkt: info.projectionWkt || '',
+                  source: 'gdal3.js',
+                  format: 'webp',
+                  scheme: 'image-overlay',
+                  jsonVersion: 1
+                }
+              };
             }
-          };
-          resolve(fallbackResult);
-          
-          // Hapus URL object
-          URL.revokeObjectURL(dataUrl);
-          
+          }
         } catch (err) {
-          reject(err);
+          console.warn('Jalur GDAL-PDF gagal, lanjut PDF.js:', err);
         }
+      }
+
+      // ---- B. Render halaman PDF dengan PDF.js ----
+      if (typeof pdfjsLib === 'undefined') {
+        throw new Error('PDF.js belum tersedia. Pastikan koneksi internet aktif saat aplikasi pertama kali dibuka.');
+      }
+
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+      const loadingTask = pdfjsLib.getDocument({ data: bytes });
+      const pdf = await loadingTask.promise;
+      const page = await pdf.getPage(1);
+
+      // Resolusi 2x: cukup tajam untuk peta dan masih realistis untuk HP.
+      const baseViewport = page.getViewport({ scale: 1 });
+      const maxPixels = 18000000;
+      let scale = 2.0;
+      if ((baseViewport.width * scale) * (baseViewport.height * scale) > maxPixels) {
+        scale = Math.sqrt(maxPixels / (baseViewport.width * baseViewport.height));
+      }
+      scale = Math.max(0.75, Math.min(scale, 3.0));
+
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      await page.render({
+        canvasContext: ctx,
+        viewport
+      }).promise;
+
+      const webpBlob = await canvasToWebP(canvas, 0.90);
+      const webpData = await webpBlob.arrayBuffer();
+
+      // Ambil georeferensi dari PDF. Tidak boleh memakai bounds palsu.
+      const geo = await extractGeoPDFGeoreference(bytes);
+      if (!geo || !geo.bounds) {
+        throw new Error(
+          'Halaman PDF berhasil dirender menjadi WebP, tetapi georeferensi GeoPDF tidak dapat dibaca. ' +
+          'PWA sengaja tidak membuat bounds palsu karena posisi peta harus akurat.'
+        );
+      }
+
+      return {
+        webpData,
+        metadata: {
+          name: filename,
+          bounds: geo.bounds,
+          epsg: geo.epsg || null,
+          source: 'pdf.js + GeoPDF metadata',
+          format: 'webp',
+          scheme: 'image-overlay',
+          width: canvas.width,
+          height: canvas.height,
+          page: 1,
+          pdfPages: pdf.numPages,
+          jsonVersion: 1
+        }
+      };
+    }
+
+    function toArrayBuffer(value) {
+      if (value instanceof ArrayBuffer) return value;
+      if (value instanceof Uint8Array) {
+        return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+      }
+      return new Uint8Array(value).buffer;
+    }
+
+    function canvasToWebP(canvas, quality) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+          if (blob) resolve(blob);
+          else reject(new Error('Browser tidak mendukung encoding WebP.'));
+        }, 'image/webp', quality);
       });
+    }
+
+    async function cornersToLeafletBounds(corners, projectionWkt) {
+      if (!Array.isArray(corners) || corners.length < 4) return null;
+      const xy = corners.map(c => [Number(c[0]), Number(c[1])]);
+      if (xy.some(c => !Number.isFinite(c[0]) || !Number.isFinite(c[1]))) return null;
+
+      // Jika sudah lon/lat.
+      if (xy.every(c => Math.abs(c[0]) <= 180 && Math.abs(c[1]) <= 90)) {
+        return [
+          Math.min(...xy.map(c => c[1])),
+          Math.min(...xy.map(c => c[0])),
+          Math.max(...xy.map(c => c[1])),
+          Math.max(...xy.map(c => c[0]))
+        ];
+      }
+
+      if (!projectionWkt || typeof proj4 !== 'function') return null;
+
+      try {
+        const source = projectionWkt;
+        const target = proj4.WGS84 || 'EPSG:4326';
+        const ll = xy.map(c => proj4(source, target, c));
+        return [
+          Math.min(...ll.map(c => c[1])),
+          Math.min(...ll.map(c => c[0])),
+          Math.max(...ll.map(c => c[1])),
+          Math.max(...ll.map(c => c[0]))
+        ];
+      } catch (err) {
+        console.warn('Reproject corner gagal:', err);
+        return null;
+      }
+    }
+
+    // Ekstraksi heuristik untuk dua pola umum GeoPDF:
+    // /GPTS [x y x y ...] + /EPSG xxxx
+    // atau koordinat GPTS yang sudah berupa longitude/latitude.
+    // Ini bukan parser PDF penuh; jika dictionary berada dalam object stream
+    // terkompresi dan tidak terbaca sebagai teks, fungsi akan mengembalikan null.
+    async function extractGeoPDFGeoreference(fileData) {
+      const text = new TextDecoder('latin1').decode(fileData);
+
+      const gptsMatches = [];
+      const gptsRegex = /\/GPTS\s*\[([\s\S]*?)\]/g;
+      let match;
+      while ((match = gptsRegex.exec(text)) !== null) {
+        const nums = parsePdfNumbers(match[1]);
+        if (nums.length >= 8) gptsMatches.push(nums);
+      }
+
+      if (!gptsMatches.length) return null;
+
+      // Gunakan dictionary GPTS terbesar yang masuk akal.
+      const gpts = gptsMatches.sort((a, b) => b.length - a.length)[0];
+      const points = [];
+      for (let i = 0; i + 1 < gpts.length; i += 2) {
+        points.push([gpts[i], gpts[i + 1]]);
+      }
+
+      const epsgMatch = text.match(/\/(?:EPSG|EPSG_CODE)\s+(?:\[\s*)?(\d{4,6})/i);
+      const epsg = epsgMatch ? Number(epsgMatch[1]) : null;
+
+      let bounds = null;
+
+      if (points.every(p => Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90)) {
+        bounds = [
+          Math.min(...points.map(p => p[1])),
+          Math.min(...points.map(p => p[0])),
+          Math.max(...points.map(p => p[1])),
+          Math.max(...points.map(p => p[0]))
+        ];
+      } else if (epsg && typeof proj4 === 'function') {
+        try {
+          const ll = points.map(p => proj4('EPSG:' + epsg, 'EPSG:4326', p));
+          bounds = [
+            Math.min(...ll.map(p => p[1])),
+            Math.min(...ll.map(p => p[0])),
+            Math.max(...ll.map(p => p[1])),
+            Math.max(...ll.map(p => p[0]))
+          ];
+        } catch (err) {
+          console.warn('GPTS ditemukan tetapi EPSG gagal diproyeksikan:', err);
+        }
+      }
+
+      return bounds ? { bounds, epsg } : null;
+    }
+
+    function parsePdfNumbers(value) {
+      return (value.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) || [])
+        .map(Number)
+        .filter(Number.isFinite);
     }
 
     // ================================================================
@@ -1306,7 +1460,7 @@
               name: file.name.replace(/\.[^/.]+$/, '') + '.webp',
               type: 'webp_json',
               fileData: data,
-              tilesData: result.tilesData,
+              webpData: result.webpData,
               metadata: result.metadata,
               geojson: { type: 'FeatureCollection', features: [] },
               created: new Date().toISOString(),
@@ -1315,8 +1469,9 @@
               isGeoPDF: true,
               converted: true,
               bounds: result.metadata.bounds,
-              minZoom: result.metadata.minZoom || 8,
-              maxZoom: result.metadata.maxZoom || 18
+              minZoom: result.metadata.minZoom || 1,
+              maxZoom: result.metadata.maxZoom || 22,
+              jsonData: JSON.stringify(result.metadata)
             };
             
             await saveMapToDB(newMap);
@@ -1576,6 +1731,9 @@
           </button>
           <button class="add-btn" onclick="uploadGeoPDF()" style="background:#ff9800;">
             <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload GeoPDF
+          </button>
+          <button class="add-btn" onclick="uploadWebPJSON()" style="background:#607d8b;">
+            <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Import WebP+JSON
           </button>
           <button class="add-btn" onclick="uploadWebPJSON()" style="background:#6a5acd;">
             <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload WebP+JSON
