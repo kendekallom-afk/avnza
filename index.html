@@ -683,7 +683,7 @@
       }
 
       if (latestCoords) {
-        map.flyTo([latestCoords.lat, latestCoords.lng], currentZoom);
+        map.setView([latestCoords.lat, latestCoords.lng], currentZoom);
         updateUserMarker(latestCoords.lat, latestCoords.lng);
       } else {
         navigator.geolocation.getCurrentPosition(
@@ -691,7 +691,7 @@
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             latestCoords = { lat, lng };
-            map.flyTo([lat, lng], currentZoom);
+            map.setView([lat, lng], currentZoom);
             updateUserMarker(lat, lng);
           },
           (err) => {
