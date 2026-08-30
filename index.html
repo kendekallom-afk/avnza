@@ -1,1923 +1,1056 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Avenza-Style Navigation PWA</title>
-    <meta name="theme-color" content="#4CAF50">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="/icon-192x192.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Avenza Nav">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <style>
-        /* ============================================
-           RESET & BASE
-           ============================================ */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f5f5;
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-        }
-        
-        /* ============================================
-           APP CONTAINER - SPA dengan 2 View
-           ============================================ */
-        #app {
-            height: 100vh;
-            width: 100vw;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        /* ============================================
-           VIEW 1: MAP VIEW (Default)
-           ============================================ */
-        #map-view {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            transition: transform 0.3s ease, opacity 0.3s ease;
-        }
-        
-        #map-view.hidden {
-            transform: translateX(-100%);
-            opacity: 0;
-            pointer-events: none;
-        }
-        
-        #map {
-            height: 100%;
-            width: 100%;
-        }
-        
-        /* ============================================
-           VIEW 2: LAYER VIEW (Tab Layers)
-           ============================================ */
-        #layer-view {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2;
-            background: white;
-            transform: translateX(100%);
-            transition: transform 0.3s ease, opacity 0.3s ease;
-            opacity: 0;
-            overflow-y: auto;
-            padding: 20px;
-            padding-top: 60px;
-        }
-        
-        #layer-view.active {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        
-        #layer-view.hidden {
-            transform: translateX(100%);
-            opacity: 0;
-            pointer-events: none;
-        }
-        
-        /* ============================================
-           LAYER VIEW CONTENT
-           ============================================ */
-        .layer-header {
-            position: sticky;
-            top: 0;
-            background: white;
-            padding: 15px 0;
-            border-bottom: 2px solid #f0f0f0;
-            margin-bottom: 20px;
-            z-index: 10;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .layer-header h2 {
-            margin: 0;
-            color: #333;
-            font-size: 20px;
-        }
-        
-        .layer-header .close-btn {
-            background: none;
-            border: none;
-            font-size: 28px;
-            cursor: pointer;
-            color: #999;
-            padding: 0 10px;
-        }
-        
-        .layer-header .close-btn:hover {
-            color: #333;
-        }
-        
-        .layer-section {
-            margin-bottom: 25px;
-        }
-        
-        .layer-section h3 {
-            color: #666;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .layer-item {
-            display: flex;
-            align-items: center;
-            padding: 10px 12px;
-            margin: 5px 0;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-            border: 1px solid transparent;
-        }
-        
-        .layer-item:hover {
-            background: #f5f5f5;
-        }
-        
-        .layer-item.active {
-            background: #e8f5e9;
-            border-color: #4CAF50;
-        }
-        
-        .layer-item .layer-icon {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 12px;
-            font-size: 18px;
-        }
-        
-        .layer-item .layer-info {
-            flex: 1;
-        }
-        
-        .layer-item .layer-info .layer-name {
-            font-weight: 600;
-            color: #333;
-            font-size: 14px;
-        }
-        
-        .layer-item .layer-info .layer-desc {
-            font-size: 12px;
-            color: #999;
-            margin-top: 2px;
-        }
-        
-        .layer-item .layer-toggle {
-            position: relative;
-            width: 44px;
-            height: 24px;
-            background: #ccc;
-            border-radius: 12px;
-            transition: background 0.3s;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-        
-        .layer-item .layer-toggle.active {
-            background: #4CAF50;
-        }
-        
-        .layer-item .layer-toggle .toggle-slider {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 20px;
-            height: 20px;
-            background: white;
-            border-radius: 50%;
-            transition: transform 0.3s;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-        
-        .layer-item .layer-toggle.active .toggle-slider {
-            transform: translateX(20px);
-        }
-        
-        /* ============================================
-           NAVIGATION BOTTOM BAR
-           ============================================ */
-        #bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            background: white;
-            display: flex;
-            justify-content: space-around;
-            padding: 8px 0;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-            border-top: 1px solid #f0f0f0;
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(10px);
-        }
-        
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 4px 16px;
-            cursor: pointer;
-            border: none;
-            background: none;
-            color: #999;
-            transition: color 0.3s;
-            font-family: inherit;
-            position: relative;
-        }
-        
-        .nav-item .nav-icon {
-            font-size: 22px;
-            margin-bottom: 2px;
-        }
-        
-        .nav-item .nav-label {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .nav-item.active {
-            color: #4CAF50;
-        }
-        
-        .nav-item .nav-badge {
-            position: absolute;
-            top: 0;
-            right: 4px;
-            background: #f44336;
-            color: white;
-            border-radius: 50%;
-            padding: 1px 6px;
-            font-size: 10px;
-            font-weight: bold;
-        }
-        
-        /* ============================================
-           GPS STATUS (Di atas map)
-           ============================================ */
-        #gps-status {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 999;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 10px 14px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-            min-width: 150px;
-            font-size: 12px;
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-        
-        #gps-status .gps-title {
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 3px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-        }
-        
-        #gps-status .gps-title .dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #f44336;
-            animation: pulse 1.5s infinite;
-        }
-        
-        #gps-status .gps-title .dot.active {
-            background: #4CAF50;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-        
-        #gps-status .gps-info {
-            color: #999;
-            font-size: 11px;
-        }
-        
-        #gps-status .gps-info span {
-            color: #333;
-            font-weight: 600;
-        }
-        
-        /* ============================================
-           SIGNAL INDICATOR
-           ============================================ */
-        #signal-indicator {
-            position: absolute;
-            bottom: 80px;
-            left: 10px;
-            z-index: 999;
-            background: rgba(255,255,255,0.95);
-            padding: 6px 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-            border: 2px solid #4CAF50;
-            font-size: 11px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            backdrop-filter: blur(5px);
-        }
-        
-        #signal-indicator .signal-bars {
-            display: flex;
-            gap: 2px;
-            align-items: end;
-            height: 18px;
-        }
-        
-        #signal-indicator .signal-bars .bar {
-            width: 4px;
-            background: #e0e0e0;
-            border-radius: 1px;
-            transition: all 0.4s ease;
-        }
-        
-        #signal-indicator .signal-bars .bar.active {
-            background: #4CAF50;
-        }
-        
-        #signal-indicator .signal-bars .bar.inactive {
-            background: #e0e0e0;
-        }
-        
-        #signal-indicator .signal-text {
-            font-weight: 600;
-            color: #333;
-            min-width: 60px;
-        }
-        
-        /* ============================================
-           DROP ZONE
-           ============================================ */
-        #drop-zone {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%;
-            max-width: 450px;
-            padding: 35px;
-            background: rgba(255,255,255,0.97);
-            border: 3px dashed #4CAF50;
-            border-radius: 15px;
-            text-align: center;
-            z-index: 9999;
-            display: none;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            transition: all 0.3s ease;
-            cursor: pointer;
-            backdrop-filter: blur(10px);
-        }
-        
-        #drop-zone.drag-over {
-            border-color: #2196F3;
-            background: rgba(33, 150, 243, 0.08);
-            transform: translate(-50%, -50%) scale(1.03);
-        }
-        
-        #drop-zone .drop-icon { font-size: 44px; margin-bottom: 8px; }
-        #drop-zone .drop-message p { font-size: 17px; margin: 8px 0; color: #333; }
-        #drop-zone .drop-message span { font-size: 13px; color: #888; }
-        
-        .drop-progress {
-            width: 100%;
-            height: 4px;
-            background: #f0f0f0;
-            border-radius: 2px;
-            margin-top: 15px;
-            overflow: hidden;
-            display: none;
-        }
-        
-        .drop-progress .progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #2196F3);
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-        
-        /* ============================================
-           BOOKMARK PANEL
-           ============================================ */
-        #bookmark-panel {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 400px;
-            max-width: 92%;
-            max-height: 75vh;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            z-index: 9998;
-            padding: 25px;
-            display: none;
-            overflow-y: auto;
-        }
-        
-        #bookmark-panel .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-        
-        #bookmark-panel .panel-header h3 { margin: 0; color: #333; }
-        #bookmark-panel .panel-header button {
-            background: none;
-            border: none;
-            font-size: 26px;
-            cursor: pointer;
-            color: #999;
-        }
-        
-        #bookmark-panel .panel-header button:hover { color: #333; }
-        
-        .bookmark-input-group {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 15px;
-        }
-        
-        .bookmark-input-group input {
-            flex: 1;
-            padding: 8px 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        
-        .bookmark-input-group input:focus {
-            outline: none;
-            border-color: #4CAF50;
-        }
-        
-        .bookmark-input-group button {
-            padding: 8px 18px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-        
-        .bookmark-input-group button:hover { background: #45a049; }
-        
-        #bookmark-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
-        .bookmark-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 12px;
-            border-bottom: 1px solid #f0f0f0;
-            animation: slideIn 0.3s ease;
-        }
-        
-        .bookmark-item .bookmark-info { flex: 1; }
-        .bookmark-item .bookmark-info strong { color: #333; display: block; font-size: 14px; }
-        .bookmark-item .bookmark-info small { color: #999; font-size: 11px; }
-        
-        .bookmark-item .bookmark-actions { display: flex; gap: 5px; }
-        .bookmark-item .bookmark-actions button {
-            padding: 4px 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 13px;
-        }
-        
-        .bookmark-item .bookmark-actions .btn-fly {
-            background: #2196F3;
-            color: white;
-        }
-        .bookmark-item .bookmark-actions .btn-fly:hover { background: #1976D2; }
-        .bookmark-item .bookmark-actions .btn-delete {
-            background: #f44336;
-            color: white;
-        }
-        .bookmark-item .bookmark-actions .btn-delete:hover { background: #d32f2f; }
-        
-        .empty-bookmark {
-            color: #999;
-            text-align: center;
-            padding: 25px 0;
-        }
-        
-        /* ============================================
-           FLOATING BUTTONS
-           ============================================ */
-        .floating-btn {
-            position: fixed;
-            z-index: 1000;
-            padding: 12px;
-            background: white;
-            border: none;
-            border-radius: 50%;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-            cursor: pointer;
-            font-size: 18px;
-            transition: all 0.3s ease;
-            width: 44px;
-            height: 44px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .floating-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-        }
-        
-        #btn-bookmark {
-            bottom: 130px;
-            right: 12px;
-        }
-        
-        #btn-theme {
-            bottom: 185px;
-            right: 12px;
-        }
-        
-        /* ============================================
-           NOTIFICATION
-           ============================================ */
-        .notification {
-            position: fixed;
-            bottom: 75px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            border-radius: 10px;
-            color: white;
-            z-index: 10000;
-            animation: slideUp 0.4s ease;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            font-weight: 500;
-            max-width: 90%;
-            text-align: center;
-            font-size: 14px;
-        }
-        
-        .notification.success { background: #4CAF50; }
-        .notification.error { background: #f44336; }
-        .notification.info { background: #2196F3; }
-        .notification.warning { background: #ff9800; }
-        
-        @keyframes slideUp {
-            from { transform: translateX(-50%) translateY(20px); opacity: 0; }
-            to { transform: translateX(-50%) translateY(0); opacity: 1; }
-        }
-        
-        @keyframes slideDown {
-            from { transform: translateX(-50%) translateY(0); opacity: 1; }
-            to { transform: translateX(-50%) translateY(20px); opacity: 0; }
-        }
-        
-        /* ============================================
-           GLOBAL PROGRESS
-           ============================================ */
-        #global-progress {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background: rgba(240, 240, 240, 0.8);
-            z-index: 99999;
-            display: none;
-        }
-        
-        #global-progress .progress-inner {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #4CAF50, #2196F3, #4CAF50);
-            background-size: 200% 100%;
-            transition: width 0.3s ease;
-            animation: shimmer 1.5s infinite;
-        }
-        
-        @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-        }
-        
-        /* ============================================
-           DARK MODE
-           ============================================ */
-        body.dark-mode {
-            background: #1a1a1a;
-        }
-        
-        body.dark-mode #map-view { background: #1a1a1a; }
-        
-        body.dark-mode #layer-view {
-            background: #1a1a1a;
-            color: #ddd;
-        }
-        
-        body.dark-mode #layer-view .layer-header {
-            background: #1a1a1a;
-            border-color: #333;
-        }
-        
-        body.dark-mode #layer-view .layer-header h2 { color: #ddd; }
-        body.dark-mode #layer-view .layer-header .close-btn { color: #888; }
-        body.dark-mode #layer-view .layer-header .close-btn:hover { color: #fff; }
-        
-        body.dark-mode #bottom-nav {
-            background: rgba(30,30,30,0.95);
-            border-color: #333;
-        }
-        
-        body.dark-mode .nav-item { color: #666; }
-        body.dark-mode .nav-item.active { color: #4CAF50; }
-        
-        body.dark-mode #gps-status {
-            background: rgba(30,30,30,0.95);
-            border-color: #333;
-        }
-        body.dark-mode #gps-status .gps-title { color: #ddd; }
-        body.dark-mode #gps-status .gps-info { color: #888; }
-        body.dark-mode #gps-status .gps-info span { color: #ddd; }
-        
-        body.dark-mode .floating-btn {
-            background: #2d2d2d;
-            color: #ddd;
-        }
-        body.dark-mode .floating-btn:hover { background: #3d3d3d; }
-        
-        body.dark-mode #bookmark-panel {
-            background: #2d2d2d;
-            color: #ddd;
-        }
-        body.dark-mode #bookmark-panel .panel-header h3 { color: #ddd; }
-        body.dark-mode #bookmark-panel .panel-header button { color: #888; }
-        body.dark-mode .bookmark-input-group input {
-            background: #3d3d3d;
-            color: #ddd;
-            border-color: #555;
-        }
-        body.dark-mode .bookmark-item { border-color: #444; }
-        body.dark-mode .bookmark-item .bookmark-info strong { color: #ddd; }
-        body.dark-mode .empty-bookmark { color: #777; }
-        
-        body.dark-mode #drop-zone {
-            background: rgba(30,30,30,0.97);
-            border-color: #4CAF50;
-        }
-        body.dark-mode #drop-zone .drop-message p { color: #ddd; }
-        body.dark-mode #drop-zone .drop-message span { color: #999; }
-        
-        body.dark-mode #signal-indicator {
-            background: rgba(30,30,30,0.95);
-            border-color: #4CAF50;
-        }
-        body.dark-mode #signal-indicator .signal-text { color: #ddd; }
-        body.dark-mode #signal-indicator .signal-bars .bar.inactive { background: #444; }
-        
-        body.dark-mode .leaflet-control-zoom a,
-        body.dark-mode .leaflet-control-attribution {
-            background: #2d2d2d !important;
-            color: #ddd !important;
-            border-color: #444 !important;
-        }
-        body.dark-mode .leaflet-popup-content-wrapper {
-            background: #2d2d2d;
-            color: #ddd;
-        }
-        body.dark-mode .leaflet-popup-tip { background: #2d2d2d; }
-        
-        /* ============================================
-           SCROLLBAR
-           ============================================ */
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        body.dark-mode ::-webkit-scrollbar-track { background: #2d2d2d; }
-        body.dark-mode ::-webkit-scrollbar-thumb { background: #555; }
-        
-        /* ============================================
-           RESPONSIVE
-           ============================================ */
-        @media (max-width: 600px) {
-            #gps-status {
-                top: 8px;
-                left: 8px;
-                right: 8px;
-                min-width: auto;
-                font-size: 11px;
-                padding: 8px 12px;
-            }
-            
-            #layer-view { padding: 15px; padding-top: 50px; }
-            .layer-item { padding: 8px 10px; }
-            
-            #bookmark-panel { width: 95%; padding: 18px; }
-            
-            .floating-btn {
-                width: 40px;
-                height: 40px;
-                font-size: 16px;
-            }
-            #btn-bookmark { bottom: 120px; right: 10px; }
-            #btn-theme { bottom: 170px; right: 10px; }
-            
-            #signal-indicator {
-                bottom: 75px;
-                left: 8px;
-                padding: 4px 10px;
-                font-size: 10px;
-            }
-            
-            .nav-item { padding: 2px 12px; }
-            .nav-item .nav-icon { font-size: 18px; }
-            .nav-item .nav-label { font-size: 9px; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Avenza-Style Navigation PWA</title>
+  
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+  html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Mencegah scrollbar muncul */
+}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #dcdcdc;
+  display: flex;
+  flex-direction: column;
+}
+
+
+    .top-bar {
+      height: 50px;
+      background-color: #5d839e;
+      width: 100%;
+      flex-shrink: 0;
+    }
+
+    .toolbar {
+      height: 56px;
+      background-color: #484848;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+
+    .tool-btn {
+      background: none;
+      border: none;
+      color: #ffffff;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+    }
+
+    .tool-btn:active {
+      opacity: 0.7;
+    }
+
+    .coords-display {
+      color: #ffffff;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.2;
+      font-family: monospace;
+    }
+
+    /* VIEW CONTROLLER */
+    .view {
+  display: none;
+  flex: 1; /* Mengisi sisa ruang secara dinamis */
+  position: relative;
+  overflow: hidden;
+  height: calc(100vh - 106px); /* 106px adalah total tinggi top-bar + toolbar */
+}
+
+    .view.active {
+  display: flex;
+  flex-direction: column;
+}
+
+    /* MAP VIEW */
+    #map-view {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background-color: #cccccc;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background: #e2e2e2;
+    }
+
+    /* Reticle / Crosshair */
+    .crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      border: 2px solid #333333;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 500;
+    }
+
+    .crosshair::before,
+    .crosshair::after {
+      content: "";
+      position: absolute;
+      background-color: #333333;
+    }
+
+    .crosshair::before { width: 2px; height: 76px; }
+    .crosshair::after { width: 76px; height: 2px; }
+
+    .crosshair-center {
+      width: 4px;
+      height: 4px;
+      background-color: #333333;
+      border-radius: 50%;
+      z-index: 2;
+    }
+
+    /* STYLING OVERLAY GPS (KIRI BAWAH MAP) */
+    .gps-overlay {
+  position: absolute;
+  bottom: 20px; /* Jarak aman dari navigasi bawah Android */
+  left: 12px;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+    .gps-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .gps-overlay .label {
+      color: #cccccc;
+    }
+
+    .gps-overlay .value {
+      font-weight: 600;
+    }
+
+    /* Status Warna Sinyal */
+    .status-no-signal { color: #ff4d4d; }
+    .status-weak      { color: #ffa500; }
+    .status-medium    { color: #ffeb3b; }
+    .status-strong    { color: #4caf50; }
+
+    /* LAYERS & LIBRARY VIEW */
+    .layers-section {
+      flex: 1;
+      min-height: 0;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      border-bottom: 2px solid #a0a0a0;
+      background-color: #e2e2e2;
+    }
+
+    .section-title {
+      font-size: 16px;
+      color: #333333;
+      font-weight: 500;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+
+    .active-layers-list {
+      flex: 1;
+      overflow-y: auto;
+      border: 2px dashed #a0a0a0;
+      border-radius: 4px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .active-layers-list:empty::before {
+      content: "Belum ada layer aktif. Pilih dari Library di bawah.";
+      color: #777;
+      font-size: 13px;
+      text-align: center;
+      margin: auto;
+    }
+
+    .library-section {
+      flex: 1.2;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background-color: #dcdcdc;
+    }
+
+    .tab-bar {
+      display: flex;
+      height: 42px;
+      background-color: #484848;
+      border-top: 1px solid #555;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background-color: #484848;
+      color: #ffffff;
+      border: none;
+      border-right: 1px solid #555;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background-color: #dcdcdc;
+      color: #333333;
+      font-weight: 500;
+    }
+
+    .library-content {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+    }
+
+    .file-item {
+      background-color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .file-info i {
+      color: #5d839e;
+      font-size: 18px;
+    }
+
+    .file-name {
+      font-size: 14px;
+      color: #333;
+      word-break: break-all;
+    }
+
+    .add-btn, .remove-btn, .action-btn {
+      background: #5d839e;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .remove-btn {
+      background: #c94a4a;
+    }
+
+    /* MODAL SETTINGS STYLING */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 3000;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #f4f4f4;
+      width: 90%;
+      max-width: 420px;
+      border-radius: 6px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-header {
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 8px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: #666;
+    }
+
+    .setting-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .setting-label {
+      font-size: 13px;
+      color: #555;
+      font-weight: 500;
+    }
+
+    .setting-value-box {
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
 </head>
 <body>
 
-    <!-- ============================================
-    APP CONTAINER
-    ============================================ -->
-    <div id="app">
-        
-        <!-- ============================================
-        VIEW 1: MAP VIEW
-        ============================================ -->
-        <div id="map-view">
-            <div id="map"></div>
-            
-            <!-- GPS Status -->
-            <div id="gps-status">
-                <div class="gps-title">
-                    📡 Sinyal GPS:
-                    <span class="dot" id="gps-dot"></span>
-                    <span id="gps-status-text">Memeriksa...</span>
-                </div>
-                <div class="gps-info">
-                    Akurasi GPS: <span id="gps-accuracy">-</span> m
-                </div>
-            </div>
-            
-            <!-- Signal Indicator -->
-            <div id="signal-indicator">
-                <span style="font-size:14px;">📶</span>
-                <div class="signal-bars">
-                    <div class="bar" data-level="1"></div>
-                    <div class="bar" data-level="2"></div>
-                    <div class="bar" data-level="3"></div>
-                    <div class="bar" data-level="4"></div>
-                    <div class="bar" data-level="5"></div>
-                </div>
-                <span class="signal-text">-</span>
-            </div>
-        </div>
-        
-        <!-- ============================================
-        VIEW 2: LAYER VIEW
-        ============================================ -->
-        <div id="layer-view">
-            <div class="layer-header">
-                <h2>📂 Layers</h2>
-                <button class="close-btn" id="close-layer-view">×</button>
-            </div>
-            
-            <!-- Basemap Section -->
-            <div class="layer-section">
-                <h3>🗺️ Basemap</h3>
-                <div id="basemap-list">
-                    <div class="layer-item active" data-layer="osm">
-                        <div class="layer-icon">🌍</div>
-                        <div class="layer-info">
-                            <div class="layer-name">OpenStreetMap</div>
-                            <div class="layer-desc">Peta standar</div>
-                        </div>
-                        <div class="layer-toggle active">
-                            <div class="toggle-slider"></div>
-                        </div>
-                    </div>
-                    <div class="layer-item" data-layer="satellite">
-                        <div class="layer-icon">🛰️</div>
-                        <div class="layer-info">
-                            <div class="layer-name">Satellite</div>
-                            <div class="layer-desc">Citra satelit</div>
-                        </div>
-                        <div class="layer-toggle">
-                            <div class="toggle-slider"></div>
-                        </div>
-                    </div>
-                    <div class="layer-item" data-layer="terrain">
-                        <div class="layer-icon">⛰️</div>
-                        <div class="layer-info">
-                            <div class="layer-name">Terrain</div>
-                            <div class="layer-desc">Peta topografi</div>
-                        </div>
-                        <div class="layer-toggle">
-                            <div class="toggle-slider"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- KMZ Files Section -->
-            <div class="layer-section">
-                <h3>📁 KMZ/KML Files</h3>
-                <div id="kmz-list">
-                    <div style="color:#999;text-align:center;padding:20px;font-size:14px;">
-                        📭 Belum ada file KMZ/KML<br>
-                        <small style="color:#bbb;">Seret file ke peta atau gunakan tombol upload</small>
-                    </div>
-                </div>
-                <button id="upload-kmz-btn" style="
-                    width:100%;
-                    padding:10px;
-                    background:#4CAF50;
-                    color:white;
-                    border:none;
-                    border-radius:8px;
-                    font-size:14px;
-                    cursor:pointer;
-                    margin-top:10px;
-                ">
-                    📤 Upload File KMZ/KML
-                </button>
-            </div>
-        </div>
-        
-        <!-- ============================================
-        BOTTOM NAVIGATION
-        ============================================ -->
-        <div id="bottom-nav">
-            <button class="nav-item active" data-view="map">
-                <span class="nav-icon">🗺️</span>
-                <span class="nav-label">Peta</span>
-            </button>
-            <button class="nav-item" data-view="layers">
-                <span class="nav-icon">📂</span>
-                <span class="nav-label">Layers</span>
-                <span class="nav-badge" id="layer-badge">0</span>
-            </button>
-            <button class="nav-item" data-view="bookmark">
-                <span class="nav-icon">⭐</span>
-                <span class="nav-label">Bookmark</span>
-                <span class="nav-badge" id="bookmark-badge">0</span>
-            </button>
-        </div>
-        
+  <div class="top-bar"></div>
+
+  <!-- Toolbar Header -->
+  <div class="toolbar">
+    <!-- PERBAIKAN: Tombol Lokasi Menggunakan Ikon Crosshair FontAwesome & Event Onclick yang Kuat -->
+    <button class="tool-btn map-only-control" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS">
+      <i class="fa-solid fa-crosshairs"></i>
+    </button>
+
+    <button class="tool-btn map-only-control" id="btn-pin" onclick="addWaypointAtReticle()" title="Tambah Titik">
+      <i class="fa-solid fa-map-pin"></i>
+    </button>
+
+    <div class="coords-display map-only-control">
+      <div id="lat">0.00000</div>
+      <div id="lng">0.00000</div>
     </div>
 
-    <!-- ============================================
-    DROP ZONE (Global)
-    ============================================ -->
-    <div id="drop-zone">
-        <div class="drop-icon">📁</div>
-        <div class="drop-message">
-            <p>Seret file KMZ/KML ke sini</p>
-            <span>atau klik untuk memilih</span>
-        </div>
-        <input type="file" id="file-input" accept=".kmz,.kml" multiple style="display:none">
-        <div class="drop-progress">
-            <div class="progress-bar"></div>
-        </div>
+    <button class="tool-btn" id="btn-toggle-view" onclick="toggleView()" title="Beralih Tampilan">
+      <i class="fa-solid fa-layer-group" id="nav-icon"></i>
+    </button>
+
+    <button class="tool-btn" id="btn-tools" onclick="openSettings()" title="Pengaturan">
+      <i class="fa-solid fa-wrench"></i>
+    </button>
+  </div>
+
+  <!-- VIEW 1: MAP INTERFACE -->
+  <div id="map-view" class="view active">
+    <div id="map"></div>
+    <div class="crosshair">
+      <div class="crosshair-center"></div>
     </div>
 
-    <!-- ============================================
-    BOOKMARK PANEL (Global)
-    ============================================ -->
-    <div id="bookmark-panel">
-        <div class="panel-header">
-            <h3>⭐ Bookmark</h3>
-            <button id="close-bookmark">×</button>
-        </div>
-        <div class="bookmark-input-group">
-            <input id="bookmark-name" placeholder="Nama bookmark..." maxlength="50">
-            <button id="add-bookmark">Tambah</button>
-        </div>
-        <div id="bookmark-list">
-            <div class="empty-bookmark">📭 Belum ada bookmark</div>
-        </div>
+    <!-- ELEMEN OVERLAY GPS KIRI BAWAH -->
+    <div id="gps-overlay" class="gps-overlay map-only-control">
+      <div class="gps-item">
+        <span class="label">Sinyal GPS:</span>
+        <span id="gps-status" class="value status-no-signal">Memeriksa...</span>
+      </div>
+      <div class="gps-item">
+        <span class="label">Akurasi GPS:</span>
+        <span id="gps-accuracy" class="value">-</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: LAYERS & LIBRARY MANAGER -->
+  <div id="layers-view" class="view">
+    <div class="layers-section">
+      <h2 class="section-title">Layers</h2>
+      <div class="active-layers-list" id="active-layers"></div>
     </div>
 
-    <!-- ============================================
-    FLOATING BUTTONS
-    ============================================ -->
-    <button id="btn-bookmark" class="floating-btn" title="Bookmark">⭐</button>
-    <button id="btn-theme" class="floating-btn" title="Ganti Tema">🌙</button>
+    <div class="library-section">
+      <div class="tab-bar">
+        <button class="tab-btn" onclick="switchTab('maps', event)">Maps</button>
+        <button class="tab-btn active" onclick="switchTab('kmz', event)">KMZ</button>
+        <button class="tab-btn" onclick="switchTab('basemap', event)">Basemap</button>
+      </div>
 
-    <!-- ============================================
-    GLOBAL PROGRESS
-    ============================================ -->
-    <div id="global-progress">
-        <div class="progress-inner"></div>
+      <div class="library-content" id="library-content">
+        <!-- Content KMZ -->
+      </div>
     </div>
+  </div>
 
-    <!-- ============================================
-    SCRIPTS
-    ============================================ -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js">
-    </script>
+  <!-- SETTINGS MODAL DIALOG -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>Pengaturan Aplikasi</span>
+        <button class="modal-close" onclick="closeSettings()">&times;</button>
+      </div>
+      <div class="setting-group">
+        <span class="setting-label">Folder Default KMZ:</span>
+        <div class="setting-value-box">
+          <span id="folder-path-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;">Belum dipilih</span>
+          <button class="action-btn" onclick="selectDefaultKMZFolder()">Pilih Folder</button>
+        </div>
+        <span style="font-size: 11px; color: #777;">Semua file KMZ/KML di dalam folder ini akan otomatis dimuat ke tab KMZ.</span>
+      </div>
+    </div>
+  </div>
 
-    <script>
-        // ================================================================
-        // KODE UTAMA APLIKASI - SPA dengan 2 View
-        // ================================================================
+  <!-- Leaflet & JSZip -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-        // ============================================
-        // 1. VIEW NAVIGATION
-        // ============================================
-        const mapView = document.getElementById('map-view');
-        const layerView = document.getElementById('layer-view');
-        const navItems = document.querySelectorAll('.nav-item');
+  <script>
+    let map;
+    let userLocationMarker = null;
+    let currentView = 'map';
+    let waypointCount = 1;
+    let latestCoords = null; // Menyimpan posisi GPS terakhir yang dikirim sensor
 
-        function switchView(viewName) {
-            // Update views
-            if (viewName === 'map') {
-                mapView.classList.remove('hidden');
-                layerView.classList.remove('active');
-                layerView.classList.add('hidden');
-            } else if (viewName === 'layers') {
-                mapView.classList.add('hidden');
-                layerView.classList.remove('hidden');
-                layerView.classList.add('active');
-            } else if (viewName === 'bookmark') {
-                // Toggle bookmark panel
-                const panel = document.getElementById('bookmark-panel');
-                const isHidden = panel.style.display === 'none' || panel.style.display === '';
-                panel.style.display = isHidden ? 'block' : 'none';
-                if (isHidden) {
-                    bookmarkManager.renderBookmarks();
-                }
-                return;
-            }
+    let activeLayers = {};
+    let scannedKmzFiles = [];
+    let defaultDirHandle = null;
 
-            // Update nav items
-            navItems.forEach(item => {
-                item.classList.toggle('active', item.dataset.view === viewName);
-            });
-        }
+    const BASEMAP_PROVIDERS = {
+      'google_sat': { name: 'Google Satellite', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', icon: 'fa-earth-americas' },
+      'google_map': { name: 'Google Map', url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', icon: 'fa-map' },
+      'google_hybrid': { name: 'Google Hybrid', url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', icon: 'fa-layer-group' },
+      'google_terrain': { name: 'Google Terrain', url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', icon: 'fa-mountain-sun' },
+      'osm': { name: 'OpenStreetMap (OSM)', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: 'fa-globe' }
+    };
 
-        // Nav item click
-        navItems.forEach(item => {
-            item.addEventListener('click', () => {
-                switchView(item.dataset.view);
-            });
-        });
+    function initMap() {
+      map = L.map('map', { zoomControl: false }).setView([-6.2088, 106.8456], 15);
+      map.on('move', updateReticleCoordinates);
+      updateReticleCoordinates();
 
-        // Close layer view
-        document.getElementById('close-layer-view').addEventListener('click', () => {
-            switchView('map');
-        });
+      initStoredKMZFolder();
+      initGPSWatcher();
+    }
 
-        // ============================================
-        // 2. INISIALISASI MAP
-        // ============================================
-        const map = L.map('map', {
-            center: [-6.2088, 106.8456],
-            zoom: 13,
-            zoomControl: true,
-            fadeAnimation: true,
-            attributionControl: true
-        });
+    function updateReticleCoordinates() {
+      const center = map.getCenter();
+      document.getElementById('lat').innerText = center.lat.toFixed(5);
+      document.getElementById('lng').innerText = center.lng.toFixed(5);
+    }
 
-        // Base Layers
-        const baseLayers = {
-            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap',
-                maxZoom: 19
-            }),
-            satellite: L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-                attribution: '© Google'
-            }),
-            terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenTopoMap'
-            })
+    /* --- PERBAIKAN FUNGSI PUSATKAN LOKASI (GPS BUTTON) --- */
+    function centerToGPS() {
+      if (!navigator.geolocation) {
+        alert("Geolocation tidak didukung oleh browser ini.");
+        return;
+      }
+
+      // Gunakan data lokasi dari watcher jika ada, atau minta posisi terbaru
+      if (latestCoords) {
+        map.flyTo([latestCoords.lat, latestCoords.lng], 17);
+        updateUserMarker(latestCoords.lat, latestCoords.lng);
+      } else {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            latestCoords = { lat, lng };
+            map.flyTo([lat, lng], 17);
+            updateUserMarker(lat, lng);
+          },
+          (err) => {
+            let errorMsg = "Gagal mendapatkan lokasi.";
+            if (err.code === 1) errorMsg = "Izin lokasi ditolak. Harap izinkan akses lokasi di browser HP Anda.";
+            else if (err.code === 2) errorMsg = "Sinyal GPS tidak tersedia.";
+            else if (err.code === 3) errorMsg = "Waktu permintaan lokasi habis (Timeout).";
+            alert(errorMsg);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+    }
+
+    function updateUserMarker(lat, lng) {
+      if (userLocationMarker) {
+        userLocationMarker.setLatLng([lat, lng]);
+      } else {
+        userLocationMarker = L.circleMarker([lat, lng], {
+          radius: 9,
+          fillColor: "#007aff",
+          color: "#ffffff",
+          weight: 3,
+          fillOpacity: 1
+        }).addTo(map);
+      }
+    }
+
+    /* --- LOGIKA PENGAWASAN SINYAL & AKURASI GPS --- */
+    function initGPSWatcher() {
+      const statusEl = document.getElementById('gps-status');
+      const accuracyEl = document.getElementById('gps-accuracy');
+
+      if ('geolocation' in navigator) {
+        const options = {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
         };
 
-        let activeLayer = 'osm';
-        baseLayers.osm.addTo(map);
+        navigator.geolocation.watchPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = Math.round(position.coords.accuracy);
 
-        // ============================================
-        // 3. LAYER VIEW - Basemap Toggle
-        // ============================================
-        document.querySelectorAll('#basemap-list .layer-item').forEach(item => {
-            const toggle = item.querySelector('.layer-toggle');
-            const layerName = item.dataset.layer;
+            latestCoords = { lat, lng };
+            updateUserMarker(lat, lng);
 
-            item.addEventListener('click', () => {
-                // Remove active from all
-                document.querySelectorAll('#basemap-list .layer-item').forEach(el => {
-                    el.classList.remove('active');
-                    el.querySelector('.layer-toggle').classList.remove('active');
-                });
+            accuracyEl.textContent = `± ${accuracy} m`;
 
-                // Activate this
-                item.classList.add('active');
-                toggle.classList.add('active');
-
-                // Switch map layer
-                if (activeLayer) {
-                    map.removeLayer(baseLayers[activeLayer]);
-                }
-                activeLayer = layerName;
-                baseLayers[layerName].addTo(map);
-                
-                showNotification(`🗺️ Berganti ke ${item.querySelector('.layer-name').textContent}`, 'info');
-            });
-        });
-
-        // ============================================
-        // 4. GPS TRACKING
-        // ============================================
-        let userMarker = null;
-        let userCircle = null;
-        let watchId = null;
-
-        function updateGPS(status, accuracy = null) {
-            const dot = document.getElementById('gps-dot');
-            const text = document.getElementById('gps-status-text');
-            const acc = document.getElementById('gps-accuracy');
-
-            if (status === 'active') {
-                dot.className = 'dot active';
-                text.textContent = 'Aktif';
-                text.style.color = '#4CAF50';
-                if (accuracy !== null) {
-                    acc.textContent = accuracy.toFixed(1);
-                }
-            } else if (status === 'searching') {
-                dot.className = 'dot';
-                text.textContent = 'Mencari...';
-                text.style.color = '#ff9800';
-                acc.textContent = '-';
+            if (accuracy <= 10) {
+              statusEl.textContent = 'Sinyal Kuat';
+              statusEl.className = 'value status-strong';
+            } else if (accuracy <= 30) {
+              statusEl.textContent = 'Sinyal Sedang';
+              statusEl.className = 'value status-medium';
             } else {
-                dot.className = 'dot';
-                text.textContent = 'Tidak aktif';
-                text.style.color = '#f44336';
-                acc.textContent = '-';
+              statusEl.textContent = 'Sinyal Lemah';
+              statusEl.className = 'value status-weak';
             }
+          },
+          (error) => {
+            accuracyEl.textContent = '-';
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                statusEl.textContent = 'Izin Ditolak';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                statusEl.textContent = 'GPS Tdk Terdeteksi';
+                break;
+              case error.TIMEOUT:
+                statusEl.textContent = 'Mencari Sinyal...';
+                break;
+              default:
+                statusEl.textContent = 'GPS Tdk Terdeteksi';
+                break;
+            }
+            statusEl.className = 'value status-no-signal';
+          },
+          options
+        );
+      } else {
+        statusEl.textContent = 'Tidak Didukung';
+        statusEl.className = 'value status-no-signal';
+        accuracyEl.textContent = 'API tidak ada';
+      }
+    }
+
+    /* --- INDEXEDDB STORAGE --- */
+    function openIDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('AvenzaNavDB', 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore('config');
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = e => reject(e.target.error);
+      });
+    }
+
+    async function saveHandleToIDB(handle) {
+      const db = await openIDB();
+      const tx = db.transaction('config', 'readwrite');
+      tx.objectStore('config').put(handle, 'defaultKMZFolder');
+    }
+
+    async function getHandleFromIDB() {
+      const db = await openIDB();
+      return new Promise(resolve => {
+        const tx = db.transaction('config', 'readonly');
+        const req = tx.objectStore('config').get('defaultKMZFolder');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    async function initStoredKMZFolder() {
+      defaultDirHandle = await getHandleFromIDB();
+      if (defaultDirHandle) {
+        document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+        const opts = { mode: 'read' };
+        if ((await defaultDirHandle.queryPermission(opts)) === 'granted') {
+          await scanFilesFromHandle(defaultDirHandle);
+        } else {
+          document.getElementById('folder-path-text').innerText = `${defaultDirHandle.name} (Izin diperlukan)`;
+        }
+      }
+      renderKMZLibrary();
+    }
+
+    async function selectDefaultKMZFolder() {
+      try {
+        if ('showDirectoryPicker' in window) {
+          defaultDirHandle = await window.showDirectoryPicker();
+          await saveHandleToIDB(defaultDirHandle);
+          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+          await scanFilesFromHandle(defaultDirHandle);
+          renderKMZLibrary();
+          alert("Folder default KMZ/KML berhasil disimpan!");
+        } else {
+          alert("Browser Anda tidak mendukung File System Access API.");
+        }
+      } catch (err) {
+        console.warn("Pemilihan folder dibatalkan:", err);
+      }
+    }
+
+    async function scanFilesFromHandle(dirHandle) {
+      scannedKmzFiles = [];
+      try {
+        for await (const entry of dirHandle.values()) {
+          if (entry.kind === 'file' && (entry.name.endsWith('.kmz') || entry.name.endsWith('.kml'))) {
+            const file = await entry.getFile();
+            scannedKmzFiles.push(file);
+          }
+        }
+        renderKMZFileList();
+      } catch (err) {
+        console.warn("Gagal membaca isi folder:", err);
+      }
+    }
+
+    /* --- KONVERSI WARNA KML (AABBGGRR) KE HEX & OPACITY --- */
+    function kmlColorToLeaflet(kmlColor) {
+      if (!kmlColor || kmlColor.trim().length !== 8) {
+        return { color: '#3388ff', opacity: 1 };
+      }
+      const hexStr = kmlColor.trim();
+      const a = parseInt(hexStr.substring(0, 2), 16) / 255;
+      const b = hexStr.substring(2, 4);
+      const g = hexStr.substring(4, 6);
+      const r = hexStr.substring(6, 8);
+      
+      return {
+        color: `#${r}${g}${b}`,
+        opacity: isNaN(a) ? 1 : a
+      };
+    }
+
+    /* --- PARSER KML HANDAL (SUPPORT MULTI-WARNA & NO OUTLINE) --- */
+    function parseKMLToLeaflet(kmlText) {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(kmlText, "text/xml");
+      const layerGroup = L.featureGroup();
+
+      const styleMap = {};
+
+      const styles = xmlDoc.getElementsByTagName("Style");
+      for (let i = 0; i < styles.length; i++) {
+        const style = styles[i];
+        const id = style.getAttribute("id");
+        if (!id) continue;
+
+        styleMap[id] = {};
+
+        const lineStyle = style.getElementsByTagName("LineStyle")[0];
+        if (lineStyle) {
+          const c = lineStyle.getElementsByTagName("color")[0]?.textContent;
+          const w = lineStyle.getElementsByTagName("width")[0]?.textContent;
+          if (c) styleMap[id].line = kmlColorToLeaflet(c);
+          if (w) styleMap[id].weight = parseFloat(w);
         }
 
-        function startGPS() {
-            updateGPS('searching');
+        const polyStyle = style.getElementsByTagName("PolyStyle")[0];
+        if (polyStyle) {
+          const c = polyStyle.getElementsByTagName("color")[0]?.textContent;
+          const fill = polyStyle.getElementsByTagName("fill")[0]?.textContent;
+          const outline = polyStyle.getElementsByTagName("outline")[0]?.textContent;
+          
+          if (c) styleMap[id].poly = kmlColorToLeaflet(c);
+          if (fill !== undefined) styleMap[id].hasFill = fill.trim() !== '0';
+          if (outline !== undefined) styleMap[id].hasOutline = outline.trim() !== '0';
+        }
+      }
 
-            if (!navigator.geolocation) {
-                updateGPS('error');
-                showNotification('❌ Browser tidak mendukung GPS', 'error');
-                return;
+      const styleMaps = xmlDoc.getElementsByTagName("StyleMap");
+      for (let i = 0; i < styleMaps.length; i++) {
+        const sm = styleMaps[i];
+        const smId = sm.getAttribute("id");
+        if (!smId) continue;
+
+        const pairs = sm.getElementsByTagName("Pair");
+        for (let j = 0; j < pairs.length; j++) {
+          const key = pairs[j].getElementsByTagName("key")[0]?.textContent?.trim();
+          if (key === "normal") {
+            const styleUrl = pairs[j].getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#", "");
+            if (styleUrl && styleMap[styleUrl]) {
+              styleMap[smId] = styleMap[styleUrl];
             }
+          }
+        }
+      }
 
-            watchId = navigator.geolocation.watchPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    const accuracy = position.coords.accuracy;
+      const placemarks = xmlDoc.getElementsByTagName("Placemark");
+      for (let i = 0; i < placemarks.length; i++) {
+        const pm = placemarks[i];
+        const nameEl = pm.getElementsByTagName("name")[0];
+        const name = nameEl ? nameEl.textContent : "Elemen " + (i + 1);
 
-                    updateGPS('active', accuracy);
+        const sUrl = pm.getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#", "");
+        const activeStyle = styleMap[sUrl] || {};
 
-                    if (!userMarker) {
-                        const icon = L.divIcon({
-                            html: '📍',
-                            iconSize: [28, 28],
-                            className: 'user-marker'
-                        });
-                        userMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
-                        userMarker.bindPopup('📍 Lokasi Anda');
-                    } else {
-                        userMarker.setLatLng([lat, lng]);
-                    }
+        const isOutlineActive = activeStyle.hasOutline !== undefined ? activeStyle.hasOutline : false;
+        const lineHex = activeStyle.line?.color || '#000000';
+        const lineOpacity = activeStyle.line?.opacity !== undefined ? activeStyle.opacity : 1;
+        const strokeWidth = isOutlineActive ? (activeStyle.weight || 1) : 0;
 
-                    if (!userCircle) {
-                        userCircle = L.circle([lat, lng], {
-                            radius: accuracy,
-                            color: '#4CAF50',
-                            fillColor: '#4CAF50',
-                            fillOpacity: 0.15,
-                            weight: 2
-                        }).addTo(map);
-                    } else {
-                        userCircle.setLatLng([lat, lng]);
-                        userCircle.setRadius(accuracy);
-                    }
+        const isFillActive = activeStyle.hasFill !== undefined ? activeStyle.hasFill : true;
+        const fillHex = activeStyle.poly?.color || lineHex;
+        const fillOpacity = activeStyle.poly?.opacity !== undefined ? activeStyle.poly.opacity : 0.6;
 
-                    if (!map._userCentered) {
-                        map.flyTo([lat, lng], 15);
-                        map._userCentered = true;
-                    }
-                },
-                (error) => {
-                    console.error('GPS Error:', error);
-                    updateGPS('error');
-                    showNotification('❌ Gagal mendapatkan lokasi: ' + error.message, 'error');
-                }, {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 5000
-                }
-            );
+        const points = pm.getElementsByTagName("Point");
+        for (let j = 0; j < points.length; j++) {
+          const coords = points[j].getElementsByTagName("coordinates")[0];
+          if (coords) {
+            const parts = coords.textContent.trim().split(",");
+            if (parts.length >= 2) {
+              const lng = parseFloat(parts[0]);
+              const lat = parseFloat(parts[1]);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                L.circleMarker([lat, lng], {
+                  radius: 6,
+                  color: lineHex,
+                  fillColor: fillHex,
+                  fillOpacity: 0.9,
+                  weight: 1.5
+                }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+              }
+            }
+          }
         }
 
-        // ============================================
-        // 5. SIGNAL DETECTOR (Client Side)
-        // ============================================
-        class SignalMonitor {
-            constructor() {
-                this.signalStrength = 100;
-                this.quality = 'unknown';
-                this.init();
+        const lines = pm.getElementsByTagName("LineString");
+        for (let j = 0; j < lines.length; j++) {
+          const coordsEl = lines[j].getElementsByTagName("coordinates")[0];
+          if (coordsEl) {
+            const rawCoords = coordsEl.textContent.trim().split(/\s+/);
+            const latLngs = [];
+            rawCoords.forEach(c => {
+              const parts = c.split(",");
+              if (parts.length >= 2) {
+                const lng = parseFloat(parts[0]);
+                const lat = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lng)) latLngs.push([lat, lng]);
+              }
+            });
+            if (latLngs.length > 0) {
+              L.polyline(latLngs, {
+                color: lineHex,
+                opacity: lineOpacity,
+                weight: activeStyle.weight || 3
+              }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
             }
-
-            init() {
-                // Native Network Info API
-                const connection = navigator.connection || 
-                                  navigator.mozConnection || 
-                                  navigator.webkitConnection;
-                
-                if (connection) {
-                    connection.addEventListener('change', () => {
-                        this.updateFromNative(connection);
-                    });
-                    this.updateFromNative(connection);
-                }
-
-                // Periodic check via Service Worker
-                setInterval(() => this.checkFromSW(), 15000);
-                setTimeout(() => this.checkFromSW(), 1000);
-            }
-
-            updateFromNative(connection) {
-                let strength = 70;
-                let quality = 'medium';
-                
-                switch (connection.effectiveType) {
-                    case 'slow-2g': strength = 10; quality = 'very-weak'; break;
-                    case '2g': strength = 25; quality = 'weak'; break;
-                    case '3g': strength = 50; quality = 'medium'; break;
-                    case '4g': strength = 80; quality = 'strong'; break;
-                    case '5g': strength = 95; quality = 'very-strong'; break;
-                    default: strength = 70; quality = 'medium';
-                }
-                
-                this.updateUI(strength, quality);
-            }
-
-            checkFromSW() {
-                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    const channel = new MessageChannel();
-                    channel.port1.onmessage = (event) => {
-                        if (event.data.type === 'SIGNAL_STRENGTH') {
-                            this.updateUI(event.data.strength, event.data.quality);
-                        }
-                    };
-                    navigator.serviceWorker.controller.postMessage({
-                        type: 'CHECK_SIGNAL'
-                    }, [channel.port2]);
-                }
-            }
-
-            updateUI(strength, quality) {
-                this.signalStrength = strength;
-                this.quality = quality;
-                
-                const indicator = document.getElementById('signal-indicator');
-                const bars = indicator.querySelectorAll('.bar');
-                const text = indicator.querySelector('.signal-text');
-                
-                const activeBars = Math.ceil((strength / 100) * 5);
-                bars.forEach((bar, index) => {
-                    bar.classList.toggle('active', index < activeBars);
-                    bar.classList.toggle('inactive', index >= activeBars);
-                });
-                
-                const qualityMap = {
-                    'very-weak': 'Sangat Lemah',
-                    'weak': 'Lemah',
-                    'medium': 'Sedang',
-                    'strong': 'Kuat',
-                    'very-strong': 'Sangat Kuat',
-                    'unknown': 'Tidak Diketahui'
-                };
-                text.textContent = `${strength}% - ${qualityMap[quality] || quality}`;
-                
-                const color = this.getColorForStrength(strength);
-                indicator.style.borderColor = color;
-            }
-
-            getColorForStrength(strength) {
-                if (strength < 20) return '#f44336';
-                if (strength < 40) return '#ff9800';
-                if (strength < 60) return '#ffeb3b';
-                if (strength < 80) return '#8bc34a';
-                return '#4CAF50';
-            }
+          }
         }
 
-        // ============================================
-        // 6. NOTIFICATION SYSTEM
-        // ============================================
-        function showNotification(message, type = 'info', duration = 3500) {
-            const existing = document.querySelector('.notification');
-            if (existing) existing.remove();
-
-            const notif = document.createElement('div');
-            notif.className = `notification ${type}`;
-            notif.textContent = message;
-            document.body.appendChild(notif);
-
-            setTimeout(() => {
-                notif.style.animation = 'slideDown 0.4s ease';
-                setTimeout(() => notif.remove(), 400);
-            }, duration);
-        }
-
-        // ============================================
-        // 7. FILE DROP HANDLER
-        // ============================================
-        class FileDropHandler {
-            constructor(mapInstance) {
-                this.map = mapInstance;
-                this.kmlLayers = [];
-                this.files = [];
-                this.initDropZone();
-            }
-
-            initDropZone() {
-                const dropArea = document.getElementById('drop-zone');
-                const fileInput = document.getElementById('file-input');
-
-                dropArea.addEventListener('click', () => fileInput.click());
-
-                document.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    dropArea.style.display = 'block';
-                    dropArea.classList.add('drag-over');
-                });
-
-                document.addEventListener('dragleave', (e) => {
-                    e.preventDefault();
-                    if (e.relatedTarget === null) {
-                        dropArea.classList.remove('drag-over');
-                    }
-                });
-
-                dropArea.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    dropArea.classList.add('drag-over');
-                });
-
-                dropArea.addEventListener('dragleave', (e) => {
-                    e.preventDefault();
-                    dropArea.classList.remove('drag-over');
-                });
-
-                dropArea.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    dropArea.classList.remove('drag-over');
-                    this.handleFiles(e.dataTransfer.files, dropArea);
-                });
-
-                fileInput.addEventListener('change', (e) => {
-                    this.handleFiles(e.target.files, dropArea);
-                    fileInput.value = '';
-                });
-
-                document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') dropArea.style.display = 'none';
-                });
-
-                // Upload button in layer view
-                document.getElementById('upload-kmz-btn').addEventListener('click', () => {
-                    fileInput.click();
-                });
-            }
-
-            handleFiles(files, dropArea) {
-                const kmzFiles = Array.from(files).filter(f =>
-                    f.name.endsWith('.kmz') || f.name.endsWith('.kml')
-                );
-
-                if (kmzFiles.length === 0) {
-                    showNotification('⚠️ Hanya file KMZ/KML yang didukung!', 'warning');
-                    dropArea.style.display = 'none';
-                    return;
-                }
-
-                const progressDiv = dropArea.querySelector('.drop-progress');
-                const progressBar = progressDiv.querySelector('.progress-bar');
-                progressDiv.style.display = 'block';
-
-                let completed = 0;
-
-                kmzFiles.forEach((file, index) => {
-                    const reader = new FileReader();
-                    reader.onprogress = (e) => {
-                        if (e.lengthComputable) {
-                            const percent = (e.loaded / e.total) * 100;
-                            progressBar.style.width = `${percent}%`;
-                        }
-                    };
-                    reader.onload = (e) => {
-                        this.processFile(e.target.result, file.name, () => {
-                            completed++;
-                            const totalPercent = (completed / kmzFiles.length) * 100;
-                            progressBar.style.width = `${totalPercent}%`;
-                            this.files.push(file.name);
-                            this.updateLayerList();
-                            
-                            if (completed === kmzFiles.length) {
-                                setTimeout(() => {
-                                    dropArea.style.display = 'none';
-                                    progressDiv.style.display = 'none';
-                                    progressBar.style.width = '0%';
-                                    showNotification(`✅ ${kmzFiles.length} file berhasil dimuat!`, 'success');
-                                    document.getElementById('layer-badge').textContent = this.files.length;
-                                }, 800);
-                            }
-                        });
-                    };
-                    reader.onerror = () => {
-                        showNotification(`❌ Gagal membaca file: ${file.name}`, 'error');
-                        completed++;
-                    };
-                    reader.readAsArrayBuffer(file);
-                });
-            }
-
-            processFile(data, filename, callback) {
-                try {
-                    if (filename.endsWith('.kmz')) {
-                        this.processKMZ(data, filename, callback);
-                    } else {
-                        this.processKML(data, filename, callback);
-                    }
-                } catch (error) {
-                    showNotification(`❌ Gagal memuat ${filename}: ${error.message}`, 'error');
-                    if (callback) callback();
-                }
-            }
-
-            async processKMZ(data, filename, callback) {
-                try {
-                    const zip = await JSZip.loadAsync(data);
-                    let kmlData = null;
-
-                    for (const [name, file] of Object.entries(zip.files)) {
-                        if (name.endsWith('.kml') && !file.dir) {
-                            const content = await file.async('text');
-                            kmlData = content;
-                            break;
-                        }
-                    }
-
-                    if (kmlData) {
-                        this.addKMLToMap(kmlData, filename);
-                        showNotification(`✅ ${filename} berhasil dimuat!`, 'success');
-                    } else {
-                        showNotification(`⚠️ Tidak ditemukan KML di dalam ${filename}`, 'warning');
-                    }
-                } catch (error) {
-                    showNotification(`❌ Gagal ekstrak ${filename}: ${error.message}`, 'error');
-                }
-                if (callback) callback();
-            }
-
-            processKML(data, filename, callback) {
-                try {
-                    const text = new TextDecoder().decode(data);
-                    this.addKMLToMap(text, filename);
-                    showNotification(`✅ ${filename} berhasil dimuat!`, 'success');
-                } catch (error) {
-                    showNotification(`❌ Gagal memuat ${filename}: ${error.message}`, 'error');
-                }
-                if (callback) callback();
-            }
-
-            addKMLToMap(kmlData, filename) {
-                try {
-                    const parser = new DOMParser();
-                    const xml = parser.parseFromString(kmlData, 'text/xml');
-
-                    if (xml.getElementsByTagName('parsererror').length > 0) {
-                        throw new Error('Format KML tidak valid');
-                    }
-
-                    const placemarks = xml.getElementsByTagName('Placemark');
-                    let count = 0;
-
-                    // Hapus layer yang sama jika ada
-                    this.kmlLayers.forEach(layer => this.map.removeLayer(layer));
-                    this.kmlLayers = [];
-
-                    Array.from(placemarks).forEach((placemark) => {
-                        const name = placemark.getElementsByTagName('name')[0]?.textContent || 'Unnamed';
-                        const coords = placemark.getElementsByTagName('coordinates')[0]?.textContent;
-
-                        if (coords) {
-                            const points = coords.trim().split(' ').map(p => {
-                                const [lng, lat] = p.split(',').map(Number);
-                                return [lat, lng];
-                            }).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
-
-                            if (points.length > 0) {
-                                const isPolygon = placemark.getElementsByTagName('Polygon').length > 0;
-
-                                let layer;
-                                if (isPolygon && points.length > 2) {
-                                    layer = L.polygon(points, {
-                                        color: '#4CAF50',
-                                        fillColor: '#4CAF50',
-                                        fillOpacity: 0.25,
-                                        weight: 2
-                                    });
-                                } else {
-                                    layer = L.polyline(points, {
-                                        color: '#4CAF50',
-                                        weight: 3
-                                    });
-                                }
-
-                                layer.bindPopup(`<b>${name}</b><br><small>${filename}</small>`);
-                                layer.addTo(this.map);
-                                this.kmlLayers.push(layer);
-                                count++;
-                            }
-                        }
-                    });
-
-                    if (this.kmlLayers.length > 0) {
-                        const group = L.featureGroup(this.kmlLayers);
-                        this.map.fitBounds(group.getBounds().pad(0.1));
-                    }
-
-                    showNotification(`📌 ${count} fitur dimuat dari ${filename}`, 'info');
-                } catch (error) {
-                    throw new Error(`Gagal parsing KML: ${error.message}`);
-                }
-            }
-
-            updateLayerList() {
-                const list = document.getElementById('kmz-list');
-                if (this.files.length === 0) {
-                    list.innerHTML = `
-                        <div style="color:#999;text-align:center;padding:20px;font-size:14px;">
-                            📭 Belum ada file KMZ/KML<br>
-                            <small style="color:#bbb;">Seret file ke peta atau gunakan tombol upload</small>
-                        </div>
-                    `;
-                    return;
-                }
-
-                list.innerHTML = this.files.map((file, index) => `
-                    <div class="layer-item active" style="cursor:default;">
-                        <div class="layer-icon">📄</div>
-                        <div class="layer-info">
-                            <div class="layer-name">${file}</div>
-                            <div class="layer-desc">${index + 1}. ${this.kmlLayers.length > 0 ? this.kmlLayers.length : '?'} fitur</div>
-                        </div>
-                        <button onclick="dropHandler.removeFile(${index})" style="
-                            background:#f44336;
-                            color:white;
-                            border:none;
-                            border-radius:5px;
-                            padding:4px 10px;
-                            cursor:pointer;
-                        ">✕</button>
-                    </div>
-                `).join('');
-            }
-
-            removeFile(index) {
-                this.files.splice(index, 1);
-                // Hapus semua layer dan reload ulang
-                this.kmlLayers.forEach(layer => this.map.removeLayer(layer));
-                this.kmlLayers = [];
-                this.updateLayerList();
-                document.getElementById('layer-badge').textContent = this.files.length;
-                showNotification('🗑️ File dihapus dari peta', 'info');
-            }
-        }
-
-        // ============================================
-        // 8. BOOKMARK MANAGER
-        // ============================================
-        class BookmarkManager {
-            constructor(mapInstance) {
-                this.map = mapInstance;
-                this.bookmarks = this.loadBookmarks();
-                this.markers = [];
-                this.initUI();
-                this.renderBookmarks();
-                this.initClickHandler();
-                this.updateBadge();
-            }
-
-            initUI() {
-                const panel = document.getElementById('bookmark-panel');
-                const btnToggle = document.getElementById('btn-bookmark');
-                const btnClose = document.getElementById('close-bookmark');
-                const btnAdd = document.getElementById('add-bookmark');
-                const nameInput = document.getElementById('bookmark-name');
-
-                btnToggle.addEventListener('click', () => this.togglePanel());
-                btnClose.addEventListener('click', () => this.togglePanel());
-                btnAdd.addEventListener('click', () => this.addCurrentLocation());
-
-                nameInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') this.addCurrentLocation();
-                });
-
-                // Clear all button
-                const clearBtn = document.createElement('button');
-                clearBtn.textContent = '🗑️ Hapus Semua';
-                clearBtn.style.cssText = `
-                    padding: 8px 16px;
-                    background: #f44336;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-size: 13px;
-                    margin-top: 10px;
-                    width: 100%;
-                `;
-                clearBtn.onclick = () => this.clearAllBookmarks();
-                panel.querySelector('.panel-header').after(clearBtn);
-            }
-
-            initClickHandler() {
-                this.map.on('click', (e) => {
-                    const name = prompt('📌 Nama untuk titik ini:');
-                    if (name && name.trim()) {
-                        this.addBookmark(e.latlng.lat, e.latlng.lng, name.trim());
-                    }
-                });
-            }
-
-            togglePanel() {
-                const panel = document.getElementById('bookmark-panel');
-                const isHidden = panel.style.display === 'none' || panel.style.display === '';
-                panel.style.display = isHidden ? 'block' : 'none';
-                if (isHidden) {
-                    this.renderBookmarks();
-                }
-            }
-
-            addCurrentLocation() {
-                const nameInput = document.getElementById('bookmark-name');
-                const name = nameInput.value.trim() || '📍 Lokasi saat ini';
-
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                            this.addBookmark(pos.coords.latitude, pos.coords.longitude, name);
-                            nameInput.value = '';
-                            this.renderBookmarks();
-                            showNotification(`✅ Bookmark "${name}" ditambahkan!`, 'success');
-                        },
-                        () => {
-                            showNotification('❌ Gagal mendapatkan lokasi. Aktifkan GPS.', 'error');
-                        }
-                    );
-                } else {
-                    showNotification('❌ Browser tidak mendukung GPS', 'error');
-                }
-            }
-
-            addBookmark(lat, lng, name) {
-                const bookmark = {
-                    id: Date.now(),
-                    lat: lat,
-                    lng: lng,
-                    name: name || 'Titik',
-                    createdAt: new Date().toISOString()
-                };
-                this.bookmarks.push(bookmark);
-                this.saveBookmarks();
-                this.renderBookmarks();
-                this.addMarker(bookmark);
-                this.updateBadge();
-            }
-
-            addMarker(bookmark) {
-                const icon = L.divIcon({
-                    html: '⭐',
-                    iconSize: [22, 22],
-                    className: 'bookmark-marker'
-                });
-                const marker = L.marker([bookmark.lat, bookmark.lng], { icon: icon })
-                    .addTo(this.map)
-                    .bindPopup(`
-                        <b>${bookmark.name}</b><br>
-                        <small>${bookmark.lat.toFixed(6)}, ${bookmark.lng.toFixed(6)}</small>
-                    `);
-                this.markers.push(marker);
-            }
-
-            renderBookmarks() {
-                const list = document.getElementById('bookmark-list');
-                if (!list) return;
-
-                if (this.bookmarks.length === 0) {
-                    list.innerHTML = '<div class="empty-bookmark">📭 Belum ada bookmark</div>';
-                    return;
-                }
-
-                list.innerHTML = this.bookmarks.map(b => `
-                    <div class="bookmark-item" data-id="${b.id}">
-                        <div class="bookmark-info">
-                            <strong>${this.escapeHtml(b.name)}</strong>
-                            <small>${b.lat.toFixed(6)}, ${b.lng.toFixed(6)}</small>
-                        </div>
-                        <div class="bookmark-actions">
-                            <button class="btn-fly" onclick="bookmarkManager.flyTo(${b.id})" title="Lokasi">📍</button>
-                            <button class="btn-delete" onclick="bookmarkManager.deleteBookmark(${b.id})" title="Hapus">🗑️</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-
-            escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-
-            flyTo(id) {
-                const bookmark = this.bookmarks.find(b => b.id === id);
-                if (bookmark) {
-                    this.map.flyTo([bookmark.lat, bookmark.lng], 16, { duration: 1.5 });
-                    this.togglePanel();
-                    showNotification(`📍 Navigasi ke: ${bookmark.name}`, 'info');
-                }
-            }
-
-            deleteBookmark(id) {
-                if (!confirm('Hapus bookmark ini?')) return;
-                
-                const bookmark = this.bookmarks.find(b => b.id === id);
-                this.bookmarks = this.bookmarks.filter(b => b.id !== id);
-                this.saveBookmarks();
-                this.renderBookmarks();
-                this.updateBadge();
-
-                const markerIndex = this.markers.findIndex(m => {
-                    const pos = m.getLatLng();
-                    return pos.lat === bookmark.lat && pos.lng === bookmark.lng;
-                });
-                if (markerIndex !== -1) {
-                    this.map.removeLayer(this.markers[markerIndex]);
-                    this.markers.splice(markerIndex, 1);
-                }
-                showNotification(`🗑️ Bookmark "${bookmark.name}" dihapus`, 'info');
-            }
-
-            clearAllBookmarks() {
-                if (this.bookmarks.length === 0) {
-                    showNotification('📭 Tidak ada bookmark', 'info');
-                    return;
-                }
-                if (!confirm(`Hapus semua ${this.bookmarks.length} bookmark?`)) return;
-
-                this.markers.forEach(m => this.map.removeLayer(m));
-                this.markers = [];
-                this.bookmarks = [];
-                this.saveBookmarks();
-                this.renderBookmarks();
-                this.updateBadge();
-                showNotification('🗑️ Semua bookmark dihapus', 'info');
-            }
-
-            updateBadge() {
-                document.getElementById('bookmark-badge').textContent = this.bookmarks.length;
-            }
-
-            loadBookmarks() {
-                try {
-                    const data = localStorage.getItem('bookmarks');
-                    return data ? JSON.parse(data) : [];
-                } catch {
-                    return [];
-                }
-            }
-
-            saveBookmarks() {
-                localStorage.setItem('bookmarks', JSON.stringify(this.bookmarks));
-            }
-        }
-
-        // ============================================
-        // 9. THEME MANAGER
-        // ============================================
-        class ThemeManager {
-            constructor() {
-                this.isDark = localStorage.getItem('theme') === 'dark';
-                this.initToggle();
-                this.applyTheme();
-            }
-
-            initToggle() {
-                const btn = document.getElementById('btn-theme');
-                btn.addEventListener('click', () => this.toggleTheme());
-            }
-
-            toggleTheme() {
-                this.isDark = !this.isDark;
-                localStorage.setItem('theme', this.isDark ? 'dark' : 'light');
-                this.applyTheme();
-                document.getElementById('btn-theme').textContent = this.isDark ? '☀️' : '🌙';
-                showNotification(this.isDark ? '🌙 Mode gelap aktif' : '☀️ Mode terang aktif', 'info');
-            }
-
-            applyTheme() {
-                document.body.classList.toggle('dark-mode', this.isDark);
-            }
-        }
-
-        // ============================================
-        // 10. PROGRESS MANAGER
-        // ============================================
-        class ProgressManager {
-            constructor() {
-                this.container = document.getElementById('global-progress');
-                this.bar = this.container.querySelector('.progress-inner');
-            }
-
-            show() {
-                this.container.style.display = 'block';
-                this.setProgress(0);
-            }
-
-            setProgress(percent) {
-                this.bar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-            }
-
-            hide() {
-                this.setProgress(100);
-                setTimeout(() => {
-                    this.container.style.display = 'none';
-                    this.setProgress(0);
-                }, 500);
-            }
-        }
-
-        // ============================================
-        // 11. INISIALISASI SEMUA FITUR
-        // ============================================
-        let bookmarkManager;
-        let dropHandler;
-        let themeManager;
-        let progressManager;
-        let signalMonitor;
-
-        document.addEventListener('DOMContentLoaded', function() {
-            // Inisialisasi fitur
-            bookmarkManager = new BookmarkManager(map);
-            window.bookmarkManager = bookmarkManager;
-
-            dropHandler = new FileDropHandler(map);
-            window.dropHandler = dropHandler;
-
-            themeManager = new ThemeManager();
-            progressManager = new ProgressManager();
-            signalMonitor = new SignalMonitor();
-
-            // Mulai GPS
-            startGPS();
-
-            // Tampilkan info
-            setTimeout(() => {
-                showNotification('🔄 Aplikasi siap! Seret file KMZ/KML atau klik peta untuk bookmark', 'info', 3000);
-            }, 1000);
-
-            // ============================================
-            // 12. SERVICE WORKER REGISTRATION
-            // ============================================
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(reg => {
-                        console.log('✅ Service Worker registered');
-                        // Check for updates
-                        reg.addEventListener('updatefound', () => {
-                            const newSW = reg.installing;
-                            newSW.addEventListener('statechange', () => {
-                                if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-                                    showNotification('🔄 Update tersedia! Refresh untuk mengupdate', 'info', 5000);
-                                }
-                            });
-                        });
-                    })
-                    .catch(err => console.log('❌ SW registration failed:', err));
-
-                // Handle controller change
-                navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    console.log('🔄 Service Worker controller changed');
-                });
-            }
-
-            // ============================================
-            // 13. PWA INSTALL PROMPT
-            // ============================================
-            let deferredPrompt;
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                showNotification('📲 Instal aplikasi ini untuk akses offline', 'info', 5000);
-
-                // Add install button to bottom nav
-                const installBtn = document.createElement('button');
-                installBtn.className = 'nav-item';
-                installBtn.innerHTML = `
-                    <span class="nav-icon">📲</span>
-                    <span class="nav-label">Install</span>
-                `;
-                installBtn.style.color = '#4CAF50';
-                installBtn.addEventListener('click', async () => {
-                    if (deferredPrompt) {
-                        deferredPrompt.prompt();
-                        const result = await deferredPrompt.userChoice;
-                        if (result.outcome === 'accepted') {
-                            showNotification('✅ Aplikasi terinstal!', 'success');
-                        }
-                        deferredPrompt = null;
-                    }
-                });
-                document.getElementById('bottom-nav').appendChild(installBtn);
+        const polygons = pm.getElementsByTagName("Polygon");
+        for (let j = 0; j < polygons.length; j++) {
+          const coordsEl = polygons[j].getElementsByTagName("coordinates")[0];
+          if (coordsEl) {
+            const rawCoords = coordsEl.textContent.trim().split(/\s+/);
+            const latLngs = [];
+            rawCoords.forEach(c => {
+              const parts = c.split(",");
+              if (parts.length >= 2) {
+                const lng = parseFloat(parts[0]);
+                const lat = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lng)) latLngs.push([lat, lng]);
+              }
             });
 
-            window.addEventListener('appinstalled', () => {
-                showNotification('🎉 Aplikasi berhasil diinstall!', 'success');
-                console.log('📲 App installed');
-            });
-        });
+            if (latLngs.length > 0) {
+              L.polygon(latLngs, {
+                stroke: isOutlineActive && strokeWidth > 0,
+                color: lineHex,
+                opacity: lineOpacity,
+                weight: strokeWidth,
+                fill: isFillActive,
+                fillColor: fillHex,
+                fillOpacity: fillOpacity
+              }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+            }
+          }
+        }
+      }
 
-        // ============================================
-        // 14. ERROR HANDLING
-        // ============================================
-        window.addEventListener('error', (e) => {
-            console.error('Global error:', e.error);
-        });
+      return layerGroup;
+    }
 
-        window.addEventListener('unhandledrejection', (e) => {
-            console.error('Unhandled rejection:', e.reason);
-        });
+    async function activateKMZFile(index) {
+      const file = scannedKmzFiles[index];
+      if (!file) return;
 
-        console.log('✅ Aplikasi siap digunakan!');
-        console.log('📌 Fitur: GPS Tracking | Drag-and-Drop KMZ/KML | Bookmark | Dark Mode | PWA');
-        console.log('📂 2 View: Peta & Layers');
-    </script>
+      try {
+        let kmlText = "";
 
+        if (file.name.toLowerCase().endsWith('.kmz')) {
+          const zip = await JSZip.loadAsync(file);
+          const kmlFile = Object.keys(zip.files).find(fileName => fileName.toLowerCase().endsWith('.kml'));
+
+          if (!kmlFile) {
+            alert('File KML internal tidak ditemukan di dalam KMZ.');
+            return;
+          }
+          kmlText = await zip.files[kmlFile].async("string");
+        } else if (file.name.toLowerCase().endsWith('.kml')) {
+          kmlText = await file.text();
+        }
+
+        const featureGroup = parseKMLToLeaflet(kmlText);
+
+        if (featureGroup.getLayers().length === 0) {
+          alert('Tidak ada fitur spasial valid yang dapat dibaca pada file ini.');
+          return;
+        }
+
+        featureGroup.addTo(map);
+
+        const bounds = featureGroup.getBounds();
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [20, 20] });
+        }
+
+        addLayerToActiveStack(`kmz_${index}`, file.name, 'fa-file-code', featureGroup);
+
+      } catch (err) {
+        console.error(err);
+        alert('Gagal memuat file: ' + err.message);
+      }
+    }
+
+    /* --- MANAGEMENT LAYERS UI --- */
+    function setBasemap(key) {
+      const provider = BASEMAP_PROVIDERS[key];
+      if (!provider) return;
+
+      if (activeLayers['basemap']) {
+        map.removeLayer(activeLayers['basemap'].layer);
+      }
+
+      const tileLayer = L.tileLayer(provider.url, { maxZoom: 20, attribution: provider.name }).addTo(map);
+      addLayerToActiveStack('basemap', provider.name, provider.icon, tileLayer);
+    }
+
+    function addLayerToActiveStack(id, name, icon, leafletLayer) {
+      if (activeLayers[id]) {
+        map.removeLayer(activeLayers[id].layer);
+      }
+
+      activeLayers[id] = { name, icon, layer: leafletLayer };
+      updateActiveLayersUI();
+    }
+
+    function removeLayerFromStack(id) {
+      if (activeLayers[id]) {
+        map.removeLayer(activeLayers[id].layer);
+        delete activeLayers[id];
+        updateActiveLayersUI();
+      }
+    }
+
+    function updateActiveLayersUI() {
+      const activeContainer = document.getElementById('active-layers');
+      let html = '';
+
+      Object.keys(activeLayers).forEach(id => {
+        const item = activeLayers[id];
+        html += `
+          <div class="file-item">
+            <div class="file-info">
+              <i class="fa-solid ${item.icon}"></i>
+              <span class="file-name">${item.name}</span>
+            </div>
+            <button class="remove-btn" onclick="removeLayerFromStack('${id}')">Hapus</button>
+          </div>
+        `;
+      });
+
+      activeContainer.innerHTML = html;
+    }
+
+    /* --- RENDER LIBRARY TABS --- */
+    function renderKMZLibrary() {
+      const container = document.getElementById('library-content');
+      container.innerHTML = `
+        <div style="font-size:12px; color:#555; margin-bottom:8px;">
+          Folder Aktif: <b id="current-folder-label">${defaultDirHandle ? defaultDirHandle.name : 'Belum diatur'}</b>
+        </div>
+        <div id="kmz-file-list"></div>
+      `;
+      renderKMZFileList();
+    }
+
+    function renderKMZFileList() {
+      const listContainer = document.getElementById('kmz-file-list');
+      if (!listContainer) return;
+
+      if (!defaultDirHandle) {
+        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Atur folder default KMZ melalui menu Setting (ikon <i class="fa-solid fa-wrench"></i>).</p>`;
+        return;
+      }
+
+      if (scannedKmzFiles.length === 0) {
+        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Tidak ada file .kmz/.kml di dalam folder ini.</p>`;
+        return;
+      }
+
+      let html = '';
+      scannedKmzFiles.forEach((file, index) => {
+        html += `
+          <div class="file-item">
+            <div class="file-info">
+              <i class="fa-solid fa-file-code"></i>
+              <span class="file-name">${file.name}</span>
+            </div>
+            <button class="add-btn" onclick="activateKMZFile(${index})">+ Aktifkan</button>
+          </div>
+        `;
+      });
+      listContainer.innerHTML = html;
+    }
+
+    function renderLibraryBasemaps() {
+      const container = document.getElementById('library-content');
+      let html = '';
+
+      Object.keys(BASEMAP_PROVIDERS).forEach(key => {
+        const item = BASEMAP_PROVIDERS[key];
+        html += `
+          <div class="file-item">
+            <div class="file-info">
+              <i class="fa-solid ${item.icon}"></i>
+              <span class="file-name">${item.name}</span>
+            </div>
+            <button class="add-btn" onclick="setBasemap('${key}')">+ Aktifkan</button>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    /* --- MODAL CONTROL --- */
+    function openSettings() {
+      document.getElementById('settings-modal').classList.add('active');
+    }
+    function closeSettings() {
+      document.getElementById('settings-modal').classList.remove('active');
+    }
+
+    function addWaypointAtReticle() {
+      const center = map.getCenter();
+      const marker = L.marker([center.lat, center.lng]).addTo(map);
+      marker.bindPopup(`<b>Waypoint ${waypointCount++}</b><br>Lat: ${center.lat.toFixed(5)}<br>Lng: ${center.lng.toFixed(5)}`).openPopup();
+    }
+
+    function toggleView() {
+      const mapView = document.getElementById('map-view');
+      const layersView = document.getElementById('layers-view');
+      const navIcon = document.getElementById('nav-icon');
+      const mapControls = document.querySelectorAll('.map-only-control');
+
+      if (currentView === 'map') {
+        mapView.classList.remove('active');
+        layersView.classList.add('active');
+        navIcon.className = 'fa-solid fa-map';
+        mapControls.forEach(el => el.style.visibility = 'hidden');
+        currentView = 'layers';
+      } else {
+        layersView.classList.remove('active');
+        mapView.classList.add('active');
+        navIcon.className = 'fa-solid fa-layer-group';
+        mapControls.forEach(el => el.style.visibility = 'visible');
+        currentView = 'map';
+        setTimeout(() => map.invalidateSize(), 100);
+      }
+    }
+
+    function switchTab(tabName, event) {
+      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      if (tabName === 'basemap') renderLibraryBasemaps();
+      else if (tabName === 'kmz') renderKMZLibrary();
+      else if (tabName === 'maps') {
+        document.getElementById('library-content').innerHTML = `
+          <div class="file-item">
+            <div class="file-info"><i class="fa-solid fa-file-pdf"></i><span class="file-name">Peta_Topografi_Zone48S.pdf</span></div>
+          </div>`;
+      }
+    }
+
+    /* --- TAMBAHKAN DI SINI (DILUAR FUNGSI LAIN) --- */
+    window.addEventListener('resize', () => {
+      if (map) {
+        map.invalidateSize();
+      }
+    });
+
+    window.onload = initMap;
+  </script>
 </body>
 </html>
