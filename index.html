@@ -17,6 +17,7 @@
   <script src="https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package/gdal3.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 
   <style>
   html, body {
@@ -1206,22 +1207,21 @@
     // ================================================================
     // KONVERSI GEOPDF -> WebP + JSON
     // ================================================================
-    // Alur:
-    // 1. Coba GDAL bila build browser mendukung PDF read.
-    // 2. Bila PDF driver tidak tersedia, render halaman dengan PDF.js.
-    // 3. Ambil georeferensi GeoPDF dari dictionary GPTS/EPSG bila tersedia.
-    // 4. Simpan WebP + JSON georeferensi dalam SATU record IndexedDB.
-    //
-    // Catatan penting: gdal3.js CDN resmi 2.8.1 tidak membawa backend
-    // Poppler/PDFium, sehingga PDF read biasanya tidak tersedia. Karena itu
-    // PDF.js dipakai sebagai fallback untuk rasterisasi halaman.
     async function convertGeoPDFToWebP(fileData, filename) {
-      const bytes = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
+      // Salin bytes di awal. PDF.js (dan kadang GDAL) dapat me-detach ArrayBuffer
+      // sehingga byteLength menjadi 0 jika buffer yang sama dipakai ulang.
+      const src = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
+      if (!src.byteLength) {
+        throw new Error('Data PDF kosong (ArrayBuffer length 0).');
+      }
+      const bytesForGeo = src.slice(0);   // salinan untuk parser GPTS
+      const bytesForGdal = src.slice(0);  // salinan untuk GDAL
+      const bytesForPdf = src.slice(0);   // salinan untuk PDF.js
 
       // ---- A. Jalur GDAL, jika PDF driver tersedia ----
       if (gdalReady && gdal) {
         try {
-          const file = new File([bytes], filename, { type: 'application/pdf' });
+          const file = new File([bytesForGdal], filename, { type: 'application/pdf' });
           const opened = await gdal.open(file);
 
           if (opened && opened.datasets && opened.datasets.length) {
@@ -1262,7 +1262,13 @@
         }
       }
 
-      // ---- B. Render halaman PDF dengan PDF.js ----
+      // ---- B. Ekstrak georeferensi SEBELUM PDF.js (buffer masih utuh) ----
+      const geo = await extractGeoPDFGeoreference(bytesForGeo);
+      if (!geo || !geo.bounds) {
+        console.warn('[GeoPDF] Georeferensi gagal di tahap awal. byteLength salinan geo:', bytesForGeo.byteLength);
+      }
+
+      // ---- C. Render halaman PDF dengan PDF.js ----
       if (typeof pdfjsLib === 'undefined') {
         throw new Error('PDF.js belum tersedia. Pastikan koneksi internet aktif saat aplikasi pertama kali dibuka.');
       }
@@ -1270,11 +1276,11 @@
       pdfjsLib.GlobalWorkerOptions.workerSrc =
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-      const loadingTask = pdfjsLib.getDocument({ data: bytes });
+      // Selalu berikan salinan buffer ke PDF.js agar tidak me-detach buffer lain
+      const loadingTask = pdfjsLib.getDocument({ data: bytesForPdf.slice(0).buffer });
       const pdf = await loadingTask.promise;
       const page = await pdf.getPage(1);
 
-      // Resolusi 2x: cukup tajam untuk peta dan masih realistis untuk HP.
       const baseViewport = page.getViewport({ scale: 1 });
       const maxPixels = 18000000;
       let scale = 2.0;
@@ -1297,12 +1303,14 @@
       const webpBlob = await canvasToWebP(canvas, 0.90);
       const webpData = await webpBlob.arrayBuffer();
 
-      // Ambil georeferensi dari PDF. Tidak boleh memakai bounds palsu.
-      const geo = await extractGeoPDFGeoreference(bytes);
       if (!geo || !geo.bounds) {
         throw new Error(
           'Halaman PDF berhasil dirender menjadi WebP, tetapi georeferensi GeoPDF tidak dapat dibaca. ' +
-          'PWA sengaja tidak membuat bounds palsu karena posisi peta harus akurat.'
+          'Kemungkinan: (1) file bukan GeoPDF (PDF biasa tanpa /GPTS), ' +
+          '(2) metadata georef tersimpan dalam format yang belum didukung, ' +
+          '(3) koordinat projected tanpa CRS yang dikenali. ' +
+          'Buka Console (F12) dan cari log [GeoPDF] untuk detail. ' +
+          'Alternatif: konversi dulu ke WebP+JSON di luar PWA, lalu Import WebP+JSON.'
         );
       }
 
@@ -1312,6 +1320,7 @@
           name: filename,
           bounds: geo.bounds,
           epsg: geo.epsg || null,
+          projectionWkt: geo.projectionWkt || null,
           source: 'pdf.js + GeoPDF metadata',
           format: 'webp',
           scheme: 'image-overlay',
@@ -1319,7 +1328,9 @@
           height: canvas.height,
           page: 1,
           pdfPages: pdf.numPages,
-          jsonVersion: 1
+          jsonVersion: 1,
+          gpts: geo.gpts || null,
+          geoSource: geo.source || null
         }
       };
     }
@@ -1346,7 +1357,6 @@
       const xy = corners.map(c => [Number(c[0]), Number(c[1])]);
       if (xy.some(c => !Number.isFinite(c[0]) || !Number.isFinite(c[1]))) return null;
 
-      // Jika sudah lon/lat.
       if (xy.every(c => Math.abs(c[0]) <= 180 && Math.abs(c[1]) <= 90)) {
         return [
           Math.min(...xy.map(c => c[1])),
@@ -1374,64 +1384,563 @@
       }
     }
 
-    // Ekstraksi heuristik untuk dua pola umum GeoPDF:
-    // /GPTS [x y x y ...] + /EPSG xxxx
-    // atau koordinat GPTS yang sudah berupa longitude/latitude.
-    // Ini bukan parser PDF penuh; jika dictionary berada dalam object stream
-    // terkompresi dan tidak terbaca sebagai teks, fungsi akan mengembalikan null.
-    async function extractGeoPDFGeoreference(fileData) {
-      const text = new TextDecoder('latin1').decode(fileData);
-
-      const gptsMatches = [];
-      const gptsRegex = /\/GPTS\s*\[([\s\S]*?)\]/g;
-      let match;
-      while ((match = gptsRegex.exec(text)) !== null) {
-        const nums = parsePdfNumbers(match[1]);
-        if (nums.length >= 8) gptsMatches.push(nums);
+    // ================================================================
+    // PARSER GEOPDF: GPTS + LPTS (robust)
+    // ================================================================
+    function bytesToLatin1(bytes) {
+      let out = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        const end = Math.min(i + chunk, bytes.length);
+        let part = '';
+        for (let j = i; j < end; j++) part += String.fromCharCode(bytes[j]);
+        out += part;
       }
+      return out;
+    }
 
-      if (!gptsMatches.length) return null;
-
-      // Gunakan dictionary GPTS terbesar yang masuk akal.
-      const gpts = gptsMatches.sort((a, b) => b.length - a.length)[0];
-      const points = [];
-      for (let i = 0; i + 1 < gpts.length; i += 2) {
-        points.push([gpts[i], gpts[i + 1]]);
-      }
-
-      const epsgMatch = text.match(/\/(?:EPSG|EPSG_CODE)\s+(?:\[\s*)?(\d{4,6})/i);
-      const epsg = epsgMatch ? Number(epsgMatch[1]) : null;
-
-      let bounds = null;
-
-      if (points.every(p => Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90)) {
-        bounds = [
-          Math.min(...points.map(p => p[1])),
-          Math.min(...points.map(p => p[0])),
-          Math.max(...points.map(p => p[1])),
-          Math.max(...points.map(p => p[0]))
-        ];
-      } else if (epsg && typeof proj4 === 'function') {
+    function inflatePdfStream(bytes) {
+      if (typeof pako === 'undefined') return null;
+      try {
+        return new TextDecoder('latin1').decode(pako.inflate(bytes));
+      } catch (_) {
         try {
-          const ll = points.map(p => proj4('EPSG:' + epsg, 'EPSG:4326', p));
-          bounds = [
-            Math.min(...ll.map(p => p[1])),
-            Math.min(...ll.map(p => p[0])),
-            Math.max(...ll.map(p => p[1])),
-            Math.max(...ll.map(p => p[0]))
-          ];
-        } catch (err) {
-          console.warn('GPTS ditemukan tetapi EPSG gagal diproyeksikan:', err);
+          return new TextDecoder('latin1').decode(pako.inflateRaw(bytes));
+        } catch (_) {
+          return null;
         }
       }
+    }
 
-      return bounds ? { bounds, epsg } : null;
+    function collectPdfTextLayers(fileData) {
+      const bytes = fileData instanceof Uint8Array
+        ? fileData
+        : new Uint8Array(fileData);
+
+      if (!bytes.byteLength) {
+        console.warn('[GeoPDF] collectPdfTextLayers: buffer kosong (byteLength=0). ' +
+          'Kemungkinan ArrayBuffer sudah di-detach oleh PDF.js/GDAL.');
+        return [''];
+      }
+
+      const raw = bytesToLatin1(bytes);
+      const texts = [raw];
+
+      let pos = 0;
+      const maxStreams = 8000;
+      let streamCount = 0;
+
+      while (pos < raw.length && streamCount < maxStreams) {
+        const streamPos = raw.indexOf('stream', pos);
+        if (streamPos < 0) break;
+
+        const before = streamPos > 0 ? raw.charCodeAt(streamPos - 1) : 32;
+        const after = raw.charCodeAt(streamPos + 6);
+        if ((before === 47) || (after !== 10 && after !== 13 && after !== 32 && after !== 9)) {
+          pos = streamPos + 6;
+          continue;
+        }
+
+        const dictStart = Math.max(0, raw.lastIndexOf('<<', streamPos));
+        const dict = dictStart >= 0 ? raw.slice(dictStart, streamPos) : '';
+
+        const endStream = raw.indexOf('endstream', streamPos + 6);
+        if (endStream < 0) break;
+
+        let dataStart = streamPos + 6;
+        if (raw.charCodeAt(dataStart) === 13 && raw.charCodeAt(dataStart + 1) === 10) dataStart += 2;
+        else if (raw.charCodeAt(dataStart) === 10 || raw.charCodeAt(dataStart) === 13) dataStart += 1;
+
+        const dataEnd = endStream;
+        if (dataEnd > dataStart && /\/FlateDecode\b/i.test(dict)) {
+          const compressed = bytes.slice(dataStart, dataEnd);
+          const inflated = inflatePdfStream(compressed);
+          if (inflated) texts.push(inflated);
+        }
+
+        streamCount++;
+        pos = endStream + 9;
+      }
+
+      return texts;
     }
 
     function parsePdfNumbers(value) {
       return (value.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) || [])
         .map(Number)
         .filter(Number.isFinite);
+    }
+
+    function resolveIndirectArray(fullText, objNum) {
+      const objRegex = new RegExp('(?:^|[^0-9])' + objNum + '\\s+\\d+\\s+obj\\b', 'g');
+      let m;
+      while ((m = objRegex.exec(fullText)) !== null) {
+        const objStart = m.index + m[0].length;
+        const endobjPos = fullText.indexOf('endobj', objStart);
+        const end = endobjPos > 0 ? endobjPos : Math.min(fullText.length, objStart + 50000);
+        const body = fullText.slice(objStart, end);
+
+        // Direct array
+        const bracketStart = body.indexOf('[');
+        if (bracketStart >= 0) {
+          let depth = 0;
+          for (let i = bracketStart; i < body.length; i++) {
+            if (body[i] === '[') depth++;
+            else if (body[i] === ']') {
+              depth--;
+              if (depth === 0) {
+                const nums = parsePdfNumbers(body.slice(bracketStart + 1, i));
+                if (nums.length >= 2) return nums;
+                break;
+              }
+            }
+          }
+        }
+
+        // Stream object containing array data
+        const streamIdx = body.indexOf('stream');
+        if (streamIdx >= 0) {
+          let dataStart = streamIdx + 6;
+          if (body.charCodeAt(dataStart) === 13 && body.charCodeAt(dataStart + 1) === 10) dataStart += 2;
+          else if (body.charCodeAt(dataStart) === 10 || body.charCodeAt(dataStart) === 13) dataStart += 1;
+          const streamEnd = body.indexOf('endstream', dataStart);
+          if (streamEnd > dataStart) {
+            const streamText = body.slice(dataStart, streamEnd);
+            const nums = parsePdfNumbers(streamText);
+            if (nums.length >= 2) return nums;
+          }
+        }
+      }
+      return null;
+    }
+
+    function extractPdfArrayAfterToken(text, token, fromIndex) {
+      const tokenPos = text.indexOf(token, fromIndex || 0);
+      if (tokenPos < 0) return null;
+
+      const afterToken = text.slice(tokenPos + token.length, tokenPos + token.length + 80);
+      const refMatch = afterToken.match(/^\s*(\d+)\s+\d+\s+R\b/);
+      if (refMatch) {
+        const values = resolveIndirectArray(text, refMatch[1]);
+        if (values && values.length >= 2) {
+          return { values, start: tokenPos, end: tokenPos + token.length + refMatch[0].length };
+        }
+      }
+
+      // Inline array — allow whitespace/newlines between token and [
+      const searchWindow = text.slice(tokenPos + token.length, tokenPos + token.length + 400);
+      const bracketRel = searchWindow.search(/\[/);
+      if (bracketRel < 0) return null;
+      const bracketStart = tokenPos + token.length + bracketRel;
+
+      let depth = 0;
+      for (let i = bracketStart; i < text.length && i < bracketStart + 20000; i++) {
+        const ch = text[i];
+        if (ch === '[') depth++;
+        else if (ch === ']') {
+          depth--;
+          if (depth === 0) {
+            return {
+              values: parsePdfNumbers(text.slice(bracketStart + 1, i)),
+              start: tokenPos,
+              end: i + 1
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    function extractGeoPdfCRSNear(text, start, end) {
+      const windowStart = Math.max(0, start - 3000);
+      const windowEnd = Math.min(text.length, end + 12000);
+      const area = text.slice(windowStart, windowEnd);
+
+      // /WKT (....)
+      const wktMatch = area.match(/\/WKT\s*\(([^)]{10,20000})\)/i);
+      if (wktMatch) return { type: 'wkt', value: wktMatch[1] };
+
+      // EPSG in various forms
+      const epsgMatch =
+        area.match(/\/EPSG\s*[:=]?\s*(\d{4,5})\b/i) ||
+        area.match(/EPSG[:\s]*(\d{4,5})\b/i) ||
+        area.match(/\/EPSGCode\s*(\d{4,5})\b/i);
+      if (epsgMatch) return { type: 'epsg', value: Number(epsgMatch[1]) };
+
+      // Common Indonesian UTM zones near GEO measure
+      const utmMatch = area.match(/UTM\s*zone\s*(\d{1,2})\s*([NS])/i);
+      if (utmMatch) {
+        const zone = Number(utmMatch[1]);
+        const hemi = utmMatch[2].toUpperCase();
+        const epsg = hemi === 'S' ? 32700 + zone : 32600 + zone;
+        return { type: 'epsg', value: epsg };
+      }
+
+      // /Type /GEOGCS or PROJCS with name
+      const gcsMatch = area.match(/\/GEOGCS\s*\(([^)]{5,200})\)/i);
+      if (gcsMatch && /WGS.?84|ITRF/i.test(gcsMatch[1])) {
+        return { type: 'epsg', value: 4326 };
+      }
+
+      return null;
+    }
+
+    function tryReprojectPoints(xyPairs, crs) {
+      if (!crs || typeof proj4 !== 'function') return null;
+
+      try {
+        let source;
+        if (crs.type === 'epsg') {
+          source = 'EPSG:' + crs.value;
+          // Ensure common Indonesian UTM defs exist
+          if (crs.value >= 32646 && crs.value <= 32654) {
+            const zone = crs.value - 32600;
+            try { proj4.defs(source, '+proj=utm +zone=' + zone + ' +datum=WGS84 +units=m +no_defs'); } catch (_) {}
+          }
+          if (crs.value >= 32746 && crs.value <= 32754) {
+            const zone = crs.value - 32700;
+            try { proj4.defs(source, '+proj=utm +zone=' + zone + ' +south +datum=WGS84 +units=m +no_defs'); } catch (_) {}
+          }
+        } else if (crs.type === 'wkt') {
+          source = crs.value;
+        } else {
+          return null;
+        }
+
+        const target = 'EPSG:4326';
+        const ll = xyPairs.map(c => {
+          const out = proj4(source, target, c);
+          return [out[1], out[0]]; // lat, lon
+        });
+
+        if (ll.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return null;
+        if (ll.some(p => Math.abs(p[0]) > 90 || Math.abs(p[1]) > 180)) return null;
+        return ll;
+      } catch (err) {
+        console.warn('Reproject GPTS gagal:', err.message || err);
+        return null;
+      }
+    }
+
+    function gptsToLatLonPoints(gpts, text, start, end) {
+      if (!gpts || gpts.length < 4 || gpts.length % 2 !== 0) return null;
+
+      const pairs = [];
+      for (let i = 0; i < gpts.length; i += 2) {
+        pairs.push([Number(gpts[i]), Number(gpts[i + 1])]);
+      }
+      if (pairs.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return null;
+
+      // Case 1: already geographic — try lat,lon then lon,lat
+      const asLatLon = pairs.every(p => Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180);
+      if (asLatLon) {
+        // Prefer order that yields more realistic Indonesia-ish span if ambiguous
+        return pairs.map(p => [p[0], p[1]]); // lat, lon (Adobe GPTS standard)
+      }
+
+      const asLonLat = pairs.every(p => Math.abs(p[1]) <= 90 && Math.abs(p[0]) <= 180);
+      if (asLonLat) {
+        return pairs.map(p => [p[1], p[0]]); // swap to lat, lon
+      }
+
+      // Case 2: projected coordinates — need CRS
+      const crs = extractGeoPdfCRSNear(text, start, end);
+      if (crs) {
+        const reprojected = tryReprojectPoints(pairs, crs);
+        if (reprojected) return reprojected;
+
+        // Try swapped axis (northing,easting)
+        const swapped = pairs.map(p => [p[1], p[0]]);
+        const reprojected2 = tryReprojectPoints(swapped, crs);
+        if (reprojected2) return reprojected2;
+      }
+
+      // Case 3: large numbers look like UTM easting/northing for Indonesia (~200000-900000, 9000000-)
+      // Guess common zones if CRS missing
+      const looksLikeUTM = pairs.every(p =>
+        Math.abs(p[0]) > 180 && Math.abs(p[0]) < 1000000 &&
+        Math.abs(p[1]) > 180
+      );
+      if (looksLikeUTM && typeof proj4 === 'function') {
+        const meanX = pairs.reduce((s, p) => s + p[0], 0) / pairs.length;
+        const meanY = pairs.reduce((s, p) => s + p[1], 0) / pairs.length;
+        // Indonesia typically zone 46-54, south if Y ~ 9e6 or negative
+        const isSouth = meanY < 0 || meanY > 5000000;
+        // rough zone from longitude estimate is hard without lon; try zones 47-52
+        const zonesToTry = [47, 48, 49, 50, 51, 52, 46, 53, 54];
+        for (const zone of zonesToTry) {
+          const epsg = isSouth ? 32700 + zone : 32600 + zone;
+          const crsGuess = { type: 'epsg', value: epsg };
+          const rep = tryReprojectPoints(pairs, crsGuess);
+          if (rep) {
+            // Prefer results over Indonesia roughly
+            const meanLon = rep.reduce((s, p) => s + p[1], 0) / rep.length;
+            const meanLat = rep.reduce((s, p) => s + p[0], 0) / rep.length;
+            if (meanLon >= 90 && meanLon <= 145 && meanLat >= -15 && meanLat <= 10) {
+              console.log('GPTS diinterpretasi sebagai UTM zona', zone, isSouth ? 'S' : 'N', '→ EPSG:' + epsg);
+              return rep;
+            }
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function scoreLatLonPoints(points, text, start, hasLpts) {
+      if (!points || points.length < 2) return -1;
+
+      for (const p of points) {
+        if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])) return -1;
+        if (Math.abs(p[0]) > 90 || Math.abs(p[1]) > 180) return -1;
+      }
+
+      const latSpan = Math.max(...points.map(p => p[0])) - Math.min(...points.map(p => p[0]));
+      const lonSpan = Math.max(...points.map(p => p[1])) - Math.min(...points.map(p => p[1]));
+      if (latSpan <= 0 || lonSpan <= 0) return -1;
+      // Unrealistic map size > ~20 deg usually not a single sheet
+      if (latSpan > 25 || lonSpan > 25) return -1;
+
+      let score = 0;
+      const ctx = text.slice(Math.max(0, start - 2000), Math.min(text.length, start + 3000));
+      if (/\/Subtype\s*\/GEO\b/i.test(ctx)) score += 1000000;
+      if (/\/Measure\b/i.test(ctx)) score += 500000;
+      if (/\/GPTS\b/i.test(ctx)) score += 100000;
+      if (hasLpts) score += 80000;
+      score += Math.min(latSpan * lonSpan * 500000, 20000);
+      score += Math.min(points.length * 10, 200);
+
+      // Bonus for Indonesia-ish bounds
+      const meanLat = points.reduce((s, p) => s + p[0], 0) / points.length;
+      const meanLon = points.reduce((s, p) => s + p[1], 0) / points.length;
+      if (meanLat >= -15 && meanLat <= 10 && meanLon >= 90 && meanLon <= 145) score += 50000;
+
+      return score;
+    }
+
+    function boundsFromPoints(points) {
+      const lats = points.map(p => p[0]);
+      const lons = points.map(p => p[1]);
+      return [
+        Math.min(...lats),
+        Math.min(...lons),
+        Math.max(...lats),
+        Math.max(...lons)
+      ];
+    }
+
+    async function extractGeoPDFGeoreference(fileData) {
+      const texts = collectPdfTextLayers(fileData);
+      const combinedText = texts.join('\n');
+
+      console.log('[GeoPDF] Panjang teks digabung:', combinedText.length,
+        '| stream layers:', texts.length - 1,
+        '| ada /GPTS:', combinedText.includes('/GPTS'),
+        '| ada /LPTS:', combinedText.includes('/LPTS'),
+        '| ada /Measure:', combinedText.includes('/Measure'),
+        '| ada /GEO:', /\/GEO\b/.test(combinedText));
+
+      const candidates = [];
+
+      // ----------------------------------------------------------
+      // PATH 1 (prioritas): regex langsung Adobe Measure/GEO + GPTS
+      // Contoh: /GPTS[-2.97899 118.60855 -2.07968 118.60744 ...]
+      // ----------------------------------------------------------
+      try {
+        const gptsRegex = /\/GPTS\s*\[\s*([^\]]{8,2000})\s*\]/gi;
+        let m;
+        while ((m = gptsRegex.exec(combinedText)) !== null) {
+          const nums = parsePdfNumbers(m[1]);
+          if (nums.length < 4 || nums.length % 2 !== 0) continue;
+
+          const start = m.index;
+          const end = m.index + m[0].length;
+
+          const region = combinedText.slice(Math.max(0, start - 600), Math.min(combinedText.length, end + 600));
+          let lpts = null;
+          const lptsMatch = region.match(/\/LPTS\s*\[\s*([^\]]{4,500})\s*\]/i);
+          if (lptsMatch) lpts = parsePdfNumbers(lptsMatch[1]);
+
+          const points = gptsToLatLonPoints(nums, combinedText, start, end);
+          if (!points) {
+            console.log('[GeoPDF] PATH1 GPTS match tapi bukan lat/lon. sample:', nums.slice(0, 8));
+            continue;
+          }
+
+          const score = scoreLatLonPoints(points, combinedText, start, !!lpts) + 500000;
+          if (score < 0) continue;
+
+          const bounds = boundsFromPoints(points);
+          const validBounds =
+            bounds.every(Number.isFinite) &&
+            bounds[0] >= -90 && bounds[2] <= 90 &&
+            bounds[1] >= -180 && bounds[3] <= 180 &&
+            bounds[0] < bounds[2] && bounds[1] < bounds[3];
+
+          if (!validBounds) continue;
+
+          candidates.push({
+            score,
+            bounds,
+            gpts: nums,
+            lpts,
+            points,
+            crs: extractGeoPdfCRSNear(combinedText, start, end),
+            source: 'GPTS-regex'
+          });
+          console.log('[GeoPDF] PATH1 kandidat score=', score, 'bounds=', bounds);
+        }
+      } catch (err) {
+        console.warn('[GeoPDF] PATH1 regex gagal:', err);
+      }
+
+      // ----------------------------------------------------------
+      // PATH 2: parser token generik (indirect + inline)
+      // ----------------------------------------------------------
+      if (!candidates.length) {
+        let cursor = 0;
+        let guard = 0;
+
+        while (cursor < combinedText.length && guard < 2000) {
+          const g = extractPdfArrayAfterToken(combinedText, '/GPTS', cursor);
+          if (!g) break;
+
+          const regionStart = Math.max(0, g.start - 800);
+          const regionEnd = Math.min(combinedText.length, g.end + 800);
+          const region = combinedText.slice(regionStart, regionEnd);
+          let lpts = null;
+          const lInRegion = extractPdfArrayAfterToken(region, '/LPTS', 0);
+          if (lInRegion && lInRegion.values && lInRegion.values.length >= 4) {
+            lpts = lInRegion.values;
+          } else {
+            const lNear = extractPdfArrayAfterToken(combinedText, '/LPTS', Math.max(0, g.start - 500));
+            if (lNear && Math.abs(lNear.start - g.start) < 2000) lpts = lNear.values;
+          }
+
+          const points = gptsToLatLonPoints(g.values, combinedText, g.start, g.end);
+          if (points) {
+            const score = scoreLatLonPoints(points, combinedText, g.start, !!lpts);
+            if (score >= 0) {
+              const bounds = boundsFromPoints(points);
+              const validBounds =
+                bounds.every(Number.isFinite) &&
+                bounds[0] >= -90 && bounds[2] <= 90 &&
+                bounds[1] >= -180 && bounds[3] <= 180 &&
+                bounds[0] < bounds[2] && bounds[1] < bounds[3];
+
+              if (validBounds) {
+                candidates.push({
+                  score,
+                  bounds,
+                  gpts: g.values,
+                  lpts,
+                  points,
+                  crs: extractGeoPdfCRSNear(combinedText, g.start, g.end),
+                  source: 'GPTS-token'
+                });
+                console.log('[GeoPDF] PATH2 kandidat score=', score, 'bounds=', bounds);
+              }
+            } else {
+              console.log('[GeoPDF] PATH2 GPTS score ditolak. sample:', g.values.slice(0, 8));
+            }
+          } else {
+            console.log('[GeoPDF] PATH2 GPTS bukan lat/lon. sample:', g.values.slice(0, 8));
+          }
+
+          cursor = g.end;
+          guard++;
+        }
+      }
+
+      // ----------------------------------------------------------
+      // PATH 3: fallback di sekitar /Measure atau /Subtype/GEO
+      // ----------------------------------------------------------
+      if (!candidates.length) {
+        const measureIdx = combinedText.search(/\/Subtype\s*\/GEO\b|\/Type\s*\/Measure\b/i);
+        if (measureIdx >= 0) {
+          const area = combinedText.slice(measureIdx, measureIdx + 12000);
+          const gptsInArea = area.match(/\/GPTS\s*\[\s*([^\]]+)\s*\]/i);
+          if (gptsInArea) {
+            const nums = parsePdfNumbers(gptsInArea[1]);
+            const points = gptsToLatLonPoints(nums, combinedText, measureIdx, measureIdx + 500);
+            if (points) {
+              const score = scoreLatLonPoints(points, combinedText, measureIdx, true);
+              if (score >= 0) {
+                candidates.push({
+                  score,
+                  bounds: boundsFromPoints(points),
+                  gpts: nums,
+                  lpts: null,
+                  points,
+                  source: 'Measure-GPTS-fallback'
+                });
+                console.log('[GeoPDF] PATH3 Measure-GPTS bounds=', boundsFromPoints(points));
+              }
+            }
+          }
+
+          if (!candidates.length) {
+            const nums = parsePdfNumbers(area);
+            for (let i = 0; i + 7 < nums.length; i++) {
+              const slice = nums.slice(i, i + 8);
+              // Skip unit-square Bounds [0 1 0 0 1 0 1 1]
+              if (slice.every(n => n === 0 || n === 1)) continue;
+
+              const pts = [];
+              let ok = true;
+              for (let j = 0; j < 8; j += 2) {
+                const a = slice[j], b = slice[j + 1];
+                if (Math.abs(a) <= 90 && Math.abs(b) <= 180 && (Math.abs(a) > 0.5 || Math.abs(b) > 0.5)) {
+                  pts.push([a, b]);
+                } else if (Math.abs(b) <= 90 && Math.abs(a) <= 180 && (Math.abs(a) > 0.5 || Math.abs(b) > 0.5)) {
+                  pts.push([b, a]);
+                } else {
+                  ok = false;
+                  break;
+                }
+              }
+              if (ok && pts.length === 4) {
+                const score = scoreLatLonPoints(pts, combinedText, measureIdx, false);
+                if (score >= 0) {
+                  candidates.push({
+                    score: score - 5000,
+                    bounds: boundsFromPoints(pts),
+                    gpts: slice,
+                    lpts: null,
+                    points: pts,
+                    source: 'Measure-numeric-fallback'
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (!candidates.length) {
+        const gIdx = combinedText.indexOf('/GPTS');
+        if (gIdx >= 0) {
+          console.warn('[GeoPDF] Ada /GPTS tapi tidak bisa diparse. Snippet:\n',
+            combinedText.slice(Math.max(0, gIdx - 80), gIdx + 200));
+        } else {
+          console.warn('[GeoPDF] Tidak ada /GPTS di teks PDF.');
+        }
+        return null;
+      }
+
+      candidates.sort((a, b) => b.score - a.score);
+      const best = candidates[0];
+      console.log('[GeoPDF] Bounds terpilih:', best.bounds, 'sumber:', best.source, 'score:', best.score);
+
+      return {
+        bounds: best.bounds,
+        gpts: best.gpts,
+        lpts: best.lpts,
+        projectionWkt: best.crs && best.crs.type === 'wkt' ? best.crs.value : null,
+        epsg: best.crs && best.crs.type === 'epsg' ? best.crs.value : null,
+        source: best.source,
+        candidates: candidates.length
+      };
     }
 
     // ================================================================
@@ -1447,14 +1956,11 @@
         for (const file of files) {
           try {
             showNotification('⏳ Mengkonversi ' + file.name + '...', 5000);
-            
-            // 1. Baca file sebagai ArrayBuffer
+
             const data = await file.arrayBuffer();
-            
-            // 2. Konversi dengan gdal3.js
+
             const result = await convertGeoPDFToWebP(data, file.name);
-            
-            // 3. Simpan ke IndexedDB
+
             const newMap = {
               id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
               name: file.name.replace(/\.[^/.]+$/, '') + '.webp',
@@ -1473,11 +1979,11 @@
               maxZoom: result.metadata.maxZoom || 22,
               jsonData: JSON.stringify(result.metadata)
             };
-            
+
             await saveMapToDB(newMap);
             mapCollection.push(newMap);
             showNotification('✅ ' + file.name + ' berhasil dikonversi ke WebP+JSON!', 3000);
-            
+
           } catch (err) {
             console.error('Gagal konversi GeoPDF:', err);
             alert('Gagal konversi ' + file.name + ': ' + err.message);
@@ -1492,8 +1998,6 @@
     // ================================================================
     // WEBP + JSON SUPPORT
     // ================================================================
-
-    // Upload satu WebP dan satu JSON georeferensi sekaligus.
     function uploadWebPJSON() {
       const input = document.createElement('input');
       input.type = 'file';
@@ -1534,8 +2038,6 @@
             name: baseName + '.webp',
             type: 'webp_json',
 
-            // webpData adalah gambar WebP sebenarnya.
-            // tilesData dipertahankan untuk kompatibilitas data lama.
             webpData: webpData,
             tilesData: webpData,
 
@@ -1577,13 +2079,6 @@
       input.click();
     }
 
-    // Leaflet imageOverlay membutuhkan:
-    // [south, west, north, east]
-    //
-    // JSON dapat memakai:
-    //   bounds = [south, west, north, east]
-    // atau
-    //   bbox   = [west, south, east, north]
     function normalizeMapBounds(value) {
       if (!Array.isArray(value) || value.length < 4) return null;
 
@@ -1594,7 +2089,6 @@
 
       if (![a, b, c, d].every(Number.isFinite)) return null;
 
-      // [south, west, north, east]
       if (
         a >= -90 && a <= 90 &&
         c >= -90 && c <= 90 &&
@@ -1605,7 +2099,6 @@
         return [a, b, c, d];
       }
 
-      // [west, south, east, north]
       if (
         a >= -180 && a <= 180 &&
         c >= -180 && c <= 180 &&
@@ -1619,8 +2112,6 @@
       return null;
     }
 
-    // Ambil byte WebP dari beberapa nama field agar kompatibel
-    // dengan record IndexedDB versi lama maupun baru.
     function getWebPArrayBuffer(mapData) {
       const candidates = [
         mapData.webpData,
@@ -1652,11 +2143,6 @@
       return null;
     }
 
-    // WebP tunggal bukan folder tile XYZ.
-    // Karena itu jangan membuat:
-    // blobURL + '/{z}/{x}/{y}.webp'
-    //
-    // Untuk WebP + JSON georeferensi kita gunakan L.imageOverlay().
     function createWebPImageLayer(mapData) {
       const bytes = getWebPArrayBuffer(mapData);
 
@@ -1696,7 +2182,6 @@
         zIndex: 300
       });
 
-      // Disimpan supaya URL blob bisa dibersihkan saat layer dihapus.
       imageLayer._webpObjectUrl = imageUrl;
 
       imageLayer.on('load', () => {
@@ -1722,8 +2207,7 @@
     // ================================================================
     function renderLibraryContent() {
       const container = document.getElementById('library-content');
-      
-      // Tampilkan tombol upload
+
       let html = `
         <div class="upload-btn-wrapper">
           <button class="add-btn" onclick="uploadKMZFile()">
@@ -1765,10 +2249,10 @@
       let html = '';
       mapCollection.forEach((mapData, index) => {
         const isActive = activeLayers[mapData.id] !== undefined;
-        const icon = mapData.type === 'kmz' || mapData.type === 'kml' ? 'icon-file-code' : 
+        const icon = mapData.type === 'kmz' || mapData.type === 'kml' ? 'icon-file-code' :
                      mapData.type === 'webp_json' ? 'icon-globe' : 'icon-file-pdf';
-        const typeLabel = mapData.type === 'webp_json' ? '🗺️ WebP' : 
-                          mapData.type === 'kmz' ? '📦 KMZ' : 
+        const typeLabel = mapData.type === 'webp_json' ? '🗺️ WebP' :
+                          mapData.type === 'kmz' ? '📦 KMZ' :
                           mapData.type === 'kml' ? '📄 KML' : '📄 PDF';
         const pointCount = mapData.geojson?.features?.length || 0;
         const isGeoPDF = mapData.isGeoPDF || false;
@@ -1784,7 +2268,7 @@
               ${isActive ? '<span class="map-item-status active">AKTIF</span>' : ''}
             </div>
             <div class="file-actions">
-              ${!isActive ? `<button class="add-btn" onclick="activateMap('${mapData.id}')">Aktifkan</button>` : 
+              ${!isActive ? `<button class="add-btn" onclick="activateMap('${mapData.id}')">Aktifkan</button>` :
                             `<button class="remove-btn" onclick="deactivateMap('${mapData.id}')">Nonaktif</button>`}
               <button class="delete-btn" onclick="deleteMap('${mapData.id}')" title="Hapus dari Library">
                 <svg class="icon" style="width:14px;height:14px;"><use href="#icon-trash"></use></svg>
@@ -1803,14 +2287,12 @@
       const mapData = mapCollection.find(m => m.id === mapId);
       if (!mapData) return;
 
-      // Jika sudah ada layer dengan id yang sama, hapus dulu
       if (activeLayers[mapId]) {
         deactivateMap(mapId);
       }
 
       try {
         if (mapData.type === 'kmz' || mapData.type === 'kml') {
-          // Parse KMZ/KML
           const blob = new Blob([mapData.fileData]);
           const reader = new FileReader();
           reader.onload = async function(e) {
@@ -1828,20 +2310,19 @@
               } else {
                 kmlText = new TextDecoder().decode(mapData.fileData);
               }
-              
+
               const featureGroup = parseKMLToLeaflet(kmlText);
               if (featureGroup.getLayers().length === 0) {
                 alert('Tidak ada fitur yang valid di file ini.');
                 return;
               }
-              
+
               featureGroup.addTo(map);
               const bounds = featureGroup.getBounds();
               if (bounds.isValid()) {
                 map.fitBounds(bounds, { padding: [20, 20] });
               }
-              
-              // Tambahkan ke activeLayers
+
               activeLayers[mapId] = { name: mapData.name, layer: featureGroup };
               mapData.isActive = true;
               updateActiveLayersUI();
@@ -1854,20 +2335,8 @@
             }
           };
           reader.readAsArrayBuffer(blob);
-          
+
         } else if (mapData.type === 'webp_json') {
-          // ============================================
-          // TAMPILKAN WebP+JSON SEBAGAI IMAGE OVERLAY
-          // ============================================
-          //
-          // Kode lama membuat URL:
-          // blobURL + '/{z}/{x}/{y}.webp'
-          //
-          // Ini tidak valid untuk sebuah file WebP tunggal.
-          // Blob URL menunjuk ke SATU file, bukan folder tile.
-          //
-          // Karena itu WebP tunggal + JSON georeferensi
-          // ditampilkan menggunakan L.imageOverlay().
           try {
             const result = createWebPImageLayer(mapData);
 
@@ -1941,11 +2410,10 @@
     async function deleteMap(mapId) {
       const mapData = mapCollection.find(m => m.id === mapId);
       if (!mapData) return;
-      
+
       if (!confirm('Hapus "' + mapData.name + '" dari Library? Semua data titik akan ikut terhapus.')) return;
-      
+
       try {
-        // Hapus dari peta jika aktif
         if (activeLayers[mapId]) {
           const layer = activeLayers[mapId].layer;
           map.removeLayer(layer);
@@ -1957,14 +2425,12 @@
 
           delete activeLayers[mapId];
         }
-        
-        // Hapus dari IndexedDB
+
         await deleteMapFromDB(mapId);
-        
-        // Hapus dari collection
+
         mapCollection = mapCollection.filter(m => m.id !== mapId);
         if (activeMapId === mapId) activeMapId = null;
-        
+
         updateActiveLayersUI();
         renderLibraryContent();
         renderPointsView();
@@ -2192,10 +2658,9 @@
     function renderPointsView() {
       const container = document.getElementById('points-list-container');
       const mapNameEl = document.getElementById('points-map-name');
-      
-      // Cari peta yang aktif
+
       const activeMap = mapCollection.find(m => m.isActive === true);
-      
+
       if (!activeMap) {
         mapNameEl.textContent = 'Pilih peta terlebih dahulu';
         container.innerHTML = `<div class="empty-points">📭 Tidak ada peta aktif. Aktifkan peta dari tab Layers.</div>`;
@@ -2203,9 +2668,9 @@
       }
 
       mapNameEl.textContent = '📄 ' + activeMap.name + ' (' + (activeMap.geojson?.features?.length || 0) + ' titik)';
-      
+
       const features = activeMap.geojson?.features || [];
-      
+
       if (features.length === 0) {
         container.innerHTML = `<div class="empty-points">📭 Belum ada titik. Klik "Tambah" atau klik peta untuk menambah titik.</div>`;
         return;
@@ -2217,7 +2682,7 @@
         const name = feature.properties?.name || 'Titik ' + (index + 1);
         const note = feature.properties?.note || '';
         const timestamp = feature.properties?.timestamp || '';
-        
+
         html += `
           <div class="point-item">
             <div class="point-info">
@@ -2245,11 +2710,11 @@
       const name = prompt('Nama titik:', 'Waypoint ' + waypointCount);
       if (!name) return;
       const note = prompt('Catatan (opsional):', '');
-      
+
       if (!activeMap.geojson) {
         activeMap.geojson = { type: 'FeatureCollection', features: [] };
       }
-      
+
       activeMap.geojson.features.push({
         type: 'Feature',
         geometry: {
@@ -2262,16 +2727,14 @@
           timestamp: new Date().toISOString()
         }
       });
-      
-      // Simpan ke IndexedDB
+
       saveMapToDB(activeMap).then(() => {
         waypointCount++;
         renderPointsView();
         renderLibraryContent();
         showNotification('✅ Titik "' + name + '" ditambahkan');
       });
-      
-      // Tampilkan marker di peta
+
       const marker = L.marker([center.lat, center.lng]).addTo(map);
       marker.bindPopup('<b>' + name + '</b><br>' + center.lat.toFixed(5) + ', ' + center.lng.toFixed(5) + (note ? '<br>' + note : '')).openPopup();
     }
@@ -2279,10 +2742,10 @@
     function flyToPoint(index) {
       const activeMap = mapCollection.find(m => m.isActive === true);
       if (!activeMap) return;
-      
+
       const feature = activeMap.geojson?.features[index];
       if (!feature) return;
-      
+
       const coords = feature.geometry.coordinates;
       map.flyTo([coords[1], coords[0]], 17);
     }
@@ -2290,9 +2753,9 @@
     async function deletePoint(index) {
       const activeMap = mapCollection.find(m => m.isActive === true);
       if (!activeMap) return;
-      
+
       if (!confirm('Hapus titik ini?')) return;
-      
+
       activeMap.geojson.features.splice(index, 1);
       await saveMapToDB(activeMap);
       renderPointsView();
@@ -2303,15 +2766,15 @@
     async function clearAllPoints() {
       const activeMap = mapCollection.find(m => m.isActive === true);
       if (!activeMap) return;
-      
+
       const count = activeMap.geojson?.features?.length || 0;
       if (count === 0) {
         alert('Tidak ada titik untuk dihapus.');
         return;
       }
-      
+
       if (!confirm('Hapus semua ' + count + ' titik?')) return;
-      
+
       activeMap.geojson.features = [];
       await saveMapToDB(activeMap);
       renderPointsView();
@@ -2328,36 +2791,36 @@
         alert('Aktifkan peta terlebih dahulu dari tab Layers.');
         return;
       }
-      
+
       const features = activeMap.geojson?.features || [];
       if (features.length === 0) {
         alert('Tidak ada titik untuk diexport.');
         return;
       }
-      
+
       let content = '';
       let filename = activeMap.name.replace(/\.[^/.]+$/, '') + '_points';
       let mimeType = '';
-      
+
       switch(format) {
         case 'txt':
           content = 'Name\tLat\tLng\tNote\n';
-          content += features.map(f => 
+          content += features.map(f =>
             f.properties.name + '\t' + f.geometry.coordinates[1].toFixed(6) + '\t' + f.geometry.coordinates[0].toFixed(6) + '\t' + (f.properties.note || '')
           ).join('\n');
           filename += '.txt';
           mimeType = 'text/plain';
           break;
-          
+
         case 'csv':
           content = 'Name,Lat,Lng,Note\n';
-          content += features.map(f => 
+          content += features.map(f =>
             '"' + f.properties.name + '",' + f.geometry.coordinates[1].toFixed(6) + ',' + f.geometry.coordinates[0].toFixed(6) + ',"' + (f.properties.note || '') + '"'
           ).join('\n');
           filename += '.csv';
           mimeType = 'text/csv';
           break;
-          
+
         case 'kml':
           content = '<?xml version="1.0" encoding="UTF-8"?>\n';
           content += '<kml xmlns="http://www.opengis.net/kml/2.2">\n';
@@ -2379,13 +2842,12 @@
           filename += '.kml';
           mimeType = 'application/vnd.google-earth.kml+xml';
           break;
-          
+
         default:
           alert('Format tidak didukung');
           return;
       }
-      
-      // Download file
+
       const blob = new Blob([content], { type: mimeType + ';charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2395,7 +2857,7 @@
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
       showNotification('✅ ' + filename + ' berhasil diexport (' + features.length + ' titik)');
     }
 
@@ -2405,7 +2867,7 @@
     function showNotification(message, duration = 3000) {
       const existing = document.querySelector('.custom-notification');
       if (existing) existing.remove();
-      
+
       const notif = document.createElement('div');
       notif.className = 'custom-notification';
       notif.style.cssText = `
@@ -2427,7 +2889,7 @@
       `;
       notif.textContent = message;
       document.body.appendChild(notif);
-      
+
       setTimeout(() => {
         notif.style.animation = 'slideDown 0.3s ease';
         setTimeout(() => notif.remove(), 300);
@@ -2444,7 +2906,6 @@
       const navIconUse = document.getElementById('nav-icon-use');
       const mapControls = document.querySelectorAll('.map-only-control');
 
-      // Cycle through views: map -> layers -> points -> map
       if (currentView === 'map') {
         mapView.classList.remove('active');
         layersView.classList.add('active');
@@ -2540,8 +3001,7 @@
       const marker = L.marker([center.lat, center.lng]).addTo(map);
       marker.bindPopup('<b>Waypoint ' + waypointCount + '</b><br>Lat: ' + center.lat.toFixed(5) + '<br>Lng: ' + center.lng.toFixed(5)).openPopup();
       waypointCount++;
-      
-      // Juga tambahkan ke points management jika ada peta aktif
+
       const activeMap = mapCollection.find(m => m.isActive === true);
       if (activeMap) {
         if (!activeMap.geojson) {
@@ -2711,7 +3171,6 @@
       if (!file) return;
 
       try {
-        // Simpan ke IndexedDB dulu
         const data = await file.arrayBuffer();
         const newMap = {
           id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
