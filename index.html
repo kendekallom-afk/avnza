@@ -541,14 +541,19 @@
     };
 
     function initMap() {
-      map = L.map('map', { zoomControl: false }).setView([-6.2088, 106.8456], 15);
-      map.on('move', updateReticleCoordinates);
-      updateReticleCoordinates();
+  // Tambahkan maxZoom di dalam opsi objek L.map
+  map = L.map('map', { 
+    zoomControl: false,
+    maxZoom: 50  // Ubah nilai ini sesuai batas zoom maksimum yang diinginkan
+  }).setView([-2.66491, 118.85193], 15);
 
-      initStoredKMZFolder();
-      initGPSWatcher();
-      initOrientationWatcher();
-    }
+  map.on('move', updateReticleCoordinates);
+  updateReticleCoordinates();
+
+  initStoredKMZFolder();
+  initGPSWatcher();
+  initOrientationWatcher();
+}
 
     function updateReticleCoordinates() {
       const center = map.getCenter();
@@ -993,7 +998,7 @@
         map.removeLayer(activeLayers['basemap'].layer);
       }
 
-      const tileLayer = L.tileLayer(provider.url, { maxZoom: 20, attribution: provider.name }).addTo(map);
+      const tileLayer = L.tileLayer(provider.url, { maxZoom: 50, attribution: provider.name }).addTo(map);
       addLayerToActiveStack('basemap', provider.name, provider.icon, tileLayer);
     }
 
