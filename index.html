@@ -889,6 +889,10 @@
           if (!db.objectStoreNames.contains(STORE_NAME)) {
             db.createObjectStore(STORE_NAME, { keyPath: 'id' });
           }
+
+          if (!db.objectStoreNames.contains('config')) {
+            db.createObjectStore('config');
+          }
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -1331,6 +1335,234 @@
     }
 
     // ================================================================
+    // WEBP + JSON SUPPORT
+    // ================================================================
+
+    // Upload satu WebP dan satu JSON georeferensi sekaligus.
+    function uploadWebPJSON() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.webp,.json';
+      input.multiple = true;
+
+      input.onchange = async (e) => {
+        const files = Array.from(e.target.files || []);
+        const webpFile = files.find(f => f.name.toLowerCase().endsWith('.webp'));
+        const jsonFile = files.find(f => f.name.toLowerCase().endsWith('.json'));
+
+        if (!webpFile || !jsonFile) {
+          alert('Pilih 2 file sekaligus: satu .webp dan satu .json.');
+          return;
+        }
+
+        try {
+          const webpData = await webpFile.arrayBuffer();
+          const metadata = JSON.parse(await jsonFile.text());
+
+          const bounds = normalizeMapBounds(
+            metadata.bounds ||
+            metadata.bbox ||
+            metadata.extent ||
+            metadata.boundingBox
+          );
+
+          if (!bounds) {
+            throw new Error(
+              'JSON tidak memiliki bounds/bbox/extent yang valid.'
+            );
+          }
+
+          const baseName = webpFile.name.replace(/\.[^/.]+$/, '');
+
+          const newMap = {
+            id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            name: baseName + '.webp',
+            type: 'webp_json',
+
+            // webpData adalah gambar WebP sebenarnya.
+            // tilesData dipertahankan untuk kompatibilitas data lama.
+            webpData: webpData,
+            tilesData: webpData,
+
+            metadata: {
+              ...metadata,
+              bounds: bounds,
+              format: 'webp',
+              sourceJson: jsonFile.name
+            },
+
+            bounds: bounds,
+            minZoom: Number(metadata.minZoom || metadata.minzoom || 1),
+            maxZoom: Number(metadata.maxZoom || metadata.maxzoom || 22),
+
+            geojson: { type: 'FeatureCollection', features: [] },
+            created: new Date().toISOString(),
+            isActive: false,
+            source: 'webp_json_upload',
+            isGeoPDF: false,
+            converted: true
+          };
+
+          await saveMapToDB(newMap);
+          mapCollection.push(newMap);
+
+          renderLibraryContent();
+          renderPointsView();
+
+          showNotification(
+            '✅ ' + webpFile.name + ' + ' + jsonFile.name + ' berhasil ditambahkan.',
+            3500
+          );
+        } catch (err) {
+          console.error('Gagal membaca WebP+JSON:', err);
+          alert('Gagal membaca WebP+JSON: ' + err.message);
+        }
+      };
+
+      input.click();
+    }
+
+    // Leaflet imageOverlay membutuhkan:
+    // [south, west, north, east]
+    //
+    // JSON dapat memakai:
+    //   bounds = [south, west, north, east]
+    // atau
+    //   bbox   = [west, south, east, north]
+    function normalizeMapBounds(value) {
+      if (!Array.isArray(value) || value.length < 4) return null;
+
+      const a = Number(value[0]);
+      const b = Number(value[1]);
+      const c = Number(value[2]);
+      const d = Number(value[3]);
+
+      if (![a, b, c, d].every(Number.isFinite)) return null;
+
+      // [south, west, north, east]
+      if (
+        a >= -90 && a <= 90 &&
+        c >= -90 && c <= 90 &&
+        b >= -180 && b <= 180 &&
+        d >= -180 && d <= 180 &&
+        a <= c
+      ) {
+        return [a, b, c, d];
+      }
+
+      // [west, south, east, north]
+      if (
+        a >= -180 && a <= 180 &&
+        c >= -180 && c <= 180 &&
+        b >= -90 && b <= 90 &&
+        d >= -90 && d <= 90 &&
+        b <= d
+      ) {
+        return [b, a, d, c];
+      }
+
+      return null;
+    }
+
+    // Ambil byte WebP dari beberapa nama field agar kompatibel
+    // dengan record IndexedDB versi lama maupun baru.
+    function getWebPArrayBuffer(mapData) {
+      const candidates = [
+        mapData.webpData,
+        mapData.imageData,
+        mapData.webPData,
+        mapData.tilesData
+      ];
+
+      for (const value of candidates) {
+        if (value instanceof ArrayBuffer && value.byteLength > 0) {
+          return value;
+        }
+
+        if (value instanceof Uint8Array && value.byteLength > 0) {
+          return value.buffer.slice(
+            value.byteOffset,
+            value.byteOffset + value.byteLength
+          );
+        }
+
+        if (value && value.buffer instanceof ArrayBuffer && value.byteLength > 0) {
+          return value.buffer.slice(
+            value.byteOffset || 0,
+            (value.byteOffset || 0) + value.byteLength
+          );
+        }
+      }
+
+      return null;
+    }
+
+    // WebP tunggal bukan folder tile XYZ.
+    // Karena itu jangan membuat:
+    // blobURL + '/{z}/{x}/{y}.webp'
+    //
+    // Untuk WebP + JSON georeferensi kita gunakan L.imageOverlay().
+    function createWebPImageLayer(mapData) {
+      const bytes = getWebPArrayBuffer(mapData);
+
+      if (!bytes) {
+        throw new Error(
+          'Data WebP tidak ditemukan. Record peta hanya berisi metadata/PDF, bukan gambar WebP.'
+        );
+      }
+
+      const rawBounds =
+        mapData.bounds ||
+        mapData.metadata?.bounds ||
+        mapData.metadata?.bbox ||
+        mapData.metadata?.extent ||
+        mapData.metadata?.boundingBox;
+
+      const bounds = normalizeMapBounds(rawBounds);
+
+      if (!bounds) {
+        throw new Error(
+          'Bounds WebP tidak valid. JSON harus memiliki bounds atau bbox.'
+        );
+      }
+
+      const blob = new Blob([bytes], { type: 'image/webp' });
+      const imageUrl = URL.createObjectURL(blob);
+
+      const imageBounds = L.latLngBounds(
+        [bounds[0], bounds[1]],
+        [bounds[2], bounds[3]]
+      );
+
+      const imageLayer = L.imageOverlay(imageUrl, imageBounds, {
+        opacity: 1,
+        interactive: false,
+        crossOrigin: false,
+        zIndex: 300
+      });
+
+      // Disimpan supaya URL blob bisa dibersihkan saat layer dihapus.
+      imageLayer._webpObjectUrl = imageUrl;
+
+      imageLayer.on('load', () => {
+        console.log('✅ WebP berhasil dirender:', mapData.name);
+      });
+
+      imageLayer.on('error', () => {
+        console.error('❌ Browser gagal merender WebP:', mapData.name);
+        showNotification(
+          '❌ Gambar WebP gagal dirender. Periksa file WebP.',
+          4000
+        );
+      });
+
+      return {
+        layer: imageLayer,
+        bounds: imageBounds
+      };
+    }
+
+    // ================================================================
     // LIBRARY CONTENT - RENDER
     // ================================================================
     function renderLibraryContent() {
@@ -1345,10 +1577,16 @@
           <button class="add-btn" onclick="uploadGeoPDF()" style="background:#ff9800;">
             <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload GeoPDF
           </button>
+          <button class="add-btn" onclick="uploadWebPJSON()" style="background:#6a5acd;">
+            <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload WebP+JSON
+          </button>
         </div>
         <div style="font-size:12px; color:#555; margin-bottom:8px;">
           Total: <b>${mapCollection.length}</b> peta tersimpan
           ${gdalReady ? '<span style="color:#4CAF50; margin-left:8px;">✅ gdal3.js siap</span>' : '<span style="color:#ff9800; margin-left:8px;">⚠️ gdal3.js tidak tersedia</span>'}
+          <div style="font-size:11px;color:#777;margin-top:5px;">
+            WebP+JSON ditampilkan sebagai image overlay georeferensi.
+          </div>
         </div>
         <div id="library-file-list"></div>
       `;
@@ -1461,82 +1699,53 @@
           
         } else if (mapData.type === 'webp_json') {
           // ============================================
-          // TAMPILKAN WebP+JSON SEBAGAI TILE LAYER
+          // TAMPILKAN WebP+JSON SEBAGAI IMAGE OVERLAY
           // ============================================
+          //
+          // Kode lama membuat URL:
+          // blobURL + '/{z}/{x}/{y}.webp'
+          //
+          // Ini tidak valid untuk sebuah file WebP tunggal.
+          // Blob URL menunjuk ke SATU file, bukan folder tile.
+          //
+          // Karena itu WebP tunggal + JSON georeferensi
+          // ditampilkan menggunakan L.imageOverlay().
           try {
-            // Cek apakah sudah dikonversi
-            if (!mapData.converted && mapData.isGeoPDF) {
-              showNotification('⚠️ File ' + mapData.name + ' belum dikonversi. Upload ulang.', 4000);
-              return;
-            }
+            const result = createWebPImageLayer(mapData);
 
-            // Gunakan metadata untuk membuat tile layer
-            const bounds = mapData.bounds || mapData.metadata?.bounds || [-6.5, 106.5, -5.5, 107.5];
-            const minZoom = mapData.minZoom || mapData.metadata?.minZoom || 8;
-            const maxZoom = mapData.maxZoom || mapData.metadata?.maxZoom || 18;
+            result.layer.addTo(map);
 
-            // Jika ada tilesData, buat dari blob URL
-            if (mapData.tilesData && mapData.tilesData.byteLength > 0) {
-              // Buat tile layer dari data yang tersimpan
-              const blob = new Blob([mapData.tilesData], { type: 'application/octet-stream' });
-              const url = URL.createObjectURL(blob);
-              
-              const tileLayer = L.tileLayer(url + '/{z}/{x}/{y}.webp', {
-                minZoom: minZoom,
-                maxZoom: maxZoom,
-                bounds: L.latLngBounds(
-                  [bounds[0], bounds[1]],
-                  [bounds[2], bounds[3]]
-                ),
-                format: 'image/webp',
-                attribution: mapData.name
+            activeLayers[mapId] = {
+              name: mapData.name,
+              layer: result.layer,
+              type: 'webp_json'
+            };
+
+            mapData.isActive = true;
+
+            updateActiveLayersUI();
+            renderLibraryContent();
+            renderPointsView();
+
+            activeMapId = mapId;
+
+            setTimeout(() => {
+              map.invalidateSize();
+
+              map.fitBounds(result.bounds, {
+                padding: [20, 20],
+                maxZoom: Number(mapData.maxZoom || 22)
               });
-              
-              tileLayer.addTo(map);
-              activeLayers[mapId] = { name: mapData.name, layer: tileLayer };
-              mapData.isActive = true;
-              
-              // Fit bounds jika ada
-              if (bounds) {
-                map.fitBounds([
-                  [bounds[0], bounds[1]],
-                  [bounds[2], bounds[3]]
-                ], { padding: [20, 20] });
-              }
-              
-              updateActiveLayersUI();
-              renderLibraryContent();
-              renderPointsView();
-              activeMapId = mapId;
-              showNotification('✅ ' + mapData.name + ' (WebP+JSON) diaktifkan');
-            } else {
-              // Fallback: Buat tile layer dengan placeholder
-              showNotification('⚠️ ' + mapData.name + ' tidak memiliki data tile. Gunakan mode placeholder.', 4000);
-              
-              // Tampilkan bounds sebagai polygon untuk visualisasi
-              const boundsPoly = L.rectangle([
-                [bounds[0], bounds[1]],
-                [bounds[2], bounds[3]]
-              ], {
-                color: '#ff9800',
-                weight: 2,
-                fillColor: '#ff9800',
-                fillOpacity: 0.1,
-                dashArray: '5,5'
-              }).addTo(map);
-              boundsPoly.bindPopup('📄 ' + mapData.name + '<br>Placeholder - Konversi dengan gdal3.js diperlukan');
-              
-              activeLayers[mapId] = { name: mapData.name + ' (placeholder)', layer: boundsPoly };
-              mapData.isActive = true;
-              map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: [20, 20] });
-              
-              updateActiveLayersUI();
-              renderLibraryContent();
-              renderPointsView();
-              activeMapId = mapId;
-              showNotification('⚠️ ' + mapData.name + ' ditampilkan sebagai placeholder (GeoPDF belum dikonversi)', 4000);
-            }
+
+              updateReticleCoordinates();
+            }, 50);
+
+            showNotification(
+              '✅ ' + mapData.name + ' (WebP+JSON) ditampilkan di peta',
+              3000
+            );
           } catch (err) {
+            console.error('Gagal menampilkan WebP+JSON:', err);
             alert('Gagal menampilkan WebP+JSON: ' + err.message);
           }
         } else {
@@ -1549,7 +1758,14 @@
 
     function deactivateMap(mapId) {
       if (activeLayers[mapId]) {
-        map.removeLayer(activeLayers[mapId].layer);
+        const layer = activeLayers[mapId].layer;
+        map.removeLayer(layer);
+
+        if (layer && layer._webpObjectUrl) {
+          URL.revokeObjectURL(layer._webpObjectUrl);
+          layer._webpObjectUrl = null;
+        }
+
         delete activeLayers[mapId];
         const mapData = mapCollection.find(m => m.id === mapId);
         if (mapData) mapData.isActive = false;
@@ -1573,7 +1789,14 @@
       try {
         // Hapus dari peta jika aktif
         if (activeLayers[mapId]) {
-          map.removeLayer(activeLayers[mapId].layer);
+          const layer = activeLayers[mapId].layer;
+          map.removeLayer(layer);
+
+          if (layer && layer._webpObjectUrl) {
+            URL.revokeObjectURL(layer._webpObjectUrl);
+            layer._webpObjectUrl = null;
+          }
+
           delete activeLayers[mapId];
         }
         
@@ -2086,7 +2309,21 @@
         navIconUse.setAttribute('href', '#icon-layers');
         mapControls.forEach(el => el.style.visibility = 'visible');
         currentView = 'map';
-        setTimeout(() => map.invalidateSize(), 100);
+        setTimeout(() => {
+          map.invalidateSize();
+
+          const activeMap = mapCollection.find(m => m.isActive === true);
+          if (
+            activeMap &&
+            activeLayers[activeMap.id] &&
+            activeLayers[activeMap.id].type === 'webp_json'
+          ) {
+            const layer = activeLayers[activeMap.id].layer;
+            if (layer && layer.getBounds && layer.getBounds().isValid()) {
+              map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+            }
+          }
+        }, 100);
       }
     }
 
