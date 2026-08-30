@@ -565,10 +565,11 @@
     };
 
     function initMap() {
-  // Tambahkan maxZoom di dalam opsi objek L.map
   map = L.map('map', { 
     zoomControl: false,
-    maxZoom: 50  // Ubah nilai ini sesuai batas zoom maksimum yang diinginkan
+    maxZoom: 50,        // Batas maksimum level zoom
+    rotate: true,      // Mengaktifkan fitur rotasi peta
+    touchRotate: true  // Mengaktifkan rotasi peta menggunakan gestur 2 jari
   }).setView([-2.66491, 118.85193], 15);
 
   map.on('move', updateReticleCoordinates);
@@ -586,34 +587,48 @@
     }
 
     function centerToGPS() {
-      if (!navigator.geolocation) {
-        alert("Geolocation tidak didukung oleh browser ini.");
-        return;
-      }
+  if (!navigator.geolocation) {
+    alert("Geolocation tidak didukung oleh browser ini.");
+    return;
+  }
 
-      if (latestCoords) {
-        map.flyTo([latestCoords.lat, latestCoords.lng], 17);
-        updateUserMarker(latestCoords.lat, latestCoords.lng);
-      } else {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            latestCoords = { lat, lng };
-            map.flyTo([lat, lng], 17);
-            updateUserMarker(lat, lng);
-          },
-          (err) => {
-            let errorMsg = "Gagal mendapatkan lokasi.";
-            if (err.code === 1) errorMsg = "Izin lokasi ditolak. Harap izinkan akses lokasi di browser HP Anda.";
-            else if (err.code === 2) errorMsg = "Sinyal GPS tidak tersedia.";
-            else if (err.code === 3) errorMsg = "Waktu permintaan lokasi habis (Timeout).";
-            alert(errorMsg);
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      }
-    }
+  // Mengambil level zoom aktif saat ini agar tingkat zoom tidak berubah
+  const currentZoom = map.getZoom();
+
+  // Reset rotasi peta kembali menghadap ke Utara (0 derajat)
+  if (map.setBearing) {
+    map.setBearing(0);
+  }
+
+  // Reset rotasi penanda arah HP/kompas ke posisi sejajar
+  const wrapperEl = document.getElementById('user-heading-wrapper');
+  if (wrapperEl) {
+    wrapperEl.style.transform = `rotate(0deg)`;
+  }
+
+  if (latestCoords) {
+    map.flyTo([latestCoords.lat, latestCoords.lng], currentZoom);
+    updateUserMarker(latestCoords.lat, latestCoords.lng);
+  } else {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        latestCoords = { lat, lng };
+        map.flyTo([lat, lng], currentZoom);
+        updateUserMarker(lat, lng);
+      },
+      (err) => {
+        let errorMsg = "Gagal mendapatkan lokasi.";
+        if (err.code === 1) errorMsg = "Izin lokasi ditolak. Harap izinkan akses lokasi di browser HP Anda.";
+        else if (err.code === 2) errorMsg = "Sinyal GPS tidak tersedia.";
+        else if (err.code === 3) errorMsg = "Waktu permintaan lokasi habis (Timeout).";
+        alert(errorMsg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }
+}
 
     /* UPDATE MARKER TERMASUK DOT MERAH DI UJUNG CONE */
     function updateUserMarker(lat, lng) {
