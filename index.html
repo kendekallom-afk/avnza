@@ -7,6 +7,10 @@
   
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- 1. CSS TAMBAHAN UNTUK LEAFLET ROTATE -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.css" />
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 
@@ -97,11 +101,13 @@
     background-color: #cccccc;
   }
 
+  /* 2. MENCEGAH INTERSEPSI GESTURE BROWSER DEFAUL */
   #map {
     width: 100%;
     height: 100%;
     z-index: 1;
     background: #e2e2e2;
+    touch-action: none;
   }
 
   .crosshair {
@@ -171,7 +177,6 @@
   .status-medium    { color: #ffeb3b; }
   .status-strong    { color: #4caf50; }
 
-  /* STYLING UNTUK INDIKATOR LOKASI & HADAP HP */
   .user-location-container {
     position: relative;
     width: 60px;
@@ -181,7 +186,6 @@
     justify-content: center;
   }
 
-  /* Rangka Container Rotasi Arah */
   .user-heading-wrapper {
     position: absolute;
     width: 60px;
@@ -193,7 +197,6 @@
     transition: transform 0.1s linear;
   }
 
-  /* Cone/Sinar Kompas */
   .user-heading-cone {
     position: absolute;
     width: 0;
@@ -205,7 +208,6 @@
     left: 10px;
   }
 
-  /* Dot Merah Kecil di Ujung Lancip Segitiga */
   .heading-pointer-dot {
     position: absolute;
     top: -4px;
@@ -438,26 +440,27 @@
     justify-content: space-between;
     align-items: center;
   }
-  .fullscreen-btn {
-  position: absolute;
-  bottom: 20px;
-  right: 12px;
-  z-index: 1000;
-  background-color: rgba(0, 0, 0, 0.31);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-family: monospace;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-}
 
-.fullscreen-btn:active {
-  background-color: rgba(0, 0, 0, 0.9);
-}
+  .fullscreen-btn {
+    position: absolute;
+    bottom: 20px;
+    right: 12px;
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.31);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: monospace;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .fullscreen-btn:active {
+    background-color: rgba(0, 0, 0, 0.9);
+  }
   </style>
 </head>
 <body>
@@ -503,9 +506,9 @@
         <span id="gps-accuracy" class="value">-</span>
       </div>
     </div>
-	<button id="btn-fullscreen" class="fullscreen-btn map-only-control" onclick="toggleFullScreen()" title="Full Screen" style="visibility: hidden;">
-  [ ]
-</button>
+    <button id="btn-fullscreen" class="fullscreen-btn map-only-control" onclick="toggleFullScreen()" title="Full Screen" style="visibility: hidden;">
+      [ ]
+    </button>
   </div>
 
   <div id="layers-view" class="view active">
@@ -541,9 +544,7 @@
       </div>
     </div>
   </div>
-  
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <script>
@@ -567,20 +568,29 @@
     };
 
     function initMap() {
-  map = L.map('map', { 
-    zoomControl: false,
-    maxZoom: 50,        // Batas maksimum level zoom
-    rotate: true,      // Mengaktifkan fitur rotasi peta
-    touchRotate: true  // Mengaktifkan rotasi peta menggunakan gestur 2 jari
-  }).setView([-2.66491, 118.85193], 15);
+      // 3. INISIALISASI OPSI OPSI LEAFLET ROTATE
+      map = L.map('map', { 
+        zoomControl: false,
+        maxZoom: 50,
+        rotate: true,
+        bearing: 0,
+        touchRotate: true,
+        rotateControl: false,
+        touchZoom: true
+      }).setView([-2.66491, 118.85193], 15);
 
-  map.on('move', updateReticleCoordinates);
-  updateReticleCoordinates();
+      // Aktifkan handler gestur rotasi secara manual jika belum terikat
+      if (map.touchRotate && !map.touchRotate.enabled()) {
+        map.touchRotate.enable();
+      }
 
-  initStoredKMZFolder();
-  initGPSWatcher();
-  initOrientationWatcher();
-}
+      map.on('move', updateReticleCoordinates);
+      updateReticleCoordinates();
+
+      initStoredKMZFolder();
+      initGPSWatcher();
+      initOrientationWatcher();
+    }
 
     function updateReticleCoordinates() {
       const center = map.getCenter();
@@ -589,50 +599,46 @@
     }
 
     function centerToGPS() {
-  if (!navigator.geolocation) {
-    alert("Geolocation tidak didukung oleh browser ini.");
-    return;
-  }
+      if (!navigator.geolocation) {
+        alert("Geolocation tidak didukung oleh browser ini.");
+        return;
+      }
 
-  // Mengambil level zoom aktif saat ini agar tingkat zoom tidak berubah
-  const currentZoom = map.getZoom();
+      const currentZoom = map.getZoom();
 
-  // Reset rotasi peta kembali menghadap ke Utara (0 derajat)
-  if (map.setBearing) {
-    map.setBearing(0);
-  }
+      if (map.setBearing) {
+        map.setBearing(0);
+      }
 
-  // Reset rotasi penanda arah HP/kompas ke posisi sejajar
-  const wrapperEl = document.getElementById('user-heading-wrapper');
-  if (wrapperEl) {
-    wrapperEl.style.transform = `rotate(0deg)`;
-  }
+      const wrapperEl = document.getElementById('user-heading-wrapper');
+      if (wrapperEl) {
+        wrapperEl.style.transform = `rotate(0deg)`;
+      }
 
-  if (latestCoords) {
-    map.flyTo([latestCoords.lat, latestCoords.lng], currentZoom);
-    updateUserMarker(latestCoords.lat, latestCoords.lng);
-  } else {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        latestCoords = { lat, lng };
-        map.flyTo([lat, lng], currentZoom);
-        updateUserMarker(lat, lng);
-      },
-      (err) => {
-        let errorMsg = "Gagal mendapatkan lokasi.";
-        if (err.code === 1) errorMsg = "Izin lokasi ditolak. Harap izinkan akses lokasi di browser HP Anda.";
-        else if (err.code === 2) errorMsg = "Sinyal GPS tidak tersedia.";
-        else if (err.code === 3) errorMsg = "Waktu permintaan lokasi habis (Timeout).";
-        alert(errorMsg);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  }
-}
+      if (latestCoords) {
+        map.flyTo([latestCoords.lat, latestCoords.lng], currentZoom);
+        updateUserMarker(latestCoords.lat, latestCoords.lng);
+      } else {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            latestCoords = { lat, lng };
+            map.flyTo([lat, lng], currentZoom);
+            updateUserMarker(lat, lng);
+          },
+          (err) => {
+            let errorMsg = "Gagal mendapatkan lokasi.";
+            if (err.code === 1) errorMsg = "Izin lokasi ditolak. Harap izinkan akses lokasi di browser HP Anda.";
+            else if (err.code === 2) errorMsg = "Sinyal GPS tidak tersedia.";
+            else if (err.code === 3) errorMsg = "Waktu permintaan lokasi habis (Timeout).";
+            alert(errorMsg);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+    }
 
-    /* UPDATE MARKER TERMASUK DOT MERAH DI UJUNG CONE */
     function updateUserMarker(lat, lng) {
       if (userLocationMarker) {
         userLocationMarker.setLatLng([lat, lng]);
@@ -657,7 +663,6 @@
       }
     }
 
-    /* ORIENTASI HP TERHADAP ARAH ROTASI */
     function handleOrientation(event) {
       let alpha = event.alpha;
       let heading = null;
@@ -1196,43 +1201,31 @@
     });
 
     window.onload = initMap;
-  </script>
-  <script>
-  function toggleFullScreen() {
-  const fsBtn = document.getElementById('btn-fullscreen');
 
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    // Masuk mode Full Screen
-    const docEl = document.documentElement;
-    if (docEl.requestFullscreen) {
-      docEl.requestFullscreen();
-    } else if (docEl.webkitRequestFullscreen) { /* Safari / Chrome iOS/Android lama */
-      docEl.webkitRequestFullscreen();
+    function toggleFullScreen() {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const docEl = document.documentElement;
+        if (docEl.requestFullscreen) docEl.requestFullscreen();
+        else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
     }
-  } else {
-    // Keluar mode Full Screen
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
+
+    function updateFullscreenButton() {
+      const fsBtn = document.getElementById('btn-fullscreen');
+      if (!fsBtn) return;
+
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        fsBtn.innerText = '[x]';
+      } else {
+        fsBtn.innerText = '[ ]';
+      }
     }
-  }
-}
 
-// Event listener untuk memantau perubahan status full screen (misal jika pengguna keluar lewat gestur HP)
-function updateFullscreenButton() {
-  const fsBtn = document.getElementById('btn-fullscreen');
-  if (!fsBtn) return;
-
-  if (document.fullscreenElement || document.webkitFullscreenElement) {
-    fsBtn.innerText = '[x]';
-  } else {
-    fsBtn.innerText = '[ ]';
-  }
-}
-
-document.addEventListener('fullscreenchange', updateFullscreenButton);
-document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
   </script>
 </body>
 </html>
