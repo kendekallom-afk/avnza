@@ -169,7 +169,7 @@
   .status-medium    { color: #ffeb3b; }
   .status-strong    { color: #4caf50; }
 
-  /* STYLING UNTUK INDIKATOR LOKASI & HADAP HP (GOOGLE MAPS STYLE) */
+  /* STYLING UNTUK INDIKATOR LOKASI & HADAP HP */
   .user-location-container {
     position: relative;
     width: 60px;
@@ -179,6 +179,19 @@
     justify-content: center;
   }
 
+  /* Rangka Container Rotasi Arah */
+  .user-heading-wrapper {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    transform-origin: 50% 50%;
+    transition: transform 0.1s linear;
+  }
+
+  /* Cone/Sinar Kompas */
   .user-heading-cone {
     position: absolute;
     width: 0;
@@ -188,9 +201,20 @@
     border-bottom: 40px solid rgba(30, 144, 255, 0.45);
     top: 0px;
     left: 10px;
-    transform-origin: 50% 100%;
-    pointer-events: none;
-    transition: transform 0.1s linear;
+  }
+
+  /* Dot Merah Kecil di Ujung Lancip Segitiga */
+  .heading-pointer-dot {
+    position: absolute;
+    top: -4px;
+    left: 26px;
+    width: 8px;
+    height: 8px;
+    background-color: #ff0000;
+    border: 1.5px solid #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    z-index: 5;
   }
 
   .user-dot {
@@ -562,7 +586,7 @@
       }
     }
 
-    /* UPDATE PENANDA REAL LOCATION & HADAP HP */
+    /* UPDATE MARKER TERMASUK DOT MERAH DI UJUNG CONE */
     function updateUserMarker(lat, lng) {
       if (userLocationMarker) {
         userLocationMarker.setLatLng([lat, lng]);
@@ -571,7 +595,10 @@
           className: 'custom-user-icon',
           html: `
             <div class="user-location-container">
-              <div class="user-heading-cone" id="user-heading-cone"></div>
+              <div class="user-heading-wrapper" id="user-heading-wrapper">
+                <div class="user-heading-cone"></div>
+                <div class="heading-pointer-dot"></div>
+              </div>
               <div class="user-pulse"></div>
               <div class="user-dot"></div>
             </div>
@@ -584,12 +611,11 @@
       }
     }
 
-    /* SISTEM ORIENTASI KOMPAS (HEADING) PERANGKAT */
+    /* ORIENTASI HP TERHADAP ARAH ROTASI */
     function handleOrientation(event) {
       let alpha = event.alpha;
       let heading = null;
 
-      // Mendukung iOS WebkitHeading & Android Standard Orientations
       if (event.webkitCompassHeading) {
         heading = event.webkitCompassHeading;
       } else if (alpha !== null) {
@@ -598,16 +624,15 @@
 
       if (heading !== null) {
         currentHeading = heading;
-        const coneEl = document.getElementById('user-heading-cone');
-        if (coneEl) {
-          coneEl.style.transform = `rotate(${heading}deg)`;
+        const wrapperEl = document.getElementById('user-heading-wrapper');
+        if (wrapperEl) {
+          wrapperEl.style.transform = `rotate(${heading}deg)`;
         }
       }
     }
 
     function initOrientationWatcher() {
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        // iOS 13+ memerlukan izin khusus dari pengguna
         DeviceOrientationEvent.requestPermission()
           .then(response => {
             if (response === 'granted') {
