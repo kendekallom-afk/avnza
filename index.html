@@ -33,9 +33,6 @@
     flex-direction: column;
   }
 
-  /* ICON SVG INLINE — menggantikan Font Awesome.
-     Tidak bergantung pada CDN/font eksternal, jadi tidak akan pernah
-     "kosong" walau browser (mis. Samsung Internet) memblokir request CDN. */
   svg.icon {
     fill: none;
     stroke: currentColor;
@@ -266,6 +263,7 @@
     }
   }
 
+  /* LAYERS & LIBRARY VIEW */
   .layers-section {
     flex: 1;
     min-height: 0;
@@ -357,21 +355,31 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 1;
+    min-width: 0;
   }
 
   .file-info svg.icon {
     color: #5d839e;
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
   }
 
   .file-name {
     font-size: 14px;
     color: #333;
     word-break: break-all;
+    flex: 1;
   }
 
-  .add-btn, .remove-btn, .action-btn {
+  .file-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .add-btn, .remove-btn, .action-btn, .delete-btn {
     background: #5d839e;
     color: white;
     border: none;
@@ -384,6 +392,131 @@
 
   .remove-btn {
     background: #c94a4a;
+  }
+
+  .delete-btn {
+    background: #f44336;
+  }
+
+  .delete-btn:hover {
+    background: #d32f2f;
+  }
+
+  .add-btn:hover {
+    background: #4a6f8a;
+  }
+
+  /* POINTS VIEW */
+  #points-view {
+    background: #f5f5f5;
+    padding: 12px 16px;
+  }
+
+  .points-toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .points-toolbar button {
+    background: #5d839e;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .points-toolbar button:hover {
+    background: #4a6f8a;
+  }
+
+  .points-toolbar button.danger {
+    background: #f44336;
+  }
+
+  .points-toolbar button.danger:hover {
+    background: #d32f2f;
+  }
+
+  .points-toolbar button.success {
+    background: #4CAF50;
+  }
+
+  .points-toolbar button.success:hover {
+    background: #45a049;
+  }
+
+  .points-list-container {
+    flex: 1;
+    overflow-y: auto;
+    background: white;
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+
+  .point-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+  }
+
+  .point-item:last-child {
+    border-bottom: none;
+  }
+
+  .point-item .point-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .point-item .point-name {
+    font-weight: 600;
+    color: #333;
+  }
+
+  .point-item .point-coords {
+    font-size: 11px;
+    color: #888;
+    font-family: monospace;
+  }
+
+  .point-item .point-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .point-item .point-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .point-item .point-actions .btn-delete-point {
+    color: #f44336;
+  }
+
+  .point-item .point-actions .btn-delete-point:hover {
+    background: #ffebee;
+  }
+
+  .empty-points {
+    color: #999;
+    text-align: center;
+    padding: 30px 0;
+    font-size: 14px;
   }
 
   .modal-overlay {
@@ -475,13 +608,36 @@
   .fullscreen-btn:active {
     background-color: rgba(0, 0, 0, 0.9);
   }
+
+  .upload-btn-wrapper {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .upload-btn-wrapper button {
+    flex: 1;
+    min-width: 80px;
+  }
+
+  .map-item-status {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #e0e0e0;
+    color: #666;
+  }
+
+  .map-item-status.active {
+    background: #4CAF50;
+    color: white;
+  }
   </style>
 </head>
 <body>
 
-  <!-- SVG ICON SPRITE — semua icon didefinisikan sekali di sini, dipakai lewat <use>.
-       Ini menggantikan Font Awesome supaya icon tidak pernah gagal tampil
-       gara-gara CDN font diblokir (mis. oleh proteksi pelacakan Samsung Internet). -->
+  <!-- SVG ICON SPRITE -->
   <svg style="position:absolute; width:0; height:0; overflow:hidden;" aria-hidden="true">
     <defs>
       <symbol id="icon-crosshair" viewBox="0 0 24 24">
@@ -528,6 +684,35 @@
         <line x1="8" y1="13" x2="16" y2="13"/>
         <line x1="8" y1="17" x2="12" y2="17"/>
       </symbol>
+      <symbol id="icon-upload" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17,8 12,3 7,8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </symbol>
+      <symbol id="icon-trash" viewBox="0 0 24 24">
+        <polyline points="3,6 5,6 21,6"/>
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <line x1="10" y1="11" x2="10" y2="17"/>
+        <line x1="14" y1="11" x2="14" y2="17"/>
+        <line x1="3" y1="6" x2="7" y2="6"/>
+        <line x1="17" y1="6" x2="21" y2="6"/>
+        <line x1="8" y1="2" x2="16" y2="2"/>
+      </symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7,10 12,15 17,10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </symbol>
+      <symbol id="icon-file-text" viewBox="0 0 24 24">
+        <rect x="4" y="2" width="16" height="20" rx="2"/>
+        <line x1="8" y1="8" x2="16" y2="8"/>
+        <line x1="8" y1="12" x2="16" y2="12"/>
+        <line x1="8" y1="16" x2="12" y2="16"/>
+      </symbol>
     </defs>
   </svg>
 
@@ -556,6 +741,9 @@
     </button>
   </div>
 
+  <!-- ============================================ -->
+  <!-- VIEW 1: MAP -->
+  <!-- ============================================ -->
   <div id="map-view" class="view">
     <div id="map"></div>
     <div class="crosshair">
@@ -577,6 +765,9 @@
     </button>
   </div>
 
+  <!-- ============================================ -->
+  <!-- VIEW 2: LAYERS & LIBRARY -->
+  <!-- ============================================ -->
   <div id="layers-view" class="view active">
     <div class="layers-section">
       <h2 class="section-title">Layers</h2>
@@ -585,15 +776,52 @@
 
     <div class="library-section">
       <div class="tab-bar">
-        <button class="tab-btn" onclick="switchTab('maps', event)">Pdf</button>
-        <button class="tab-btn active" onclick="switchTab('kmz', event)">Kmz</button>
+        <button class="tab-btn" onclick="switchTab('maps', event)">Maps</button>
+        <button class="tab-btn active" onclick="switchTab('kmz', event)">KMZ</button>
         <button class="tab-btn" onclick="switchTab('basemap', event)">Basemap</button>
       </div>
 
-      <div class="library-content" id="library-content"></div>
+      <div class="library-content" id="library-content">
+        <!-- Content akan di-render oleh JavaScript -->
+      </div>
     </div>
   </div>
 
+  <!-- ============================================ -->
+  <!-- VIEW 3: POINTS MANAGEMENT -->
+  <!-- ============================================ -->
+  <div id="points-view" class="view">
+    <div style="padding:12px 16px; background:#e2e2e2; border-bottom:2px solid #a0a0a0; flex-shrink:0;">
+      <h2 class="section-title" style="margin-bottom:4px;">📝 Kelola Titik</h2>
+      <div style="font-size:12px; color:#666;" id="points-map-name">Pilih peta terlebih dahulu</div>
+    </div>
+    <div style="padding:12px 16px; flex-shrink:0;">
+      <div class="points-toolbar">
+        <button class="success" onclick="addPointFromCrosshair()">
+          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-plus"></use></svg> Tambah
+        </button>
+        <button onclick="exportPoints('txt')">
+          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-text"></use></svg> TXT
+        </button>
+        <button onclick="exportPoints('csv')">
+          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-text"></use></svg> CSV
+        </button>
+        <button onclick="exportPoints('kml')">
+          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-code"></use></svg> KML
+        </button>
+        <button class="danger" onclick="clearAllPoints()">
+          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-trash"></use></svg> Hapus Semua
+        </button>
+      </div>
+    </div>
+    <div class="points-list-container" id="points-list-container">
+      <div class="empty-points">📭 Belum ada titik. Tambahkan titik dari peta atau klik "Tambah"</div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- SETTINGS MODAL -->
+  <!-- ============================================ -->
   <div class="modal-overlay" id="settings-modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -611,23 +839,27 @@
     </div>
   </div>
 
-  <!-- Fallback untuk browser tanpa File System Access API (showDirectoryPicker).
-       Tidak bisa mengingat folder permanen, tapi tetap bisa memuat file per-sesi. -->
+  <!-- Fallback untuk browser tanpa File System Access API -->
   <input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <script>
+    // ================================================================
+    // VARIABEL UTAMA
+    // ================================================================
     let map;
     let userLocationMarker = null;
     let currentHeading = 0;
     let currentView = 'layers';
     let waypointCount = 1;
     let latestCoords = null;
+    let activeMapId = null; // ID peta yang sedang aktif
 
     let activeLayers = {};
     let scannedKmzFiles = [];
     let defaultDirHandle = null;
+    let mapCollection = []; // Array untuk menyimpan semua peta dari IndexedDB
 
     const BASEMAP_PROVIDERS = {
       'google_sat':     { name: 'Google Satellite', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', icon: 'icon-globe',    maxNativeZoom: 20 },
@@ -637,6 +869,62 @@
       'osm':            { name: 'OpenStreetMap (OSM)', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: 'icon-globe', maxNativeZoom: 19 }
     };
 
+    // ================================================================
+    // INDEXEDDB HELPER
+    // ================================================================
+    const DB_NAME = 'AvenzaNavDB';
+    const STORE_NAME = 'maps';
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 2);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveMapToDB(mapData) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.put(mapData);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function getAllMapsFromDB() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function deleteMapFromDB(id) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    // ================================================================
+    // INISIALISASI MAP
+    // ================================================================
     function initMap() {
       map = L.map('map', {
         zoomControl: false,
@@ -648,13 +936,9 @@
       map.on('move', updateReticleCoordinates);
       updateReticleCoordinates();
 
-      // Basemap default dimuat otomatis supaya peta tidak pernah tampil kosong/abu-abu.
-      // OSM dipakai sebagai default karena endpoint tile-nya publik & resmi,
-      // sedangkan endpoint Google di bawah tidak resmi/didokumentasikan dan
-      // bisa diblokir oleh proteksi jaringan/browser tertentu (termasuk Samsung Internet).
       setBasemap('osm');
 
-      initStoredKMZFolder();
+      loadAllMapsFromDB();
       initGPSWatcher();
       initOrientationWatcher();
     }
@@ -665,6 +949,23 @@
       document.getElementById('lng').innerText = center.lng.toFixed(5);
     }
 
+    // ================================================================
+    // LOAD MAPS FROM INDEXEDDB
+    // ================================================================
+    async function loadAllMapsFromDB() {
+      try {
+        mapCollection = await getAllMapsFromDB();
+        renderLibraryContent();
+        renderPointsView();
+      } catch (err) {
+        console.warn('Gagal load maps dari IndexedDB:', err);
+        mapCollection = [];
+      }
+    }
+
+    // ================================================================
+    // GPS & KOMPAS
+    // ================================================================
     function centerToGPS() {
       if (!navigator.geolocation) {
         alert("Geolocation tidak didukung oleh browser ini.");
@@ -679,7 +980,7 @@
 
       const wrapperEl = document.getElementById('user-heading-wrapper');
       if (wrapperEl) {
-        wrapperEl.style.transform = `rotate(0deg)`;
+        wrapperEl.style.transform = 'rotate(0deg)';
       }
 
       if (latestCoords) {
@@ -744,7 +1045,7 @@
         currentHeading = heading;
         const wrapperEl = document.getElementById('user-heading-wrapper');
         if (wrapperEl) {
-          wrapperEl.style.transform = `rotate(${heading}deg)`;
+          wrapperEl.style.transform = 'rotate(' + heading + 'deg)';
         }
       }
     }
@@ -785,7 +1086,7 @@
             latestCoords = { lat, lng };
             updateUserMarker(lat, lng);
 
-            accuracyEl.textContent = `± ${accuracy} m`;
+            accuracyEl.textContent = '± ' + accuracy + ' m';
 
             if (accuracy <= 10) {
               statusEl.textContent = 'Sinyal Kuat';
@@ -825,114 +1126,291 @@
       }
     }
 
-    function openIDB() {
-      return new Promise((resolve, reject) => {
-        try {
-          const req = indexedDB.open('AvenzaNavDB', 1);
-          req.onupgradeneeded = e => e.target.result.createObjectStore('config');
-          req.onsuccess = e => resolve(e.target.result);
-          req.onerror = e => reject(e.target.error);
-        } catch (err) {
-          reject(err);
+    // ================================================================
+    // UPLOAD FILE - TANPA PILIH FOLDER
+    // ================================================================
+    function uploadKMZFile() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.kmz,.kml';
+      input.multiple = true;
+      input.onchange = async (e) => {
+        const files = Array.from(e.target.files);
+        for (const file of files) {
+          try {
+            const data = await file.arrayBuffer();
+            const newMap = {
+              id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+              name: file.name,
+              type: file.name.endsWith('.kmz') ? 'kmz' : 'kml',
+              fileData: data,
+              geojson: { type: 'FeatureCollection', features: [] },
+              created: new Date().toISOString(),
+              isActive: false,
+              source: 'upload'
+            };
+            await saveMapToDB(newMap);
+            mapCollection.push(newMap);
+          } catch (err) {
+            console.error('Gagal upload file:', err);
+            alert('Gagal upload file: ' + err.message);
+          }
         }
+        renderLibraryContent();
+        renderPointsView();
+        alert('✅ ' + files.length + ' file berhasil diupload!');
+      };
+      input.click();
+    }
+
+    // ================================================================
+    // KONVERSI GEOPDF (placeholder - akan dikembangkan)
+    // ================================================================
+    function uploadGeoPDF() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf,.geopdf';
+      input.multiple = true;
+      input.onchange = async (e) => {
+        const files = Array.from(e.target.files);
+        for (const file of files) {
+          try {
+            // TODO: Implementasi dengan gdal3.js
+            // Saat ini hanya placeholder
+            const data = await file.arrayBuffer();
+            const newMap = {
+              id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+              name: file.name.replace('.pdf', '.webp') + '.json',
+              type: 'webp_json',
+              fileData: data,
+              geojson: { type: 'FeatureCollection', features: [] },
+              created: new Date().toISOString(),
+              isActive: false,
+              source: 'geopdf',
+              isGeoPDF: true
+            };
+            await saveMapToDB(newMap);
+            mapCollection.push(newMap);
+            alert('⚠️ File ' + file.name + ' disimpan sebagai placeholder. Konversi GeoPDF ke WebP+JSON memerlukan integrasi gdal3.js.');
+          } catch (err) {
+            console.error('Gagal upload GeoPDF:', err);
+            alert('Gagal upload GeoPDF: ' + err.message);
+          }
+        }
+        renderLibraryContent();
+        renderPointsView();
+      };
+      input.click();
+    }
+
+    // ================================================================
+    // LIBRARY CONTENT - RENDER
+    // ================================================================
+    function renderLibraryContent() {
+      const container = document.getElementById('library-content');
+      
+      // Tampilkan tombol upload
+      let html = `
+        <div class="upload-btn-wrapper">
+          <button class="add-btn" onclick="uploadKMZFile()">
+            <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload KMZ/KML
+          </button>
+          <button class="add-btn" onclick="uploadGeoPDF()" style="background:#ff9800;">
+            <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload GeoPDF
+          </button>
+        </div>
+        <div style="font-size:12px; color:#555; margin-bottom:8px;">
+          Total: <b>${mapCollection.length}</b> peta tersimpan
+        </div>
+        <div id="library-file-list"></div>
+      `;
+      container.innerHTML = html;
+
+      renderLibraryFileList();
+    }
+
+    function renderLibraryFileList() {
+      const listContainer = document.getElementById('library-file-list');
+      if (!listContainer) return;
+
+      if (mapCollection.length === 0) {
+        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">📭 Belum ada file. Upload KMZ/KML atau GeoPDF di atas.</p>`;
+        return;
+      }
+
+      let html = '';
+      mapCollection.forEach((mapData, index) => {
+        const isActive = activeLayers[mapData.id] !== undefined;
+        const icon = mapData.type === 'kmz' || mapData.type === 'kml' ? 'icon-file-code' : 
+                     mapData.type === 'webp_json' ? 'icon-globe' : 'icon-file-pdf';
+        const typeLabel = mapData.type === 'webp_json' ? '🗺️ WebP' : 
+                          mapData.type === 'kmz' ? '📦 KMZ' : 
+                          mapData.type === 'kml' ? '📄 KML' : '📄 PDF';
+        const pointCount = mapData.geojson?.features?.length || 0;
+
+        html += `
+          <div class="file-item" style="${isActive ? 'border-left:3px solid #4CAF50;' : ''}">
+            <div class="file-info">
+              <svg class="icon"><use href="#${icon}"></use></svg>
+              <span class="file-name">${mapData.name}</span>
+              <span style="font-size:10px; color:#999; white-space:nowrap;">${typeLabel}</span>
+              <span style="font-size:10px; color:#888; white-space:nowrap;">📍${pointCount}</span>
+              ${isActive ? '<span class="map-item-status active">AKTIF</span>' : ''}
+            </div>
+            <div class="file-actions">
+              ${!isActive ? `<button class="add-btn" onclick="activateMap('${mapData.id}')">Aktifkan</button>` : 
+                            `<button class="remove-btn" onclick="deactivateMap('${mapData.id}')">Nonaktif</button>`}
+              <button class="delete-btn" onclick="deleteMap('${mapData.id}')" title="Hapus dari Library">
+                <svg class="icon" style="width:14px;height:14px;"><use href="#icon-trash"></use></svg>
+              </button>
+            </div>
+          </div>
+        `;
       });
+      listContainer.innerHTML = html;
     }
 
-    async function saveHandleToIDB(handle) {
-      try {
-        const db = await openIDB();
-        const tx = db.transaction('config', 'readwrite');
-        tx.objectStore('config').put(handle, 'defaultKMZFolder');
-      } catch (err) {
-        console.warn('IndexedDB tidak tersedia, folder tidak akan diingat antar sesi:', err);
+    // ================================================================
+    // ACTIVATE / DEACTIVATE MAP
+    // ================================================================
+    function activateMap(mapId) {
+      const mapData = mapCollection.find(m => m.id === mapId);
+      if (!mapData) return;
+
+      // Jika sudah ada layer dengan id yang sama, hapus dulu
+      if (activeLayers[mapId]) {
+        deactivateMap(mapId);
       }
-    }
 
-    async function getHandleFromIDB() {
       try {
-        const db = await openIDB();
-        return new Promise(resolve => {
-          const tx = db.transaction('config', 'readonly');
-          const req = tx.objectStore('config').get('defaultKMZFolder');
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => resolve(null);
-        });
-      } catch (err) {
-        return null;
-      }
-    }
-
-    async function initStoredKMZFolder() {
-      try {
-        defaultDirHandle = await getHandleFromIDB();
-        if (defaultDirHandle) {
-          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
-          // queryPermission hanya ada pada handle dari File System Access API
-          // (Chrome/Edge). Browser lain tidak akan sampai sini karena handle-nya
-          // adalah object biasa dari fallback <input webkitdirectory>.
-          if (defaultDirHandle.queryPermission) {
-            const opts = { mode: 'read' };
-            if ((await defaultDirHandle.queryPermission(opts)) === 'granted') {
-              await scanFilesFromHandle(defaultDirHandle);
-            } else {
-              document.getElementById('folder-path-text').innerText = `${defaultDirHandle.name} (Izin diperlukan)`;
+        if (mapData.type === 'kmz' || mapData.type === 'kml') {
+          // Parse KMZ/KML
+          const blob = new Blob([mapData.fileData]);
+          const reader = new FileReader();
+          reader.onload = async function(e) {
+            try {
+              let kmlText = '';
+              if (mapData.type === 'kmz') {
+                const zip = await JSZip.loadAsync(mapData.fileData);
+                const kmlFile = Object.keys(zip.files).find(f => f.toLowerCase().endsWith('.kml'));
+                if (kmlFile) {
+                  kmlText = await zip.files[kmlFile].async('string');
+                } else {
+                  alert('Tidak ditemukan KML di dalam KMZ');
+                  return;
+                }
+              } else {
+                kmlText = new TextDecoder().decode(mapData.fileData);
+              }
+              
+              const featureGroup = parseKMLToLeaflet(kmlText);
+              if (featureGroup.getLayers().length === 0) {
+                alert('Tidak ada fitur yang valid di file ini.');
+                return;
+              }
+              
+              featureGroup.addTo(map);
+              const bounds = featureGroup.getBounds();
+              if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [20, 20] });
+              }
+              
+              // Tambahkan ke activeLayers
+              activeLayers[mapId] = { name: mapData.name, layer: featureGroup };
+              mapData.isActive = true;
+              updateActiveLayersUI();
+              renderLibraryContent();
+              renderPointsView();
+              activeMapId = mapId;
+              showNotification('✅ ' + mapData.name + ' diaktifkan');
+            } catch (err) {
+              alert('Gagal memuat file: ' + err.message);
             }
-          }
+          };
+          reader.readAsArrayBuffer(blob);
+        } else if (mapData.type === 'webp_json') {
+          // TODO: Implementasi untuk WebP+JSON
+          showNotification('⚠️ WebP+JSON belum diimplementasikan. Gunakan KMZ/KML.');
+        } else {
+          showNotification('⚠️ Format tidak didukung: ' + mapData.type);
         }
       } catch (err) {
-        console.warn('Gagal memuat folder tersimpan:', err);
-      }
-      renderKMZLibrary();
-    }
-
-    async function selectDefaultKMZFolder() {
-      if ('showDirectoryPicker' in window) {
-        try {
-          defaultDirHandle = await window.showDirectoryPicker();
-          await saveHandleToIDB(defaultDirHandle);
-          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
-          await scanFilesFromHandle(defaultDirHandle);
-          renderKMZLibrary();
-          alert("Folder default KMZ/KML berhasil disimpan!");
-        } catch (err) {
-          console.warn("Pemilihan folder dibatalkan:", err);
-        }
-      } else {
-        // Fallback: File System Access API tidak didukung
-        // (Samsung Internet, Firefox, Safari). Tetap bisa memilih file,
-        // tapi tidak bisa diingat otomatis di sesi berikutnya.
-        document.getElementById('folder-fallback-input').click();
+        alert('Gagal mengaktifkan peta: ' + err.message);
       }
     }
 
-    function handleFallbackFolderSelect(event) {
-      const files = Array.from(event.target.files).filter(f =>
-        f.name.toLowerCase().endsWith('.kmz') || f.name.toLowerCase().endsWith('.kml')
-      );
-      scannedKmzFiles = files;
-      defaultDirHandle = { name: 'Folder dipilih (khusus sesi ini)' };
-      document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
-      renderKMZLibrary();
-      if (files.length === 0) {
-        alert('Tidak ditemukan file .kmz/.kml pada folder yang dipilih.');
+    function deactivateMap(mapId) {
+      if (activeLayers[mapId]) {
+        map.removeLayer(activeLayers[mapId].layer);
+        delete activeLayers[mapId];
+        const mapData = mapCollection.find(m => m.id === mapId);
+        if (mapData) mapData.isActive = false;
+        updateActiveLayersUI();
+        renderLibraryContent();
+        renderPointsView();
+        if (activeMapId === mapId) activeMapId = null;
+        showNotification('🗑️ Peta dinonaktifkan');
       }
     }
 
-    async function scanFilesFromHandle(dirHandle) {
-      scannedKmzFiles = [];
+    // ================================================================
+    // DELETE MAP (HAPUS DARI LIBRARY + INDEXEDDB)
+    // ================================================================
+    async function deleteMap(mapId) {
+      const mapData = mapCollection.find(m => m.id === mapId);
+      if (!mapData) return;
+      
+      if (!confirm('Hapus "' + mapData.name + '" dari Library? Semua data titik akan ikut terhapus.')) return;
+      
       try {
-        for await (const entry of dirHandle.values()) {
-          if (entry.kind === 'file' && (entry.name.endsWith('.kmz') || entry.name.endsWith('.kml'))) {
-            const file = await entry.getFile();
-            scannedKmzFiles.push(file);
-          }
+        // Hapus dari peta jika aktif
+        if (activeLayers[mapId]) {
+          map.removeLayer(activeLayers[mapId].layer);
+          delete activeLayers[mapId];
         }
-        renderKMZFileList();
+        
+        // Hapus dari IndexedDB
+        await deleteMapFromDB(mapId);
+        
+        // Hapus dari collection
+        mapCollection = mapCollection.filter(m => m.id !== mapId);
+        if (activeMapId === mapId) activeMapId = null;
+        
+        updateActiveLayersUI();
+        renderLibraryContent();
+        renderPointsView();
+        showNotification('🗑️ "' + mapData.name + '" dihapus dari Library');
       } catch (err) {
-        console.warn("Gagal membaca isi folder:", err);
+        alert('Gagal menghapus peta: ' + err.message);
       }
     }
 
+    // ================================================================
+    // ACTIVE LAYERS UI
+    // ================================================================
+    function updateActiveLayersUI() {
+      const container = document.getElementById('active-layers');
+      let html = '';
+
+      Object.keys(activeLayers).forEach(id => {
+        const item = activeLayers[id];
+        html += `
+          <div class="file-item">
+            <div class="file-info">
+              <svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg>
+              <span class="file-name">${item.name}</span>
+            </div>
+            <button class="remove-btn" onclick="deactivateMap('${id}')">Hapus</button>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // ================================================================
+    // PARSE KML
+    // ================================================================
     function kmlColorToLeaflet(kmlColor) {
       if (!kmlColor || kmlColor.trim().length !== 8) {
         return { color: '#3388ff', opacity: 1 };
@@ -944,7 +1422,7 @@
       const r = hexStr.substring(6, 8);
 
       return {
-        color: `#${r}${g}${b}`,
+        color: '#' + r + g + b,
         opacity: isNaN(a) ? 1 : a
       };
     }
@@ -1035,7 +1513,7 @@
                   fillColor: fillHex,
                   fillOpacity: 0.9,
                   weight: 1.5
-                }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+                }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
               }
             }
           }
@@ -1060,7 +1538,7 @@
                 color: lineHex,
                 opacity: lineOpacity,
                 weight: activeStyle.weight || 3
-              }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+              }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
             }
           }
         }
@@ -1089,7 +1567,7 @@
                 fill: isFillActive,
                 fillColor: fillHex,
                 fillOpacity: fillOpacity
-              }).bindPopup(`<b>${name}</b>`).addTo(layerGroup);
+              }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
             }
           }
         }
@@ -1098,48 +1576,9 @@
       return layerGroup;
     }
 
-    async function activateKMZFile(index) {
-      const file = scannedKmzFiles[index];
-      if (!file) return;
-
-      try {
-        let kmlText = "";
-
-        if (file.name.toLowerCase().endsWith('.kmz')) {
-          const zip = await JSZip.loadAsync(file);
-          const kmlFile = Object.keys(zip.files).find(fileName => fileName.toLowerCase().endsWith('.kml'));
-
-          if (!kmlFile) {
-            alert('File KML internal tidak ditemukan di dalam KMZ.');
-            return;
-          }
-          kmlText = await zip.files[kmlFile].async("string");
-        } else if (file.name.toLowerCase().endsWith('.kml')) {
-          kmlText = await file.text();
-        }
-
-        const featureGroup = parseKMLToLeaflet(kmlText);
-
-        if (featureGroup.getLayers().length === 0) {
-          alert('Tidak ada fitur spasial valid yang dapat dibaca pada file ini.');
-          return;
-        }
-
-        featureGroup.addTo(map);
-
-        const bounds = featureGroup.getBounds();
-        if (bounds.isValid()) {
-          map.fitBounds(bounds, { padding: [20, 20] });
-        }
-
-        addLayerToActiveStack(`kmz_${index}`, file.name, 'icon-file-code', featureGroup);
-
-      } catch (err) {
-        console.error(err);
-        alert('Gagal memuat file: ' + err.message);
-      }
-    }
-
+    // ================================================================
+    // BASEMAP
+    // ================================================================
     function setBasemap(key) {
       const provider = BASEMAP_PROVIDERS[key];
       if (!provider) return;
@@ -1154,44 +1593,474 @@
         attribution: provider.name
       }).addTo(map);
 
-      addLayerToActiveStack('basemap', provider.name, provider.icon, tileLayer);
-    }
-
-    function addLayerToActiveStack(id, name, icon, leafletLayer) {
-      if (activeLayers[id]) {
-        map.removeLayer(activeLayers[id].layer);
-      }
-
-      activeLayers[id] = { name, icon, layer: leafletLayer };
+      activeLayers['basemap'] = { name: provider.name, layer: tileLayer };
       updateActiveLayersUI();
     }
 
-    function removeLayerFromStack(id) {
-      if (activeLayers[id]) {
-        map.removeLayer(activeLayers[id].layer);
-        delete activeLayers[id];
-        updateActiveLayersUI();
+    // ================================================================
+    // POINTS MANAGEMENT (BUKU CATATAN PER PETA)
+    // ================================================================
+    function renderPointsView() {
+      const container = document.getElementById('points-list-container');
+      const mapNameEl = document.getElementById('points-map-name');
+      
+      // Cari peta yang aktif
+      const activeMap = mapCollection.find(m => m.isActive === true);
+      
+      if (!activeMap) {
+        mapNameEl.textContent = 'Pilih peta terlebih dahulu';
+        container.innerHTML = `<div class="empty-points">📭 Tidak ada peta aktif. Aktifkan peta dari tab Layers.</div>`;
+        return;
+      }
+
+      mapNameEl.textContent = '📄 ' + activeMap.name + ' (' + (activeMap.geojson?.features?.length || 0) + ' titik)';
+      
+      const features = activeMap.geojson?.features || [];
+      
+      if (features.length === 0) {
+        container.innerHTML = `<div class="empty-points">📭 Belum ada titik. Klik "Tambah" atau klik peta untuk menambah titik.</div>`;
+        return;
+      }
+
+      let html = '';
+      features.forEach((feature, index) => {
+        const coords = feature.geometry.coordinates;
+        const name = feature.properties?.name || 'Titik ' + (index + 1);
+        const note = feature.properties?.note || '';
+        const timestamp = feature.properties?.timestamp || '';
+        
+        html += `
+          <div class="point-item">
+            <div class="point-info">
+              <span class="point-name">${name}</span>
+              <span class="point-coords">${coords[1].toFixed(6)}, ${coords[0].toFixed(6)} ${note ? '• ' + note : ''}</span>
+            </div>
+            <div class="point-actions">
+              <button onclick="flyToPoint(${index})" title="Lokasi">📍</button>
+              <button class="btn-delete-point" onclick="deletePoint(${index})" title="Hapus">✕</button>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function addPointFromCrosshair() {
+      const activeMap = mapCollection.find(m => m.isActive === true);
+      if (!activeMap) {
+        alert('Aktifkan peta terlebih dahulu dari tab Layers.');
+        return;
+      }
+
+      const center = map.getCenter();
+      const name = prompt('Nama titik:', 'Waypoint ' + waypointCount);
+      if (!name) return;
+      const note = prompt('Catatan (opsional):', '');
+      
+      if (!activeMap.geojson) {
+        activeMap.geojson = { type: 'FeatureCollection', features: [] };
+      }
+      
+      activeMap.geojson.features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [center.lng, center.lat]
+        },
+        properties: {
+          name: name,
+          note: note || '',
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      // Simpan ke IndexedDB
+      saveMapToDB(activeMap).then(() => {
+        waypointCount++;
+        renderPointsView();
+        renderLibraryContent();
+        showNotification('✅ Titik "' + name + '" ditambahkan');
+      });
+      
+      // Tampilkan marker di peta
+      const marker = L.marker([center.lat, center.lng]).addTo(map);
+      marker.bindPopup('<b>' + name + '</b><br>' + center.lat.toFixed(5) + ', ' + center.lng.toFixed(5) + (note ? '<br>' + note : '')).openPopup();
+    }
+
+    function flyToPoint(index) {
+      const activeMap = mapCollection.find(m => m.isActive === true);
+      if (!activeMap) return;
+      
+      const feature = activeMap.geojson?.features[index];
+      if (!feature) return;
+      
+      const coords = feature.geometry.coordinates;
+      map.flyTo([coords[1], coords[0]], 17);
+    }
+
+    async function deletePoint(index) {
+      const activeMap = mapCollection.find(m => m.isActive === true);
+      if (!activeMap) return;
+      
+      if (!confirm('Hapus titik ini?')) return;
+      
+      activeMap.geojson.features.splice(index, 1);
+      await saveMapToDB(activeMap);
+      renderPointsView();
+      renderLibraryContent();
+      showNotification('🗑️ Titik dihapus');
+    }
+
+    async function clearAllPoints() {
+      const activeMap = mapCollection.find(m => m.isActive === true);
+      if (!activeMap) return;
+      
+      const count = activeMap.geojson?.features?.length || 0;
+      if (count === 0) {
+        alert('Tidak ada titik untuk dihapus.');
+        return;
+      }
+      
+      if (!confirm('Hapus semua ' + count + ' titik?')) return;
+      
+      activeMap.geojson.features = [];
+      await saveMapToDB(activeMap);
+      renderPointsView();
+      renderLibraryContent();
+      showNotification('🗑️ Semua titik dihapus');
+    }
+
+    // ================================================================
+    // EXPORT POINTS
+    // ================================================================
+    function exportPoints(format) {
+      const activeMap = mapCollection.find(m => m.isActive === true);
+      if (!activeMap) {
+        alert('Aktifkan peta terlebih dahulu dari tab Layers.');
+        return;
+      }
+      
+      const features = activeMap.geojson?.features || [];
+      if (features.length === 0) {
+        alert('Tidak ada titik untuk diexport.');
+        return;
+      }
+      
+      let content = '';
+      let filename = activeMap.name.replace(/\.[^/.]+$/, '') + '_points';
+      let mimeType = '';
+      
+      switch(format) {
+        case 'txt':
+          content = 'Name\tLat\tLng\tNote\n';
+          content += features.map(f => 
+            f.properties.name + '\t' + f.geometry.coordinates[1].toFixed(6) + '\t' + f.geometry.coordinates[0].toFixed(6) + '\t' + (f.properties.note || '')
+          ).join('\n');
+          filename += '.txt';
+          mimeType = 'text/plain';
+          break;
+          
+        case 'csv':
+          content = 'Name,Lat,Lng,Note\n';
+          content += features.map(f => 
+            '"' + f.properties.name + '",' + f.geometry.coordinates[1].toFixed(6) + ',' + f.geometry.coordinates[0].toFixed(6) + ',"' + (f.properties.note || '') + '"'
+          ).join('\n');
+          filename += '.csv';
+          mimeType = 'text/csv';
+          break;
+          
+        case 'kml':
+          content = '<?xml version="1.0" encoding="UTF-8"?>\n';
+          content += '<kml xmlns="http://www.opengis.net/kml/2.2">\n';
+          content += '  <Document>\n';
+          content += '    <name>' + activeMap.name + '</name>\n';
+          features.forEach(f => {
+            content += '    <Placemark>\n';
+            content += '      <name>' + f.properties.name + '</name>\n';
+            if (f.properties.note) {
+              content += '      <description>' + f.properties.note + '</description>\n';
+            }
+            content += '      <Point>\n';
+            content += '        <coordinates>' + f.geometry.coordinates[0] + ',' + f.geometry.coordinates[1] + '</coordinates>\n';
+            content += '      </Point>\n';
+            content += '    </Placemark>\n';
+          });
+          content += '  </Document>\n';
+          content += '</kml>';
+          filename += '.kml';
+          mimeType = 'application/vnd.google-earth.kml+xml';
+          break;
+          
+        default:
+          alert('Format tidak didukung');
+          return;
+      }
+      
+      // Download file
+      const blob = new Blob([content], { type: mimeType + ';charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showNotification('✅ ' + filename + ' berhasil diexport (' + features.length + ' titik)');
+    }
+
+    // ================================================================
+    // NOTIFICATION
+    // ================================================================
+    function showNotification(message, duration = 3000) {
+      const existing = document.querySelector('.custom-notification');
+      if (existing) existing.remove();
+      
+      const notif = document.createElement('div');
+      notif.className = 'custom-notification';
+      notif.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.85);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        z-index: 99999;
+        max-width: 90%;
+        text-align: center;
+        animation: slideUp 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        backdrop-filter: blur(10px);
+      `;
+      notif.textContent = message;
+      document.body.appendChild(notif);
+      
+      setTimeout(() => {
+        notif.style.animation = 'slideDown 0.3s ease';
+        setTimeout(() => notif.remove(), 300);
+      }, duration);
+    }
+
+    // ================================================================
+    // VIEW NAVIGATION
+    // ================================================================
+    function toggleView() {
+      const mapView = document.getElementById('map-view');
+      const layersView = document.getElementById('layers-view');
+      const pointsView = document.getElementById('points-view');
+      const navIconUse = document.getElementById('nav-icon-use');
+      const mapControls = document.querySelectorAll('.map-only-control');
+
+      // Cycle through views: map -> layers -> points -> map
+      if (currentView === 'map') {
+        mapView.classList.remove('active');
+        layersView.classList.add('active');
+        pointsView.classList.remove('active');
+        navIconUse.setAttribute('href', '#icon-map');
+        mapControls.forEach(el => el.style.visibility = 'hidden');
+        currentView = 'layers';
+      } else if (currentView === 'layers') {
+        layersView.classList.remove('active');
+        pointsView.classList.add('active');
+        mapView.classList.remove('active');
+        navIconUse.setAttribute('href', '#icon-layers');
+        mapControls.forEach(el => el.style.visibility = 'hidden');
+        currentView = 'points';
+        renderPointsView();
+      } else {
+        pointsView.classList.remove('active');
+        mapView.classList.add('active');
+        layersView.classList.remove('active');
+        navIconUse.setAttribute('href', '#icon-layers');
+        mapControls.forEach(el => el.style.visibility = 'visible');
+        currentView = 'map';
+        setTimeout(() => map.invalidateSize(), 100);
       }
     }
 
-    function updateActiveLayersUI() {
-      const activeContainer = document.getElementById('active-layers');
+    // ================================================================
+    // TAB SWITCH (Untuk Library)
+    // ================================================================
+    function switchTab(tabName, event) {
+      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      if (tabName === 'basemap') renderLibraryBasemaps();
+      else if (tabName === 'kmz') renderLibraryContent();
+      else if (tabName === 'maps') {
+        document.getElementById('library-content').innerHTML = `
+          <div style="font-size:13px; color:#555; margin-bottom:10px;">
+            📄 File PDF referensi (belum support GeoPDF)
+          </div>
+          <div class="file-item">
+            <div class="file-info">
+              <svg class="icon"><use href="#icon-file-pdf"></use></svg>
+              <span class="file-name">Peta_Topografi_Zone48S.pdf</span>
+            </div>
+          </div>
+          <div style="margin-top:12px; padding:12px; background:#fff3cd; border-radius:4px; font-size:13px; color:#856404;">
+            ⚠️ File PDF hanya sebagai referensi. Untuk peta interaktif, gunakan KMZ/KML atau WebP+JSON.
+          </div>
+        `;
+      }
+    }
+
+    function renderLibraryBasemaps() {
+      const container = document.getElementById('library-content');
       let html = '';
 
-      Object.keys(activeLayers).forEach(id => {
-        const item = activeLayers[id];
+      Object.keys(BASEMAP_PROVIDERS).forEach(key => {
+        const item = BASEMAP_PROVIDERS[key];
         html += `
           <div class="file-item">
             <div class="file-info">
-              <svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#${item.icon}"></use></svg>
+              <svg class="icon"><use href="#${item.icon}"></use></svg>
               <span class="file-name">${item.name}</span>
             </div>
-            <button class="remove-btn" onclick="removeLayerFromStack('${id}')">Hapus</button>
+            <button class="add-btn" onclick="setBasemap('${key}')">+ Aktifkan</button>
           </div>
         `;
       });
 
-      activeContainer.innerHTML = html;
+      container.innerHTML = html;
+    }
+
+    // ================================================================
+    // WAYPOINT FROM RETICLE
+    // ================================================================
+    function addWaypointAtReticle() {
+      const center = map.getCenter();
+      const marker = L.marker([center.lat, center.lng]).addTo(map);
+      marker.bindPopup('<b>Waypoint ' + waypointCount + '</b><br>Lat: ' + center.lat.toFixed(5) + '<br>Lng: ' + center.lng.toFixed(5)).openPopup();
+      waypointCount++;
+      
+      // Juga tambahkan ke points management jika ada peta aktif
+      const activeMap = mapCollection.find(m => m.isActive === true);
+      if (activeMap) {
+        if (!activeMap.geojson) {
+          activeMap.geojson = { type: 'FeatureCollection', features: [] };
+        }
+        activeMap.geojson.features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [center.lng, center.lat]
+          },
+          properties: {
+            name: 'Waypoint ' + (waypointCount - 1),
+            note: 'Dari crosshair',
+            timestamp: new Date().toISOString()
+          }
+        });
+        saveMapToDB(activeMap);
+        renderPointsView();
+        renderLibraryContent();
+      }
+    }
+
+    // ================================================================
+    // SETTINGS (Tetap dipertahankan untuk kompatibilitas)
+    // ================================================================
+    function openSettings() {
+      document.getElementById('settings-modal').classList.add('active');
+    }
+    function closeSettings() {
+      document.getElementById('settings-modal').classList.remove('active');
+    }
+
+    async function selectDefaultKMZFolder() {
+      if ('showDirectoryPicker' in window) {
+        try {
+          defaultDirHandle = await window.showDirectoryPicker();
+          await saveHandleToIDB(defaultDirHandle);
+          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+          await scanFilesFromHandle(defaultDirHandle);
+          renderKMZLibrary();
+          alert("Folder default KMZ/KML berhasil disimpan!");
+        } catch (err) {
+          console.warn("Pemilihan folder dibatalkan:", err);
+        }
+      } else {
+        document.getElementById('folder-fallback-input').click();
+      }
+    }
+
+    function handleFallbackFolderSelect(event) {
+      const files = Array.from(event.target.files).filter(f =>
+        f.name.toLowerCase().endsWith('.kmz') || f.name.toLowerCase().endsWith('.kml')
+      );
+      scannedKmzFiles = files;
+      defaultDirHandle = { name: 'Folder dipilih (khusus sesi ini)' };
+      document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+      renderKMZLibrary();
+      if (files.length === 0) {
+        alert('Tidak ditemukan file .kmz/.kml pada folder yang dipilih.');
+      }
+    }
+
+    async function saveHandleToIDB(handle) {
+      try {
+        const db = await openDB();
+        const tx = db.transaction('config', 'readwrite');
+        const store = tx.objectStore('config');
+        store.put(handle, 'defaultKMZFolder');
+      } catch (err) {
+        console.warn('IndexedDB tidak tersedia, folder tidak akan diingat antar sesi:', err);
+      }
+    }
+
+    async function getHandleFromIDB() {
+      try {
+        const db = await openDB();
+        return new Promise(resolve => {
+          const tx = db.transaction('config', 'readonly');
+          const store = tx.objectStore('config');
+          const req = store.get('defaultKMZFolder');
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        });
+      } catch (err) {
+        return null;
+      }
+    }
+
+    async function initStoredKMZFolder() {
+      try {
+        defaultDirHandle = await getHandleFromIDB();
+        if (defaultDirHandle) {
+          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
+          if (defaultDirHandle.queryPermission) {
+            const opts = { mode: 'read' };
+            if ((await defaultDirHandle.queryPermission(opts)) === 'granted') {
+              await scanFilesFromHandle(defaultDirHandle);
+            } else {
+              document.getElementById('folder-path-text').innerText = defaultDirHandle.name + ' (Izin diperlukan)';
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat folder tersimpan:', err);
+      }
+      renderKMZLibrary();
+    }
+
+    async function scanFilesFromHandle(dirHandle) {
+      scannedKmzFiles = [];
+      try {
+        for await (const entry of dirHandle.values()) {
+          if (entry.kind === 'file' && (entry.name.endsWith('.kmz') || entry.name.endsWith('.kml'))) {
+            const file = await entry.getFile();
+            scannedKmzFiles.push(file);
+          }
+        }
+        renderKMZFileList();
+      } catch (err) {
+        console.warn("Gagal membaca isi folder:", err);
+      }
     }
 
     function renderKMZLibrary() {
@@ -1234,88 +2103,37 @@
       listContainer.innerHTML = html;
     }
 
-    function renderLibraryBasemaps() {
-      const container = document.getElementById('library-content');
-      let html = '';
+    async function activateKMZFile(index) {
+      const file = scannedKmzFiles[index];
+      if (!file) return;
 
-      Object.keys(BASEMAP_PROVIDERS).forEach(key => {
-        const item = BASEMAP_PROVIDERS[key];
-        html += `
-          <div class="file-item">
-            <div class="file-info">
-              <svg class="icon"><use href="#${item.icon}"></use></svg>
-              <span class="file-name">${item.name}</span>
-            </div>
-            <button class="add-btn" onclick="setBasemap('${key}')">+ Aktifkan</button>
-          </div>
-        `;
-      });
-
-      container.innerHTML = html;
-    }
-
-    function openSettings() {
-      document.getElementById('settings-modal').classList.add('active');
-    }
-    function closeSettings() {
-      document.getElementById('settings-modal').classList.remove('active');
-    }
-
-    function addWaypointAtReticle() {
-      const center = map.getCenter();
-      const marker = L.marker([center.lat, center.lng]).addTo(map);
-      marker.bindPopup(`<b>Waypoint ${waypointCount++}</b><br>Lat: ${center.lat.toFixed(5)}<br>Lng: ${center.lng.toFixed(5)}`).openPopup();
-    }
-
-    function toggleView() {
-      const mapView = document.getElementById('map-view');
-      const layersView = document.getElementById('layers-view');
-      const navIconUse = document.getElementById('nav-icon-use');
-      const mapControls = document.querySelectorAll('.map-only-control');
-
-      if (currentView === 'map') {
-        mapView.classList.remove('active');
-        layersView.classList.add('active');
-        navIconUse.setAttribute('href', '#icon-map');
-        mapControls.forEach(el => el.style.visibility = 'hidden');
-        currentView = 'layers';
-      } else {
-        layersView.classList.remove('active');
-        mapView.classList.add('active');
-        navIconUse.setAttribute('href', '#icon-layers');
-        mapControls.forEach(el => el.style.visibility = 'visible');
-        currentView = 'map';
-        setTimeout(() => map.invalidateSize(), 100);
+      try {
+        // Simpan ke IndexedDB dulu
+        const data = await file.arrayBuffer();
+        const newMap = {
+          id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          name: file.name,
+          type: file.name.endsWith('.kmz') ? 'kmz' : 'kml',
+          fileData: data,
+          geojson: { type: 'FeatureCollection', features: [] },
+          created: new Date().toISOString(),
+          isActive: false,
+          source: 'folder'
+        };
+        await saveMapToDB(newMap);
+        mapCollection.push(newMap);
+        renderLibraryContent();
+        renderPointsView();
+        alert('✅ ' + file.name + ' berhasil disimpan ke Library!');
+      } catch (err) {
+        console.error(err);
+        alert('Gagal memuat file: ' + err.message);
       }
     }
 
-    function switchTab(tabName, event) {
-      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
-      event.currentTarget.classList.add('active');
-
-      if (tabName === 'basemap') renderLibraryBasemaps();
-      else if (tabName === 'kmz') renderKMZLibrary();
-      else if (tabName === 'maps') {
-        document.getElementById('library-content').innerHTML = `
-          <div class="file-item">
-            <div class="file-info">
-              <svg class="icon"><use href="#icon-file-pdf"></use></svg>
-              <span class="file-name">Peta_Topografi_Zone48S.pdf</span>
-            </div>
-          </div>`;
-      }
-    }
-
-    window.addEventListener('resize', () => {
-      if (map) {
-        map.invalidateSize();
-      }
-    });
-
-    window.onload = initMap;
-  </script>
-
-  <script>
+    // ================================================================
+    // FULLSCREEN
+    // ================================================================
     function toggleFullScreen() {
       const docEl = document.documentElement;
 
@@ -1347,6 +2165,20 @@
 
     document.addEventListener('fullscreenchange', updateFullscreenButton);
     document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+
+    // ================================================================
+    // RESIZE HANDLER
+    // ================================================================
+    window.addEventListener('resize', () => {
+      if (map) {
+        map.invalidateSize();
+      }
+    });
+
+    // ================================================================
+    // START
+    // ================================================================
+    window.onload = initMap;
   </script>
 </body>
 </html>
