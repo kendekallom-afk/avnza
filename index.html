@@ -1,393 +1,108 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#484848">
-  <title>Avenza-Style Navigation PWA</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#484848">
+<title>Avenza-Style Navigation PWA</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package/gdal3.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #dcdcdc; display: flex; flex-direction: column; }
+svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; flex-shrink: 0; }
+.top-bar { height: 50px; background-color: #5d839e; width: 100%; flex-shrink: 0; }
+.toolbar { height: 56px; background-color: #484848; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 1000; flex-shrink: 0; }
+.tool-btn { background: none; border: none; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
+.tool-btn svg.icon { width: 22px; height: 22px; }
+.tool-btn:active { opacity: 0.7; }
+.coords-display { color: #ffffff; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.2; font-family: monospace; }
+.view { display: none; flex: 1; position: relative; overflow: hidden; height: calc(100vh - 106px); }
+.view.active { display: flex; flex-direction: column; }
+#map-view { position: relative; width: 100%; height: 100%; background-color: #cccccc; }
+#map { width: 100%; height: 100%; z-index: 1; background: #e2e2e2; }
+.crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 60px; height: 60px; border: 2px solid #333333; border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 500; }
+.crosshair::before, .crosshair::after { content: ""; position: absolute; background-color: #333333; }
+.crosshair::before { width: 2px; height: 76px; }
+.crosshair::after { width: 76px; height: 2px; }
+.crosshair-center { width: 4px; height: 4px; background-color: #333333; border-radius: 50%; z-index: 2; }
+.gps-overlay { position: absolute; bottom: 20px; left: 12px; z-index: 1000; background-color: rgba(0,0,0,0.8); color: #ffffff; padding: 8px 12px; border-radius: 6px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); pointer-events: none; }
+.gps-item { display: flex; justify-content: space-between; gap: 10px; }
+.gps-overlay .label { color: #cccccc; }
+.gps-overlay .value { font-weight: 600; }
+.status-no-signal { color: #ff4d4d; }
+.status-weak { color: #ffa500; }
+.status-medium { color: #ffeb3b; }
+.status-strong { color: #4caf50; }
+.user-location-container { position: relative; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
+.user-heading-wrapper { position: absolute; width: 60px; height: 60px; top: 0; left: 0; pointer-events: none; transform-origin: 50% 50%; transition: transform 0.1s linear; }
+.user-heading-cone { position: absolute; width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-bottom: 40px solid rgba(30,144,255,0.45); top: 0px; left: 10px; }
+.heading-pointer-dot { position: absolute; top: -4px; left: 26px; width: 8px; height: 8px; background-color: #ff0000; border: 1.5px solid #ffffff; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.5); z-index: 5; }
+.user-dot { position: absolute; width: 16px; height: 16px; background-color: #007aff; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 0 6px rgba(0,0,0,0.4); z-index: 2; }
+.user-pulse { position: absolute; width: 16px; height: 16px; background-color: rgba(0,122,255,0.4); border-radius: 50%; z-index: 1; animation: pulse-animation 2s infinite ease-out; }
+@keyframes pulse-animation { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3.5); opacity: 0; } }
+.layers-section { flex: 1; min-height: 0; padding: 12px 16px; display: flex; flex-direction: column; border-bottom: 2px solid #a0a0a0; background-color: #e2e2e2; }
+.section-title { font-size: 16px; color: #333333; font-weight: 500; margin-bottom: 8px; flex-shrink: 0; }
+.active-layers-list { flex: 1; overflow-y: auto; border: 2px dashed #a0a0a0; border-radius: 4px; padding: 8px; display: flex; flex-direction: column; gap: 8px; background-color: rgba(255,255,255,0.3); }
+.active-layers-list:empty::before { content: "Belum ada layer aktif. Pilih dari Library di bawah."; color: #777; font-size: 13px; text-align: center; margin: auto; }
+.library-section { flex: 1.2; min-height: 0; display: flex; flex-direction: column; background-color: #dcdcdc; }
+.tab-bar { display: flex; height: 42px; background-color: #484848; border-top: 1px solid #555; flex-shrink: 0; }
+.tab-btn { flex: 1; background-color: #484848; color: #ffffff; border: none; border-right: 1px solid #555; font-size: 14px; cursor: pointer; }
+.tab-btn.active { background-color: #dcdcdc; color: #333333; font-weight: 500; }
+.library-content { flex: 1; padding: 12px; overflow-y: auto; }
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
-
-  <!-- ============================================ -->
-  <!-- gdal3.js - Untuk konversi GeoPDF ke WebP+JSON -->
-  <!-- ============================================ -->
-  <script src="https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package/gdal3.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-
-  <style>
-  html, body {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-  }
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    user-select: none;
-  }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #dcdcdc;
-    display: flex;
-    flex-direction: column;
-  }
-
-  svg.icon {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    display: block;
-    flex-shrink: 0;
-  }
-
-  .top-bar {
-    height: 50px;
-    background-color: #5d839e;
-    width: 100%;
-    flex-shrink: 0;
-  }
-
-  .toolbar {
-    height: 56px;
-    background-color: #484848;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
-    flex-shrink: 0;
-  }
-
-  .tool-btn {
-    background: none;
-    border: none;
-    color: #ffffff;
-    cursor: pointer;
+/* ★ PERBAIKAN FILE-ITEM: layout lebih rapi */
+.file-item {
+    background-color: #ffffff;
+    padding: 10px 12px;
+    border-radius: 4px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-  }
-
-  .tool-btn svg.icon {
-    width: 22px;
-    height: 22px;
-  }
-
-  .tool-btn:active {
-    opacity: 0.7;
-  }
-
-  .coords-display {
-    color: #ffffff;
-    text-align: center;
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 1.2;
-    font-family: monospace;
-  }
-
-  .view {
-    display: none;
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-    height: calc(100vh - 106px);
-  }
-
-  .view.active {
-    display: flex;
-    flex-direction: column;
-  }
-
-  #map-view {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background-color: #cccccc;
-  }
-
-  #map {
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-    background: #e2e2e2;
-  }
-
-  .crosshair {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60px;
-    height: 60px;
-    border: 2px solid #333333;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    z-index: 500;
-  }
-
-  .crosshair::before,
-  .crosshair::after {
-    content: "";
-    position: absolute;
-    background-color: #333333;
-  }
-
-  .crosshair::before { width: 2px; height: 76px; }
-  .crosshair::after { width: 76px; height: 2px; }
-
-  .crosshair-center {
-    width: 4px;
-    height: 4px;
-    background-color: #333333;
-    border-radius: 50%;
-    z-index: 2;
-  }
-
-  .gps-overlay {
-    position: absolute;
-    bottom: 20px;
-    left: 12px;
-    z-index: 1000;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: #ffffff;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    pointer-events: none;
-  }
-
-  .gps-item {
-    display: flex;
     justify-content: space-between;
     gap: 10px;
-  }
-
-  .gps-overlay .label {
-    color: #cccccc;
-  }
-
-  .gps-overlay .value {
-    font-weight: 600;
-  }
-
-  .status-no-signal { color: #ff4d4d; }
-  .status-weak      { color: #ffa500; }
-  .status-medium    { color: #ffeb3b; }
-  .status-strong    { color: #4caf50; }
-
-  /* STYLING UNTUK INDIKATOR LOKASI & HADAP HP */
-  .user-location-container {
-    position: relative;
-    width: 60px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .user-heading-wrapper {
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    top: 0;
-    left: 0;
-    pointer-events: none;
-    transform-origin: 50% 50%;
-    transition: transform 0.1s linear;
-  }
-
-  .user-heading-cone {
-    position: absolute;
-    width: 0;
-    height: 0;
-    border-left: 20px solid transparent;
-    border-right: 20px solid transparent;
-    border-bottom: 40px solid rgba(30, 144, 255, 0.45);
-    top: 0px;
-    left: 10px;
-  }
-
-  .heading-pointer-dot {
-    position: absolute;
-    top: -4px;
-    left: 26px;
-    width: 8px;
-    height: 8px;
-    background-color: #ff0000;
-    border: 1.5px solid #ffffff;
-    border-radius: 50%;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
-    z-index: 5;
-  }
-
-  .user-dot {
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    background-color: #007aff;
-    border: 3px solid #ffffff;
-    border-radius: 50%;
-    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
-    z-index: 2;
-  }
-
-  .user-pulse {
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    background-color: rgba(0, 122, 255, 0.4);
-    border-radius: 50%;
-    z-index: 1;
-    animation: pulse-animation 2s infinite ease-out;
-  }
-
-  @keyframes pulse-animation {
-    0% {
-      transform: scale(1);
-      opacity: 0.8;
-    }
-    100% {
-      transform: scale(3.5);
-      opacity: 0;
-    }
-  }
-
-  /* LAYERS & LIBRARY VIEW */
-  .layers-section {
-    flex: 1;
-    min-height: 0;
-    padding: 12px 16px;
-    display: flex;
-    flex-direction: column;
-    border-bottom: 2px solid #a0a0a0;
-    background-color: #e2e2e2;
-  }
-
-  .section-title {
-    font-size: 16px;
-    color: #333333;
-    font-weight: 500;
-    margin-bottom: 8px;
-    flex-shrink: 0;
-  }
-
-  .active-layers-list {
-    flex: 1;
-    overflow-y: auto;
-    border: 2px dashed #a0a0a0;
-    border-radius: 4px;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background-color: rgba(255, 255, 255, 0.3);
-  }
-
-  .active-layers-list:empty::before {
-    content: "Belum ada layer aktif. Pilih dari Library di bawah.";
-    color: #777;
-    font-size: 13px;
-    text-align: center;
-    margin: auto;
-  }
-
-  .library-section {
-    flex: 1.2;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    background-color: #dcdcdc;
-  }
-
-  .tab-bar {
-    display: flex;
-    height: 42px;
-    background-color: #484848;
-    border-top: 1px solid #555;
-    flex-shrink: 0;
-  }
-
-  .tab-btn {
-    flex: 1;
-    background-color: #484848;
-    color: #ffffff;
-    border: none;
-    border-right: 1px solid #555;
-    font-size: 14px;
-    cursor: pointer;
-  }
-
-  .tab-btn.active {
-    background-color: #dcdcdc;
-    color: #333333;
-    font-weight: 500;
-  }
-
-  .library-content {
-    flex: 1;
-    padding: 12px;
-    overflow-y: auto;
-  }
-
-  .file-item {
-    background-color: #ffffff;
-    padding: 10px 14px;
-    border-radius: 4px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  }
-
-  .file-info {
+    min-height: 44px;
+}
+.file-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    flex: 1;
+    min-width: 0; /* ★ PENTING: agar flex child bisa shrink */
+}
+.file-info svg.icon { color: #5d839e; width: 18px; height: 18px; flex-shrink: 0; }
+
+/* ★ PERBAIKAN FILE-NAME: text wrap rapi, tidak membuat div tebal */
+.file-name {
+    font-size: 13px;
+    color: #333;
     flex: 1;
     min-width: 0;
-  }
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.3;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
 
-  .file-info svg.icon {
-    color: #5d839e;
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-  }
-
-  .file-name {
-    font-size: 14px;
-    color: #333;
-    word-break: break-all;
-    flex: 1;
-  }
-
-  .file-actions {
+.file-actions {
     display: flex;
     gap: 6px;
     flex-shrink: 0;
-  }
-
-  .add-btn, .remove-btn, .action-btn, .delete-btn {
+    align-items: center;
+}
+.add-btn, .remove-btn, .action-btn, .delete-btn {
     background: #5d839e;
     color: white;
     border: none;
@@ -396,2851 +111,670 @@
     cursor: pointer;
     font-size: 12px;
     flex-shrink: 0;
-  }
+    white-space: nowrap;
+}
+.remove-btn { background: #c94a4a; }
+.delete-btn { background: #f44336; }
+.delete-btn:hover { background: #d32f2f; }
+.add-btn:hover { background: #4a6f8a; }
 
-  .remove-btn {
-    background: #c94a4a;
-  }
-
-  .delete-btn {
-    background: #f44336;
-  }
-
-  .delete-btn:hover {
-    background: #d32f2f;
-  }
-
-  .add-btn:hover {
-    background: #4a6f8a;
-  }
-
-  /* POINTS VIEW */
-  #points-view {
-    background: #f5f5f5;
-    padding: 12px 16px;
-  }
-
-  .points-toolbar {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-
-  .points-toolbar button {
-    background: #5d839e;
+/* ★ TOMBOL ON - HIJAU */
+.on-btn {
+    background: #4CAF50;
     color: white;
     border: none;
     border-radius: 4px;
-    padding: 8px 14px;
+    padding: 6px 12px;
     cursor: pointer;
     font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
+    font-weight: 700;
+    flex-shrink: 0;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(76,175,80,0.4);
+}
+.on-btn:hover { background: #43a047; }
+.on-btn:active { background: #388e3c; }
 
-  .points-toolbar button:hover {
-    background: #4a6f8a;
-  }
-
-  .points-toolbar button.danger {
-    background: #f44336;
-  }
-
-  .points-toolbar button.danger:hover {
-    background: #d32f2f;
-  }
-
-  .points-toolbar button.success {
-    background: #4CAF50;
-  }
-
-  .points-toolbar button.success:hover {
-    background: #45a049;
-  }
-
-  .points-list-container {
-    flex: 1;
-    overflow-y: auto;
-    background: white;
-    border-radius: 8px;
-    padding: 8px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-  }
-
-  .point-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    border-bottom: 1px solid #eee;
-    font-size: 13px;
-  }
-
-  .point-item:last-child {
-    border-bottom: none;
-  }
-
-  .point-item .point-info {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .point-item .point-name {
-    font-weight: 600;
-    color: #333;
-  }
-
-  .point-item .point-coords {
-    font-size: 11px;
-    color: #888;
-    font-family: monospace;
-  }
-
-  .point-item .point-actions {
-    display: flex;
-    gap: 4px;
-  }
-
-  .point-item .point-actions button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 4px;
-    font-size: 14px;
-  }
-
-  .point-item .point-actions .btn-delete-point {
-    color: #f44336;
-  }
-
-  .point-item .point-actions .btn-delete-point:hover {
-    background: #ffebee;
-  }
-
-  .empty-points {
-    color: #999;
-    text-align: center;
-    padding: 30px 0;
-    font-size: 14px;
-  }
-
-  .modal-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 3000;
-  }
-
-  .modal-overlay.active {
-    display: flex;
-  }
-
-  .modal-content {
-    background: #f4f4f4;
-    width: 90%;
-    max-width: 420px;
-    border-radius: 6px;
-    padding: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .modal-header {
-    font-size: 16px;
-    font-weight: bold;
-    color: #333;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 8px;
-  }
-
-  .modal-close {
-    background: none;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
-    color: #666;
-  }
-
-  .setting-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .setting-label {
-    font-size: 13px;
-    color: #555;
-    font-weight: 500;
-  }
-
-  .setting-value-box {
-    background: #fff;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 13px;
-    color: #333;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .fullscreen-btn {
-    position: absolute;
-    bottom: 20px;
-    right: 12px;
-    z-index: 1000;
-    background-color: rgba(0, 0, 0, 0.31);
-    color: #ffffff;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-family: monospace;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  }
-
-  .fullscreen-btn:active {
-    background-color: rgba(0, 0, 0, 0.9);
-  }
-
-  .upload-btn-wrapper {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-  }
-
-  .upload-btn-wrapper button {
-    flex: 1;
-    min-width: 80px;
-  }
-
-  .map-item-status {
-    font-size: 10px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: #e0e0e0;
-    color: #666;
-  }
-
-  .map-item-status.active {
-    background: #4CAF50;
-    color: white;
-  }
-  </style>
+#points-view { background: #f5f5f5; padding: 12px 16px; }
+.points-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.points-toolbar button { background: #5d839e; color: white; border: none; border-radius: 4px; padding: 8px 14px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+.points-toolbar button:hover { background: #4a6f8a; }
+.points-toolbar button.danger { background: #f44336; }
+.points-toolbar button.danger:hover { background: #d32f2f; }
+.points-toolbar button.success { background: #4CAF50; }
+.points-toolbar button.success:hover { background: #45a049; }
+.points-list-container { flex: 1; overflow-y: auto; background: white; border-radius: 8px; padding: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.point-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+.point-item:last-child { border-bottom: none; }
+.point-item .point-info { display: flex; flex-direction: column; }
+.point-item .point-name { font-weight: 600; color: #333; }
+.point-item .point-coords { font-size: 11px; color: #888; font-family: monospace; }
+.point-item .point-actions { display: flex; gap: 4px; }
+.point-item .point-actions button { background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 14px; }
+.point-item .point-actions .btn-delete-point { color: #f44336; }
+.point-item .point-actions .btn-delete-point:hover { background: #ffebee; }
+.empty-points { color: #999; text-align: center; padding: 30px 0; font-size: 14px; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 3000; }
+.modal-overlay.active { display: flex; }
+.modal-content { background: #f4f4f4; width: 90%; max-width: 420px; border-radius: 6px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 14px; }
+.modal-header { font-size: 16px; font-weight: bold; color: #333; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
+.modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: #666; }
+.setting-group { display: flex; flex-direction: column; gap: 6px; }
+.setting-label { font-size: 13px; color: #555; font-weight: 500; }
+.setting-value-box { background: #fff; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; color: #333; display: flex; justify-content: space-between; align-items: center; }
+.fullscreen-btn { position: absolute; bottom: 20px; right: 12px; z-index: 1000; background-color: rgba(0,0,0,0.31); color: #ffffff; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+.fullscreen-btn:active { background-color: rgba(0,0,0,0.9); }
+.opacity-control { position: absolute; bottom: 70px; right: 12px; z-index: 1000; background-color: rgba(0,0,0,0.75); color: #ffffff; border: 1px solid rgba(255,255,255,0.35); border-radius: 8px; padding: 8px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 44px; user-select: none; }
+.opacity-control.collapsed .opacity-panel { display: none; }
+.opacity-toggle-btn { background: none; border: none; color: #fff; cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 4px; display: flex; align-items: center; justify-content: center; }
+.opacity-toggle-btn:active { opacity: 0.7; }
+.opacity-panel { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 2px; }
+.opacity-panel label { font-size: 10px; color: #ccc; white-space: nowrap; }
+.opacity-panel input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 28px; height: 100px; margin: 0; cursor: pointer; accent-color: #5d839e; }
+.opacity-value { font-size: 12px; font-weight: 600; font-family: monospace; color: #fff; }
+.upload-btn-wrapper { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.upload-btn-wrapper button { flex: 1; min-width: 80px; }
+.map-item-status { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #e0e0e0; color: #666; }
+.map-item-status.active { background: #4CAF50; color: white; }
+.geo-select-item { padding: 12px 14px; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.geo-select-item:active { transform: scale(0.98); }
+.geo-select-item .geo-info { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.geo-select-item .geo-label { font-weight: 700; font-size: 15px; }
+.geo-select-item .geo-detail { font-size: 11px; color: #555; }
+.geo-select-item .geo-bounds { font-size: 10px; color: #888; font-family: monospace; }
+</style>
 </head>
 <body>
-
-  <!-- SVG ICON SPRITE -->
-  <svg style="position:absolute; width:0; height:0; overflow:hidden;" aria-hidden="true">
-    <defs>
-      <symbol id="icon-crosshair" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="6"/>
-        <line x1="12" y1="2" x2="12" y2="6"/>
-        <line x1="12" y1="18" x2="12" y2="22"/>
-        <line x1="2" y1="12" x2="6" y2="12"/>
-        <line x1="18" y1="12" x2="22" y2="12"/>
-      </symbol>
-      <symbol id="icon-pin" viewBox="0 0 24 24">
-        <path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7z"/>
-        <circle cx="12" cy="9" r="2.3"/>
-      </symbol>
-      <symbol id="icon-wrench" viewBox="0 0 24 24">
-        <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2z"/>
-      </symbol>
-      <symbol id="icon-map" viewBox="0 0 24 24">
-        <path d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2z"/>
-        <line x1="9" y1="3" x2="9" y2="19"/>
-        <line x1="15" y1="5" x2="15" y2="21"/>
-      </symbol>
-      <symbol id="icon-layers" viewBox="0 0 24 24">
-        <polygon points="12,3 21,8 12,13 3,8"/>
-        <polyline points="3,13 12,18 21,13"/>
-        <polyline points="3,17.5 12,22.5 21,17.5"/>
-      </symbol>
-      <symbol id="icon-globe" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9"/>
-        <line x1="3" y1="12" x2="21" y2="12"/>
-        <path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>
-      </symbol>
-      <symbol id="icon-mountain" viewBox="0 0 24 24">
-        <path d="M3 20 9 8l4 6 2-3 6 9z"/>
-        <circle cx="17" cy="6" r="2"/>
-      </symbol>
-      <symbol id="icon-file-code" viewBox="0 0 24 24">
-        <rect x="4" y="2" width="16" height="20" rx="2"/>
-        <polyline points="9,13 7,15 9,17"/>
-        <polyline points="15,13 17,15 15,17"/>
-      </symbol>
-      <symbol id="icon-file-pdf" viewBox="0 0 24 24">
-        <rect x="4" y="2" width="16" height="20" rx="2"/>
-        <line x1="8" y1="9" x2="16" y2="9"/>
-        <line x1="8" y1="13" x2="16" y2="13"/>
-        <line x1="8" y1="17" x2="12" y2="17"/>
-      </symbol>
-      <symbol id="icon-upload" viewBox="0 0 24 24">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="17,8 12,3 7,8"/>
-        <line x1="12" y1="3" x2="12" y2="15"/>
-      </symbol>
-      <symbol id="icon-trash" viewBox="0 0 24 24">
-        <polyline points="3,6 5,6 21,6"/>
-        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-        <line x1="10" y1="11" x2="10" y2="17"/>
-        <line x1="14" y1="11" x2="14" y2="17"/>
-        <line x1="3" y1="6" x2="7" y2="6"/>
-        <line x1="17" y1="6" x2="21" y2="6"/>
-        <line x1="8" y1="2" x2="16" y2="2"/>
-      </symbol>
-      <symbol id="icon-download" viewBox="0 0 24 24">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7,10 12,15 17,10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </symbol>
-      <symbol id="icon-plus" viewBox="0 0 24 24">
-        <line x1="12" y1="5" x2="12" y2="19"/>
-        <line x1="5" y1="12" x2="19" y2="12"/>
-      </symbol>
-      <symbol id="icon-file-text" viewBox="0 0 24 24">
-        <rect x="4" y="2" width="16" height="20" rx="2"/>
-        <line x1="8" y1="8" x2="16" y2="8"/>
-        <line x1="8" y1="12" x2="16" y2="12"/>
-        <line x1="8" y1="16" x2="12" y2="16"/>
-      </symbol>
-    </defs>
-  </svg>
-
-  <div class="top-bar"></div>
-
-  <div class="toolbar">
-    <button class="tool-btn map-only-control" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS" style="visibility: hidden;">
-      <svg class="icon"><use href="#icon-crosshair"></use></svg>
-    </button>
-
-    <button class="tool-btn map-only-control" id="btn-pin" onclick="addWaypointAtReticle()" title="Tambah Titik" style="visibility: hidden;">
-      <svg class="icon"><use href="#icon-pin"></use></svg>
-    </button>
-
-    <div class="coords-display map-only-control" style="visibility: hidden;">
-      <div id="lat">0.00000</div>
-      <div id="lng">0.00000</div>
-    </div>
-
-    <button class="tool-btn" id="btn-toggle-view" onclick="toggleView()" title="Beralih Tampilan">
-      <svg class="icon" id="nav-icon"><use id="nav-icon-use" href="#icon-map"></use></svg>
-    </button>
-
-    <button class="tool-btn" id="btn-tools" onclick="openSettings()" title="Pengaturan">
-      <svg class="icon"><use href="#icon-wrench"></use></svg>
-    </button>
-  </div>
-
-  <!-- ============================================ -->
-  <!-- VIEW 1: MAP -->
-  <!-- ============================================ -->
-  <div id="map-view" class="view">
-    <div id="map"></div>
-    <div class="crosshair">
-      <div class="crosshair-center"></div>
-    </div>
-
-    <div id="gps-overlay" class="gps-overlay map-only-control" style="visibility: hidden;">
-      <div class="gps-item">
-        <span class="label">Sinyal GPS:</span>
-        <span id="gps-status" class="value status-no-signal">Memeriksa...</span>
-      </div>
-      <div class="gps-item">
-        <span class="label">Akurasi GPS:</span>
-        <span id="gps-accuracy" class="value">-</span>
-      </div>
-    </div>
-    <button id="btn-fullscreen" class="fullscreen-btn map-only-control" onclick="toggleFullScreen()" title="Full Screen" style="visibility: hidden;">
-      [ ]
-    </button>
-  </div>
-
-  <!-- ============================================ -->
-  <!-- VIEW 2: LAYERS & LIBRARY -->
-  <!-- ============================================ -->
-  <div id="layers-view" class="view active">
-    <div class="layers-section">
-      <h2 class="section-title">Layers</h2>
-      <div class="active-layers-list" id="active-layers"></div>
-    </div>
-
-    <div class="library-section">
-      <div class="tab-bar">
-        <button class="tab-btn" onclick="switchTab('maps', event)">Maps</button>
-        <button class="tab-btn active" onclick="switchTab('kmz', event)">KMZ</button>
-        <button class="tab-btn" onclick="switchTab('basemap', event)">Basemap</button>
-      </div>
-
-      <div class="library-content" id="library-content">
-        <!-- Content akan di-render oleh JavaScript -->
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================ -->
-  <!-- VIEW 3: POINTS MANAGEMENT -->
-  <!-- ============================================ -->
-  <div id="points-view" class="view">
-    <div style="padding:12px 16px; background:#e2e2e2; border-bottom:2px solid #a0a0a0; flex-shrink:0;">
-      <h2 class="section-title" style="margin-bottom:4px;">📝 Kelola Titik</h2>
-      <div style="font-size:12px; color:#666;" id="points-map-name">Pilih peta terlebih dahulu</div>
-    </div>
-    <div style="padding:12px 16px; flex-shrink:0;">
-      <div class="points-toolbar">
-        <button class="success" onclick="addPointFromCrosshair()">
-          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-plus"></use></svg> Tambah
-        </button>
-        <button onclick="exportPoints('txt')">
-          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-text"></use></svg> TXT
-        </button>
-        <button onclick="exportPoints('csv')">
-          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-text"></use></svg> CSV
-        </button>
-        <button onclick="exportPoints('kml')">
-          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-code"></use></svg> KML
-        </button>
-        <button class="danger" onclick="clearAllPoints()">
-          <svg class="icon" style="width:16px;height:16px;"><use href="#icon-trash"></use></svg> Hapus Semua
-        </button>
-      </div>
-    </div>
-    <div class="points-list-container" id="points-list-container">
-      <div class="empty-points">📭 Belum ada titik. Tambahkan titik dari peta atau klik "Tambah"</div>
-    </div>
-  </div>
-
-  <!-- ============================================ -->
-  <!-- SETTINGS MODAL -->
-  <!-- ============================================ -->
-  <div class="modal-overlay" id="settings-modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <span>Pengaturan Aplikasi</span>
-        <button class="modal-close" onclick="closeSettings()">&times;</button>
-      </div>
-      <div class="setting-group">
-        <span class="setting-label">Folder Default KMZ:</span>
-        <div class="setting-value-box">
-          <span id="folder-path-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;">Belum dipilih</span>
-          <button class="action-btn" onclick="selectDefaultKMZFolder()">Pilih Folder</button>
+<svg style="position:absolute; width:0; height:0; overflow:hidden;" aria-hidden="true">
+<defs>
+<symbol id="icon-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></symbol>
+<symbol id="icon-pin" viewBox="0 0 24 24"><path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2.3"/></symbol>
+<symbol id="icon-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2z"/></symbol>
+<symbol id="icon-map" viewBox="0 0 24 24"><path d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2z"/><line x1="9" y1="3" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="21"/></symbol>
+<symbol id="icon-layers" viewBox="0 0 24 24"><polygon points="12,3 21,8 12,13 3,8"/><polyline points="3,13 12,18 21,13"/><polyline points="3,17.5 12,22.5 21,17.5"/></symbol>
+<symbol id="icon-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+<symbol id="icon-mountain" viewBox="0 0 24 24"><path d="M3 20 9 8l4 6 2-3 6 9z"/><circle cx="17" cy="6" r="2"/></symbol>
+<symbol id="icon-file-code" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><polyline points="9,13 7,15 9,17"/><polyline points="15,13 17,15 15,17"/></symbol>
+<symbol id="icon-file-pdf" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></symbol>
+<symbol id="icon-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+<symbol id="icon-trash" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/><line x1="3" y1="6" x2="7" y2="6"/><line x1="17" y1="6" x2="21" y2="6"/><line x1="8" y1="2" x2="16" y2="2"/></symbol>
+<symbol id="icon-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+<symbol id="icon-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="icon-file-text" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></symbol>
+<symbol id="icon-file-kmz" viewBox="0 0 384 512">
+  <!-- Badan Dokumen (Warna Putih dengan garis tepi abu-abu gelap #555555 tebal 16) -->
+  <path d="M0 64C0 28.7 28.7 0 64 0H224L384 160V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64z" fill="#ffffff" stroke="#555555" stroke-width="16"/>
+  <!-- Lipatan Kertas (Warna Abu-abu / Grey dengan garis tepi senada) -->
+  <path d="M224 0V160H384L224 0z" fill="#b0b0b0" stroke="#555555" stroke-width="8"/>
+  <!-- Teks Label KMZ (Hitam, Ukuran 150) -->
+  <text x="192" y="375" font-family="Arial, sans-serif" font-size="150" font-weight="bold" fill="#000000" text-anchor="middle" textLength="280" lengthAdjust="spacingAndGlyphs">KMZ</text>
+</symbol>
+<symbol id="icon-pdf" viewBox="0 0 384 512">
+  <!-- Badan Dokumen (Warna Merah dengan garis tepi abu-abu gelap #555555 tebal 16) -->
+  <path d="M0 64C0 28.7 28.7 0 64 0H224L384 160V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64z" fill="#e63946" stroke="#555555" stroke-width="16"/>
+  <!-- Lipatan Kertas (Warna Putih Gading dengan garis tepi senada) -->
+  <path d="M224 0V160H384L224 0z" fill="#f1faee" stroke="#555555" stroke-width="8"/>
+  <!-- Teks Label PDF (Putih, Ukuran 150) -->
+  <text x="192" y="375" font-family="Arial, sans-serif" font-size="150" font-weight="bold" fill="#ffffff" text-anchor="middle" textLength="280" lengthAdjust="spacingAndGlyphs">PDF</text>
+</symbol>
+</defs>
+</svg>
+<div class="top-bar"></div>
+<div class="toolbar">
+<button class="tool-btn map-only-control" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS" style="visibility:hidden;"><svg class="icon"><use href="#icon-crosshair"></use></svg></button>
+<button class="tool-btn map-only-control" id="btn-pin" onclick="addWaypointAtReticle()" title="Tambah Titik" style="visibility:hidden;"><svg class="icon"><use href="#icon-pin"></use></svg></button>
+<div class="coords-display map-only-control" style="visibility:hidden;"><div id="lat">0.00000</div><div id="lng">0.00000</div></div>
+<button class="tool-btn" id="btn-toggle-view" onclick="toggleView()" title="Beralih Tampilan"><svg class="icon" id="nav-icon"><use id="nav-icon-use" href="#icon-map"></use></svg></button>
+<button class="tool-btn" id="btn-tools" onclick="openSettings()" title="Pengaturan"><svg class="icon"><use href="#icon-wrench"></use></svg></button>
+</div>
+<div id="map-view" class="view">
+<div id="map"></div>
+<div class="crosshair"><div class="crosshair-center"></div></div>
+<div id="gps-overlay" class="gps-overlay map-only-control" style="visibility:hidden;">
+<div class="gps-item"><span class="label">Sinyal GPS:</span><span id="gps-status" class="value status-no-signal">Memeriksa...</span></div>
+<div class="gps-item"><span class="label">Akurasi GPS:</span><span id="gps-accuracy" class="value">-</span></div>
+</div>
+<button id="btn-fullscreen" class="fullscreen-btn map-only-control" onclick="toggleFullScreen()" title="Full Screen" style="visibility:hidden;">[ ]</button>
+<div id="opacity-control" class="opacity-control map-only-control collapsed" style="visibility:hidden;" title="Transparansi peta WebP" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
+<button type="button" class="opacity-toggle-btn" onclick="toggleOpacityPanel()" aria-label="Transparansi">◐</button>
+<div class="opacity-panel">
+<label for="opacity-slider">WebP</label>
+<input type="range" id="opacity-slider" min="0" max="100" value="100" oninput="setWebPOpacity(this.value)" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
+<span class="opacity-value" id="opacity-value">100%</span>
+</div>
+</div>
+</div>
+<div id="layers-view" class="view active">
+<div class="layers-section">
+<h2 class="section-title">Layers</h2>
+<div class="active-layers-list" id="active-layers"></div>
+</div>
+<div class="library-section">
+<div class="tab-bar">
+<button class="tab-btn" onclick="switchTab('maps',event)">Maps</button>
+<button class="tab-btn active" onclick="switchTab('kmz',event)">KMZ</button>
+<button class="tab-btn" onclick="switchTab('basemap',event)">Basemap</button>
+</div>
+<div class="library-content" id="library-content"></div>
+</div>
+</div>
+<div id="points-view" class="view">
+<div style="padding:12px 16px; background:#e2e2e2; border-bottom:2px solid #a0a0a0; flex-shrink:0;">
+<h2 class="section-title" style="margin-bottom:4px;">📝 Kelola Titik</h2>
+<div style="font-size:12px; color:#666;" id="points-map-name">Pilih peta terlebih dahulu</div>
+</div>
+<div style="padding:12px 16px; flex-shrink:0;">
+<div class="points-toolbar">
+<button class="success" onclick="addPointFromCrosshair()"><svg class="icon" style="width:16px;height:16px;"><use href="#icon-plus"></use></svg> Tambah</button>
+<button onclick="exportPoints('txt')"><svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-text"></use></svg> TXT</button>
+<button onclick="exportPoints('csv')"><svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-text"></use></svg> CSV</button>
+<button onclick="exportPoints('kml')"><svg class="icon" style="width:16px;height:16px;"><use href="#icon-file-code"></use></svg> KML</button>
+<button class="danger" onclick="clearAllPoints()"><svg class="icon" style="width:16px;height:16px;"><use href="#icon-trash"></use></svg> Hapus Semua</button>
+</div>
+</div>
+<div class="points-list-container" id="points-list-container">
+<div class="empty-points">📭 Belum ada titik. Tambahkan titik dari peta atau klik "Tambah"</div>
+</div>
+</div>
+<div class="modal-overlay" id="settings-modal">
+<div class="modal-content">
+<div class="modal-header"><span>Pengaturan Aplikasi</span><button class="modal-close" onclick="closeSettings()">&times;</button></div>
+<div class="setting-group">
+<span class="setting-label">Folder Default KMZ:</span>
+<div class="setting-value-box">
+<span id="folder-path-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;">Belum dipilih</span>
+<button class="action-btn" onclick="selectDefaultKMZFolder()">Pilih Folder</button>
+</div>
+<span style="font-size:11px; color:#777;">Semua file KMZ/KML di dalam folder ini akan otomatis dimuat ke tab KMZ.</span>
+</div>
+</div>
+</div>
+<div class="modal-overlay" id="geopdf-select-modal">
+    <div class="modal-content" style="max-width:400px;">
+        <div class="modal-header">
+            <span>Pilih Georeferensi</span>
+            <button class="modal-close" onclick="cancelGeoSelection()">&times;</button>
         </div>
-        <span style="font-size: 11px; color: #777;">Semua file KMZ/KML di dalam folder ini akan otomatis dimuat ke tab KMZ. Di browser yang tidak mendukung penyimpanan folder permanen (Samsung Internet, Firefox, Safari), folder perlu dipilih ulang tiap sesi.</span>
-      </div>
+        <div id="geo-select-list"></div>
     </div>
-  </div>
+</div>
+<input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+let map, userLocationMarker=null, currentHeading=0, currentView='layers', waypointCount=1, latestCoords=null, activeMapId=null;
+let gdalReady=false, gdal=null, activeLayers={}, scannedKmzFiles=[], defaultDirHandle=null, mapCollection=[], webpOpacity=1;
+const BASEMAP_PROVIDERS = {
+'google_sat':{name:'Google Satellite',url:'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',icon:'icon-globe',maxNativeZoom:20},
+'google_map':{name:'Google Map',url:'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',icon:'icon-map',maxNativeZoom:20},
+'google_hybrid':{name:'Google Hybrid',url:'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',icon:'icon-layers',maxNativeZoom:20},
+'google_terrain':{name:'Google Terrain',url:'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',icon:'icon-mountain',maxNativeZoom:16},
+'osm':{name:'OpenStreetMap (OSM)',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',icon:'icon-globe',maxNativeZoom:19}
+};
+const DB_NAME='AvenzaNavDB', STORE_NAME='maps';
+function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,3);req.onupgradeneeded=(e)=>{const db=e.target.result;if(!db.objectStoreNames.contains(STORE_NAME))db.createObjectStore(STORE_NAME,{keyPath:'id'});if(!db.objectStoreNames.contains('config'))db.createObjectStore('config');};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+async function saveMapToDB(mapData){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE_NAME,'readwrite');tx.objectStore(STORE_NAME).put(mapData);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+async function getAllMapsFromDB(){const db=await openDB();return new Promise((resolve,reject)=>{const req=db.transaction(STORE_NAME,'readonly').objectStore(STORE_NAME).getAll();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+async function deleteMapFromDB(id){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE_NAME,'readwrite');tx.objectStore(STORE_NAME).delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
 
-  <!-- Fallback untuk browser tanpa File System Access API -->
-  <input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
+function initMap(){
+map=L.map('map',{zoomControl:false,maxZoom:22,rotate:true,touchRotate:true}).setView([-2.66491,118.85193],15);
+map.on('move',updateReticleCoordinates);
+updateReticleCoordinates();
+setBasemap('osm');
+loadAllMapsFromDB();
+initGPSWatcher();
+initOrientationWatcher();
+initGDAL();
+}
+function updateReticleCoordinates(){const c=map.getCenter();document.getElementById('lat').innerText=c.lat.toFixed(5);document.getElementById('lng').innerText=c.lng.toFixed(5);}
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+async function initGDAL(){
+try{
+if(typeof initGdalJs!=='function'){gdalReady=false;return;}
+gdal=await initGdalJs({path:'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',useWorker:false});
+gdalReady=!!gdal;
+showNotification('✅ Mesin GIS siap',1800);
+}catch(err){console.warn('GDAL init gagal:',err);gdalReady=false;gdal=null;}
+}
 
-  <script>
-    // ================================================================
-    // VARIABEL UTAMA
-    // ================================================================
-    let map;
-    let userLocationMarker = null;
-    let currentHeading = 0;
-    let currentView = 'layers';
-    let waypointCount = 1;
-    let latestCoords = null;
-    let activeMapId = null; // ID peta yang sedang aktif
-    let gdalReady = false;
-    let gdal = null;
+async function loadAllMapsFromDB(){try{mapCollection=await getAllMapsFromDB();renderLibraryContent();renderPointsView();}catch(e){console.warn(e);mapCollection=[];}}
 
-    let activeLayers = {};
-    let scannedKmzFiles = [];
-    let defaultDirHandle = null;
-    let mapCollection = []; // Array untuk menyimpan semua peta dari IndexedDB
+function centerToGPS(){
+if(!navigator.geolocation){alert("Geolocation tidak didukung.");return;}
+const z=map.getZoom();
+if(map.setBearing)map.setBearing(0);
+const w=document.getElementById('user-heading-wrapper');if(w)w.style.transform='rotate(0deg)';
+if(latestCoords){map.setView([latestCoords.lat,latestCoords.lng],z);updateUserMarker(latestCoords.lat,latestCoords.lng);}
+else{navigator.geolocation.getCurrentPosition(pos=>{latestCoords={lat:pos.coords.latitude,lng:pos.coords.longitude};map.setView([latestCoords.lat,latestCoords.lng],z);updateUserMarker(latestCoords.lat,latestCoords.lng);},err=>{let m="Gagal mendapatkan lokasi.";if(err.code===1)m="Izin lokasi ditolak.";else if(err.code===2)m="Sinyal GPS tidak tersedia.";else if(err.code===3)m="Timeout.";alert(m);},{enableHighAccuracy:true,timeout:10000,maximumAge:0});}
+}
+function updateUserMarker(lat,lng){
+if(userLocationMarker){userLocationMarker.setLatLng([lat,lng]);}
+else{const icon=L.divIcon({className:'custom-user-icon',html:`<div class="user-location-container"><div class="user-heading-wrapper" id="user-heading-wrapper"><div class="user-heading-cone"></div><div class="heading-pointer-dot"></div></div><div class="user-pulse"></div><div class="user-dot"></div></div>`,iconSize:[60,60],iconAnchor:[30,30]});userLocationMarker=L.marker([lat,lng],{icon}).addTo(map);}
+}
+function handleOrientation(e){let a=e.alpha,h=null;if(e.webkitCompassHeading)h=e.webkitCompassHeading;else if(a!==null)h=360-a;if(h!==null){currentHeading=h;const w=document.getElementById('user-heading-wrapper');if(w)w.style.transform='rotate('+h+'deg)';}}
+function initOrientationWatcher(){if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}).catch(console.error);}else if('ondeviceorientationabsolute' in window)window.addEventListener('deviceorientationabsolute',handleOrientation,true);else if('ondeviceorientation' in window)window.addEventListener('deviceorientation',handleOrientation,true);}
+function initGPSWatcher(){
+const sE=document.getElementById('gps-status'),aE=document.getElementById('gps-accuracy');
+if('geolocation' in navigator){navigator.geolocation.watchPosition(pos=>{const lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Math.round(pos.coords.accuracy);latestCoords={lat,lng};updateUserMarker(lat,lng);aE.textContent='± '+acc+' m';if(acc<=10){sE.textContent='Sinyal Kuat';sE.className='value status-strong';}else if(acc<=30){sE.textContent='Sinyal Sedang';sE.className='value status-medium';}else{sE.textContent='Sinyal Lemah';sE.className='value status-weak';}},err=>{aE.textContent='-';sE.textContent=err.code===1?'Izin Ditolak':err.code===2?'GPS Tdk Terdeteksi':'Mencari Sinyal...';sE.className='value status-no-signal';},{enableHighAccuracy:true,timeout:15000,maximumAge:0});}
+else{sE.textContent='Tidak Didukung';sE.className='value status-no-signal';aE.textContent='API tidak ada';}
+}
 
-    const BASEMAP_PROVIDERS = {
-      'google_sat':     { name: 'Google Satellite', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', icon: 'icon-globe',    maxNativeZoom: 20 },
-      'google_map':     { name: 'Google Map',       url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', icon: 'icon-map',      maxNativeZoom: 20 },
-      'google_hybrid':  { name: 'Google Hybrid',    url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', icon: 'icon-layers',   maxNativeZoom: 20 },
-      'google_terrain': { name: 'Google Terrain',   url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', icon: 'icon-mountain', maxNativeZoom: 16 },
-      'osm':            { name: 'OpenStreetMap (OSM)', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', icon: 'icon-globe', maxNativeZoom: 19 }
-    };
+function uploadKMZFile(){
+const input=document.createElement('input');input.type='file';input.accept='.kmz,.kml';input.multiple=true;
+input.onchange=async(e)=>{const files=Array.from(e.target.files);for(const file of files){try{const data=await file.arrayBuffer();const m={id:'map_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),name:file.name,type:file.name.endsWith('.kmz')?'kmz':'kml',fileData:data,geojson:{type:'FeatureCollection',features:[]},created:new Date().toISOString(),isActive:false,source:'upload'};await saveMapToDB(m);mapCollection.push(m);}catch(err){alert('Gagal upload: '+err.message);}}renderLibraryContent();renderPointsView();alert('✅ '+files.length+' file diupload!');};
+input.click();
+}
 
-    // ================================================================
-    // INDEXEDDB HELPER
-    // ================================================================
-    const DB_NAME = 'AvenzaNavDB';
-    const STORE_NAME = 'maps';
+async function convertGeoPDFToWebP(fileData,filename){
+const src=fileData instanceof Uint8Array?fileData:new Uint8Array(fileData);
+if(!src.byteLength)throw new Error('Data PDF kosong.');
+const bytesForGeo=src.slice(0),bytesForGdal=src.slice(0),bytesForPdf=src.slice(0);
 
-    function openDB() {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 3);
-        req.onupgradeneeded = (e) => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains(STORE_NAME)) {
-            db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-          }
+if(gdalReady&&gdal){try{const file=new File([bytesForGdal],filename,{type:'application/pdf'});const opened=await gdal.open(file);if(opened&&opened.datasets&&opened.datasets.length){const dataset=opened.datasets[0];const info=await gdal.getInfo(dataset);if(info&&info.type==='raster'&&info.corners?.length){const webpPath=await gdal.gdal_translate(dataset,['-of','WEBP','-co','QUALITY=90'],filename.replace(/\.[^/.]+$/,''));const webpBytes=await gdal.getFileBytes(webpPath);const bounds=await cornersToLeafletBounds(info.corners,info.projectionWkt);if(!bounds)throw new Error('GDAL: georeferensi tidak dapat dipetakan ke WGS84.');try{gdal.close(dataset);}catch(_){}return{webpData:toArrayBuffer(webpBytes),metadata:{name:filename,bounds,width:info.width,height:info.height,projectionWkt:info.projectionWkt||'',source:'gdal3.js',format:'webp',scheme:'image-overlay',jsonVersion:1}};}}}catch(err){console.warn('Jalur GDAL-PDF gagal, lanjut PDF.js:',err);}}
 
-          if (!db.objectStoreNames.contains('config')) {
-            db.createObjectStore('config');
-          }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    }
+const geoCandidates=await extractAllGeoPDFGeoreferences(bytesForGeo);
+let selectedGeo=null;
+if(geoCandidates&&geoCandidates.length>0){
+if(geoCandidates.length>1){try{selectedGeo=await promptUserForGeoreference(filename,geoCandidates);}catch(e){throw e;}}
+else{selectedGeo=geoCandidates[0];}
+}else{console.warn('[GeoPDF] Georeferensi gagal di tahap awal.');}
 
-    async function saveMapToDB(mapData) {
-      const db = await openDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        store.put(mapData);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    }
+if(typeof pdfjsLib==='undefined')throw new Error('PDF.js belum tersedia.');
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const loadingTask=pdfjsLib.getDocument({data:bytesForPdf.slice(0).buffer});
+const pdf=await loadingTask.promise;
+const page=await pdf.getPage(1);
+const baseViewport=page.getViewport({scale:1});
+const pageWidth=baseViewport.width,pageHeight=baseViewport.height;
+const maxPixels=18000000;
+let scale=2.0;
+if((pageWidth*scale)*(pageHeight*scale)>maxPixels)scale=Math.sqrt(maxPixels/(pageWidth*pageHeight));
+scale=Math.max(0.75,Math.min(scale,3.0));
+const viewport=page.getViewport({scale});
+const fullCanvas=document.createElement('canvas');
+fullCanvas.width=Math.ceil(viewport.width);fullCanvas.height=Math.ceil(viewport.height);
+const fullCtx=fullCanvas.getContext('2d',{alpha:false});
+await page.render({canvasContext:fullCtx,viewport}).promise;
 
-    async function getAllMapsFromDB() {
-      const db = await openDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    }
+let outCanvas=fullCanvas,cropInfo=null;
+if(selectedGeo&&selectedGeo.viewportBBox&&selectedGeo.viewportBBox.length>=4){
+const bb=selectedGeo.viewportBBox;
+const pdfX0=Math.min(bb[0],bb[2]),pdfX1=Math.max(bb[0],bb[2]);
+const pdfY0=Math.min(bb[1],bb[3]),pdfY1=Math.max(bb[1],bb[3]);
+let cLeft,cTop,cRight,cBottom;
+if(typeof viewport.convertToViewportRectangle==='function'){const vr=viewport.convertToViewportRectangle([pdfX0,pdfY0,pdfX1,pdfY1]);cLeft=Math.min(vr[0],vr[2]);cRight=Math.max(vr[0],vr[2]);cTop=Math.min(vr[1],vr[3]);cBottom=Math.max(vr[1],vr[3]);}
+else{cLeft=pdfX0*scale;cRight=pdfX1*scale;cTop=(pageHeight-pdfY1)*scale;cBottom=(pageHeight-pdfY0)*scale;}
+cLeft=Math.max(0,Math.floor(cLeft));cTop=Math.max(0,Math.floor(cTop));
+cRight=Math.min(fullCanvas.width,Math.ceil(cRight));cBottom=Math.min(fullCanvas.height,Math.ceil(cBottom));
+const cropW=cRight-cLeft,cropH=cBottom-cTop;
+if(cropW>10&&cropH>10&&cropW*cropH>fullCanvas.width*fullCanvas.height*0.05){
+const cropped=document.createElement('canvas');cropped.width=cropW;cropped.height=cropH;
+cropped.getContext('2d',{alpha:false}).drawImage(fullCanvas,cLeft,cTop,cropW,cropH,0,0,cropW,cropH);
+outCanvas=cropped;cropInfo={cLeft,cTop,cropW,cropH};
+console.log('[GeoPDF] Crop → canvas',cropInfo);
+}}
 
-    async function deleteMapFromDB(id) {
-      const db = await openDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        store.delete(id);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    }
+const webpBlob=await canvasToWebP(outCanvas,0.90);
+const webpData=await webpBlob.arrayBuffer();
+if(!selectedGeo||!selectedGeo.bounds)throw new Error('Georeferensi GeoPDF tidak dapat dibaca.');
 
-    // ================================================================
-    // INISIALISASI MAP
-    // ================================================================
-    function initMap() {
-      map = L.map('map', {
-        zoomControl: false,
-        maxZoom: 22,
-        rotate: true,
-        touchRotate: true
-      }).setView([-2.66491, 118.85193], 15);
+return{webpData,metadata:{name:filename,bounds:selectedGeo.bounds,epsg:selectedGeo.epsg||null,projectionWkt:selectedGeo.projectionWkt||null,source:'pdf.js + GeoPDF metadata',format:'webp',scheme:'image-overlay',width:outCanvas.width,height:outCanvas.height,page:1,pdfPages:pdf.numPages,jsonVersion:1,gpts:selectedGeo.gpts||null,lpts:selectedGeo.lpts||null,geoSource:selectedGeo.source||null,viewportBBox:selectedGeo.viewportBBox||null,mediaBox:selectedGeo.mediaBox||null,needsVerticalFlip:false,cropped:!!cropInfo,role:selectedGeo.role}};
+}
 
-      map.on('move', updateReticleCoordinates);
-      updateReticleCoordinates();
+function toArrayBuffer(v){if(v instanceof ArrayBuffer)return v;if(v instanceof Uint8Array)return v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength);return new Uint8Array(v).buffer;}
+function canvasToWebP(canvas,q){return new Promise((res,rej)=>{canvas.toBlob(b=>{if(b)res(b);else rej(new Error('Browser tidak mendukung WebP.'));},'image/webp',q);});}
+async function cornersToLeafletBounds(corners,projectionWkt){
+if(!Array.isArray(corners)||corners.length<4)return null;
+const xy=corners.map(c=>[Number(c[0]),Number(c[1])]);
+if(xy.some(c=>!Number.isFinite(c[0])||!Number.isFinite(c[1])))return null;
+if(xy.every(c=>Math.abs(c[0])<=180&&Math.abs(c[1])<=90))return[Math.min(...xy.map(c=>c[1])),Math.min(...xy.map(c=>c[0])),Math.max(...xy.map(c=>c[1])),Math.max(...xy.map(c=>c[0]))];
+if(!projectionWkt||typeof proj4!=='function')return null;
+try{const ll=xy.map(c=>proj4(projectionWkt,'EPSG:4326',c));return[Math.min(...ll.map(c=>c[1])),Math.min(...ll.map(c=>c[0])),Math.max(...ll.map(c=>c[1])),Math.max(...ll.map(c=>c[0]))];}catch(e){return null;}
+}
 
-      setBasemap('osm');
+function bytesToLatin1(bytes){let o='';const ch=0x8000;for(let i=0;i<bytes.length;i+=ch){const e=Math.min(i+ch,bytes.length);let p='';for(let j=i;j<e;j++)p+=String.fromCharCode(bytes[j]);o+=p;}return o;}
+function inflatePdfStream(bytes){if(typeof pako==='undefined')return null;try{return new TextDecoder('latin1').decode(pako.inflate(bytes));}catch(_){try{return new TextDecoder('latin1').decode(pako.inflateRaw(bytes));}catch(_){return null;}}}
+function collectPdfTextLayers(fileData){
+const bytes=fileData instanceof Uint8Array?fileData:new Uint8Array(fileData);
+if(!bytes.byteLength)return[''];
+const raw=bytesToLatin1(bytes);const texts=[raw];let pos=0,sc=0;
+while(pos<raw.length&&sc<8000){const sp=raw.indexOf('stream',pos);if(sp<0)break;const b=sp>0?raw.charCodeAt(sp-1):32;const a=raw.charCodeAt(sp+6);if((b===47)||(a!==10&&a!==13&&a!==32&&a!==9)){pos=sp+6;continue;}
+const ds=Math.max(0,raw.lastIndexOf('<<',sp));const dict=ds>=0?raw.slice(ds,sp):'';const es=raw.indexOf('endstream',sp+6);if(es<0)break;
+let dStart=sp+6;if(raw.charCodeAt(dStart)===13&&raw.charCodeAt(dStart+1)===10)dStart+=2;else if(raw.charCodeAt(dStart)===10||raw.charCodeAt(dStart)===13)dStart+=1;
+if(es>dStart&&/\/FlateDecode\b/i.test(dict)){const inflated=inflatePdfStream(bytes.slice(dStart,es));if(inflated)texts.push(inflated);}
+sc++;pos=es+9;}return texts;
+}
+function parsePdfNumbers(v){return(v.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g)||[]).map(Number).filter(Number.isFinite);}
+function resolveIndirectArray(text,objNum){const re=new RegExp('(?:^|[^0-9])'+objNum+'\\s+\\d+\\s+obj\\b','g');let m;while((m=re.exec(text))!==null){const os=m.index+m[0].length;const ep=text.indexOf('endobj',os);const end=ep>0?ep:Math.min(text.length,os+50000);const body=text.slice(os,end);const bs=body.indexOf('[');if(bs>=0){let d=0;for(let i=bs;i<body.length;i++){if(body[i]==='[')d++;else if(body[i]===']'){d--;if(d===0){const n=parsePdfNumbers(body.slice(bs+1,i));if(n.length>=2)return n;break;}}}const si=body.indexOf('stream');if(si>=0){let ds=si+6;if(body.charCodeAt(ds)===13&&body.charCodeAt(ds+1)===10)ds+=2;else if(body.charCodeAt(ds)===10||body.charCodeAt(ds)===13)ds+=1;const se=body.indexOf('endstream',ds);if(se>ds){const n=parsePdfNumbers(body.slice(ds,se));if(n.length>=2)return n;}}}}return null;}
+function extractPdfArrayAfterToken(text,token,fi){const tp=text.indexOf(token,fi||0);if(tp<0)return null;const at=text.slice(tp+token.length,tp+token.length+80);const rm=at.match(/^\s*(\d+)\s+\d+\s+R\b/);if(rm){const v=resolveIndirectArray(text,rm[1]);if(v&&v.length>=2)return{values:v,start:tp,end:tp+token.length+rm[0].length};}const sw=text.slice(tp+token.length,tp+token.length+400);const br=sw.search(/\[/);if(br<0)return null;const bs=tp+token.length+br;let d=0;for(let i=bs;i<text.length&&i<bs+20000;i++){if(text[i]==='[')d++;else if(text[i]===']'){d--;if(d===0)return{values:parsePdfNumbers(text.slice(bs+1,i)),start:tp,end:i+1};}}return null;}
+function extractGeoPdfCRSNear(text,start,end){const a=text.slice(Math.max(0,start-3000),Math.min(text.length,end+12000));const w=a.match(/\/WKT\s*\(([^)]{10,20000})\)/i);if(w)return{type:'wkt',value:w[1]};const e=a.match(/\/EPSG\s*[:=]?\s*(\d{4,5})\b/i)||a.match(/EPSG[:\s]*(\d{4,5})\b/i)||a.match(/\/EPSGCode\s*(\d{4,5})\b/i);if(e)return{type:'epsg',value:Number(e[1])};const u=a.match(/UTM\s*zone\s*(\d{1,2})\s*([NS])/i);if(u){const z=Number(u[1]),h=u[2].toUpperCase();return{type:'epsg',value:h==='S'?32700+z:32600+z};}const g=a.match(/\/GEOGCS\s*\(([^)]{5,200})\)/i);if(g&&/WGS.?84|ITRF/i.test(g[1]))return{type:'epsg',value:4326};return null;}
+function tryReprojectPoints(pairs,crs){if(!crs||typeof proj4!=='function')return null;try{let s;if(crs.type==='epsg'){s='EPSG:'+crs.value;if(crs.value>=32646&&crs.value<=32654){const z=crs.value-32600;try{proj4.defs(s,'+proj=utm +zone='+z+' +datum=WGS84 +units=m +no_defs');}catch(_){}}if(crs.value>=32746&&crs.value<=32754){const z=crs.value-32700;try{proj4.defs(s,'+proj=utm +zone='+z+' +south +datum=WGS84 +units=m +no_defs');}catch(_){}}}else if(crs.type==='wkt')s=crs.value;else return null;const ll=pairs.map(c=>{const o=proj4(s,'EPSG:4326',c);return[o[1],o[0]];});if(ll.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])))return null;if(ll.some(p=>Math.abs(p[0])>90||Math.abs(p[1])>180))return null;return ll;}catch(e){return null;}}
+function gptsToLatLonPoints(gpts,text,start,end){
+if(!gpts||gpts.length<4||gpts.length%2!==0)return null;
+const pairs=[];for(let i=0;i<gpts.length;i+=2)pairs.push([Number(gpts[i]),Number(gpts[i+1])]);
+if(pairs.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])))return null;
+if(pairs.every(p=>Math.abs(p[0])<=90&&Math.abs(p[1])<=180))return pairs.map(p=>[p[0],p[1]]);
+if(pairs.every(p=>Math.abs(p[1])<=90&&Math.abs(p[0])<=180))return pairs.map(p=>[p[1],p[0]]);
+const crs=extractGeoPdfCRSNear(text,start,end);
+if(crs){const r=tryReprojectPoints(pairs,crs);if(r)return r;const sw=pairs.map(p=>[p[1],p[0]]);const r2=tryReprojectPoints(sw,crs);if(r2)return r2;}
+const looksUTM=pairs.every(p=>Math.abs(p[0])>180&&Math.abs(p[0])<1000000&&Math.abs(p[1])>180);
+if(looksUTM&&typeof proj4==='function'){const mx=pairs.reduce((s,p)=>s+p[0],0)/pairs.length;const my=pairs.reduce((s,p)=>s+p[1],0)/pairs.length;const isS=my<0||my>5000000;for(const z of[47,48,49,50,51,52,46,53,54]){const epsg=isS?32700+z:32600+z;const rep=tryReprojectPoints(pairs,{type:'epsg',value:epsg});if(rep){const ml=rep.reduce((s,p)=>s+p[1],0)/rep.length;const mt=rep.reduce((s,p)=>s+p[0],0)/rep.length;if(ml>=90&&ml<=145&&mt>=-15&&mt<=10)return rep;}}}
+return null;
+}
+function scoreLatLonPoints(points,text,start,hasLpts,pageInfo){
+if(!points||points.length<2)return{score:-1,role:'invalid'};
+for(const p of points){if(!Number.isFinite(p[0])||!Number.isFinite(p[1]))return{score:-1,role:'invalid'};if(Math.abs(p[0])>90||Math.abs(p[1])>180)return{score:-1,role:'invalid'};}
+const latSpan=Math.max(...points.map(p=>p[0]))-Math.min(...points.map(p=>p[0]));
+const lonSpan=Math.max(...points.map(p=>p[1]))-Math.min(...points.map(p=>p[1]));
+if(latSpan<=0||lonSpan<=0)return{score:-1,role:'invalid'};
+if(latSpan>25||lonSpan>25)return{score:-1,role:'invalid'};
+const geoArea=latSpan*lonSpan;
+let pageFrac=0,bbox=null;
+if(pageInfo&&pageInfo.nearbyBBox&&pageInfo.mediaBox){bbox=pageInfo.nearbyBBox;if(!isFullPageBBox(bbox,pageInfo.mediaBox)){const mw=Math.abs(pageInfo.mediaBox[2]-pageInfo.mediaBox[0])||1;const mh=Math.abs(pageInfo.mediaBox[3]-pageInfo.mediaBox[1])||1;pageFrac=(Math.abs(bbox[2]-bbox[0])*Math.abs(bbox[3]-bbox[1]))/(mw*mh);}else bbox=null;}
+let role='main';
+if(geoArea<0.01)role='inset';else if(pageFrac>0&&pageFrac<0.12&&geoArea>2)role='index';else if(pageFrac>0&&pageFrac<0.15&&geoArea<0.05)role='inset';else if(pageFrac>=0.25)role='main';else if(geoArea>=0.05&&geoArea<=8)role='main';
+let score=0;
+if(/\/Subtype\s*\/GEO\b/i.test(text.slice(Math.max(0,start-2000),Math.min(text.length,start+3000))))score+=1000000;
+if(/\/Measure\b/i.test(text.slice(Math.max(0,start-2000),Math.min(text.length,start+3000))))score+=500000;
+score+=Math.min(pageFrac*5000000,5000000);
+if(geoArea>=0.05&&geoArea<=8)score+=200000;else if(geoArea<0.01)score-=2000000;else if(geoArea>15)score-=500000;
+score+=Math.min(points.length*10,200);
+const ml=points.reduce((s,p)=>s+p[0],0)/points.length;const mn=points.reduce((s,p)=>s+p[1],0)/points.length;
+if(ml>=-15&&ml<=10&&mn>=90&&mn<=145)score+=50000;
+if(role==='main')score+=3000000;if(role==='inset')score-=3000000;if(role==='index')score-=1500000;
+return{score,role,geoArea,pageFrac,bbox,latSpan,lonSpan};
+}
+function isFullPageBBox(bbox,mediaBox){if(!bbox||!mediaBox||mediaBox.length<4)return false;const mw=Math.abs(mediaBox[2]-mediaBox[0]);const mh=Math.abs(mediaBox[3]-mediaBox[1]);if(mw<1||mh<1)return false;return(Math.abs(bbox[2]-bbox[0])/mw)>0.97&&(Math.abs(bbox[3]-bbox[1])/mh)>0.97;}
+function findMeasureObjectNumForGpts(text,gptsStart){const before=text.slice(Math.max(0,gptsStart-8000),gptsStart);const m=[...before.matchAll(/(?:^|[^0-9])(\d+)\s+\d+\s+obj\b/g)];if(!m.length)return null;const last=m[m.length-1];if(/endobj/i.test(before.slice(last.index)))return null;return last[1];}
+function findViewportBBoxForMeasure(text,measureObjNum,mediaBox){if(!measureObjNum)return null;const re=new RegExp('/Measure\\s+'+measureObjNum+'\\s+\\d+\\s+R','g');let m;while((m=re.exec(text))!==null){const ws=Math.max(0,m.index-800);const we=Math.min(text.length,m.index+400);const win=text.slice(ws,we);const bm=win.match(/\/BBox\s*\[\s*([^\]]+)\s*\]/i);if(bm){const n=parsePdfNumbers(bm[1]);if(n.length>=4&&!isFullPageBBox(n,mediaBox))return n.slice(0,4);}}return null;}
+function findNearbyViewportBBox(text,start,mediaBox){
+const mn=findMeasureObjectNumForGpts(text,start);
+if(mn){const l=findViewportBBoxForMeasure(text,mn,mediaBox);if(l){console.log('[GeoPDF] BBox via Measure',mn,'→',l);return l;}}
+const region=text.slice(Math.max(0,start-4000),Math.min(text.length,start+6000));const found=[];
+const vpRe=/(?:\/VP|\/Viewport)\b[^]*?\/BBox\s*\[\s*([^\]]+)\s*\]/gi;let m;
+while((m=vpRe.exec(region))!==null){const n=parsePdfNumbers(m[1]);if(n.length>=4){const w=Math.abs(n[2]-n[0]),h=Math.abs(n[3]-n[1]);if(w>20&&h>20&&!isFullPageBBox(n,mediaBox))found.push({bbox:n.slice(0,4),area:w*h});}}
+if(!found.length){const allRe=/\/BBox\s*\[\s*([^\]]+)\s*\]/gi;while((m=allRe.exec(region))!==null){const n=parsePdfNumbers(m[1]);if(n.length>=4){const w=Math.abs(n[2]-n[0]),h=Math.abs(n[3]-n[1]);if(w>30&&h>30&&!isFullPageBBox(n,mediaBox))found.push({bbox:n.slice(0,4),area:w*h});}}}
+if(!found.length)return null;found.sort((a,b)=>b.area-a.area);return found[0].bbox;
+}
+function pickBestMapFrameBBox(text,mediaBox,preferredBBox){if(preferredBBox&&!isFullPageBBox(preferredBBox,mediaBox))return preferredBBox;if(!mediaBox)return preferredBBox||null;const mw=Math.abs(mediaBox[2]-mediaBox[0]);const mh=Math.abs(mediaBox[3]-mediaBox[1]);const all=[];const re=/\/BBox\s*\[\s*([^\]]+)\s*\]/gi;let m;while((m=re.exec(text))!==null){const n=parsePdfNumbers(m[1]);if(n.length<4)continue;const w=Math.abs(n[2]-n[0]),h=Math.abs(n[3]-n[1]);if(w<40||h<40)continue;if(isFullPageBBox(n,mediaBox))continue;all.push({bbox:n.slice(0,4),area:w*h,frac:(w*h)/(mw*mh||1)});}if(!all.length)return preferredBBox&&!isFullPageBBox(preferredBBox,mediaBox)?preferredBBox:null;all.sort((a,b)=>b.area-a.area);return(all.filter(x=>x.frac>=0.2)[0]||all[0]).bbox;}
+function boundsFromPoints(points){const lats=points.map(p=>p[0]),lons=points.map(p=>p[1]);return[Math.min(...lats),Math.min(...lons),Math.max(...lats),Math.max(...lons)];}
 
-      loadAllMapsFromDB();
-      initGPSWatcher();
-      initOrientationWatcher();
-      initGDAL();
-    }
+async function extractAllGeoPDFGeoreferences(fileData){
+const texts=collectPdfTextLayers(fileData);
+const combinedText=texts.join('\n');
+const candidates=[];
 
-    function updateReticleCoordinates() {
-      const center = map.getCenter();
-      document.getElementById('lat').innerText = center.lat.toFixed(5);
-      document.getElementById('lng').innerText = center.lng.toFixed(5);
-    }
+try{
+const gptsRegex=/\/GPTS\s*\[\s*([^\]]{8,2000})\s*\]/gi;let m;
+while((m=gptsRegex.exec(combinedText))!==null){
+const nums=parsePdfNumbers(m[1]);if(nums.length<4||nums.length%2!==0)continue;
+const start=m.index,end=m.index+m[0].length;
+const region=combinedText.slice(Math.max(0,start-600),Math.min(combinedText.length,end+600));
+let lpts=null;const lm=region.match(/\/LPTS\s*\[\s*([^\]]{4,500})\s*\]/i);if(lm)lpts=parsePdfNumbers(lm[1]);
+const points=gptsToLatLonPoints(nums,combinedText,start,end);if(!points)continue;
+let mediaBox=null;const mb=combinedText.match(/\/MediaBox\s*\[\s*([^\]]+)\s*\]/i);if(mb){const mn=parsePdfNumbers(mb[1]);if(mn.length>=4)mediaBox=mn.slice(0,4);}
+const nearbyBBox=findNearbyViewportBBox(combinedText,start,mediaBox);
+const scored=scoreLatLonPoints(points,combinedText,start,!!lpts,{mediaBox,nearbyBBox});
+if(scored.score<0)continue;
+const bounds=boundsFromPoints(points);
+if(!bounds.every(Number.isFinite)||bounds[0]<-90||bounds[2]>90||bounds[1]<-180||bounds[3]>180||bounds[0]>=bounds[2]||bounds[1]>=bounds[3])continue;
+candidates.push({score:scored.score+500000,bounds,gpts:nums,lpts,points,crs:extractGeoPdfCRSNear(combinedText,start,end),source:'GPTS-regex',role:scored.role,pageFrac:scored.pageFrac,geoArea:scored.geoArea,viewportBBox:nearbyBBox||scored.bbox||null,mediaBox});
+}}catch(err){console.warn('[GeoPDF] PATH1 gagal:',err);}
 
-    // ================================================================
-    // INISIALISASI GDAL
-    // ================================================================
-    async function initGDAL() {
-      try {
-        if (typeof initGdalJs !== 'function') {
-          console.warn('gdal3.js tidak ditemukan.');
-          gdalReady = false;
-          return;
-        }
+if(!candidates.length){let cursor=0,guard=0;while(cursor<combinedText.length&&guard<2000){const g=extractPdfArrayAfterToken(combinedText,'/GPTS',cursor);if(!g)break;
+const points=gptsToLatLonPoints(g.values,combinedText,g.start,g.end);
+if(points){let mediaBox=null;const mb=combinedText.match(/\/MediaBox\s*\[\s*([^\]]+)\s*\]/i);if(mb){const mn=parsePdfNumbers(mb[1]);if(mn.length>=4)mediaBox=mn.slice(0,4);}
+const nearbyBBox=findNearbyViewportBBox(combinedText,g.start,mediaBox);
+const scored=scoreLatLonPoints(points,combinedText,g.start,false,{mediaBox,nearbyBBox});
+if(scored.score>=0){const bounds=boundsFromPoints(points);if(bounds.every(Number.isFinite)&&bounds[0]>=-90&&bounds[2]<=90&&bounds[1]>=-180&&bounds[3]<=180&&bounds[0]<bounds[2]&&bounds[1]<bounds[3])candidates.push({score:scored.score,bounds,gpts:g.values,lpts:null,points,crs:extractGeoPdfCRSNear(combinedText,g.start,g.end),source:'GPTS-token',role:scored.role,pageFrac:scored.pageFrac,geoArea:scored.geoArea,viewportBBox:nearbyBBox||null,mediaBox});}}
+cursor=g.end;guard++;}}
 
-        gdal = await initGdalJs({
-          path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',
-          useWorker: false
+if(!candidates.length)return[];
+
+candidates.sort((a,b)=>{const rr=r=>(r==='main'?2:r==='index'?1:0);const dr=rr(b.role)-rr(a.role);if(dr!==0)return dr;return b.score-a.score;});
+
+let globalMediaBox=null;const mbm=combinedText.match(/\/MediaBox\s*\[\s*([^\]]+)\s*\]/i);if(mbm){const mn=parsePdfNumbers(mbm[1]);if(mn.length>=4)globalMediaBox=mn.slice(0,4);}
+
+return candidates.map(c=>{let vp=c.viewportBBox;const mBox=c.mediaBox||globalMediaBox;if(mBox){vp=pickBestMapFrameBBox(combinedText,mBox,vp);if(vp&&isFullPageBBox(vp,mBox))vp=pickBestMapFrameBBox(combinedText,mBox,null);}
+return{bounds:c.bounds,gpts:c.gpts,lpts:c.lpts,points:c.points,projectionWkt:c.crs&&c.crs.type==='wkt'?c.crs.value:null,epsg:c.crs&&c.crs.type==='epsg'?c.crs.value:null,source:c.source,role:c.role,geoArea:c.geoArea,pageFrac:c.pageFrac,viewportBBox:vp,mediaBox:mBox,score:c.score};});
+}
+
+function promptUserForGeoreference(filename, candidates) {
+    return new Promise((resolve, reject) => {
+        window._geoSelectionResolve = resolve;
+        window._geoSelectionReject = reject;
+        const sorted = [...candidates].sort((a, b) => (a.geoArea || 0) - (b.geoArea || 0));
+        window._geoCandidates = sorted;
+        const listEl = document.getElementById('geo-select-list');
+        let html = '<p style="font-size:13px;color:#555;margin-bottom:12px;">'
+            + '<b>' + filename + '</b><br>Pilih georeferensi yang akan digunakan:</p>';
+        sorted.forEach((c, i) => {
+            const isMain = (i === 0);
+            const label = isMain ? '🗺️ Peta Utama' : '🔍 Insert';
+            const bgColor = isMain ? '#e8f5e9' : '#fff3e0';
+            const accentColor = isMain ? '#4CAF50' : '#ff9800';
+            const areaStr = c.geoArea ? c.geoArea.toFixed(4) + ' deg²' : '?';
+            const boundsStr = c.bounds ? c.bounds.map(b => b.toFixed(4)).join(', ') : '?';
+            html += '<div class="geo-select-item" style="background:' + bgColor + ';border-left:4px solid ' + accentColor + ';" '
+                + 'onclick="selectGeoCandidate(' + i + ')">'
+                + '<div class="geo-info">'
+                + '<span class="geo-label" style="color:' + accentColor + ';">' + label + '</span>'
+                + '<span class="geo-detail">Luas area: ' + areaStr + '</span>'
+                + '<span class="geo-bounds">[' + boundsStr + ']</span>'
+                + '</div>'
+                + '<button class="add-btn" style="background:' + accentColor + ';padding:8px 14px;font-size:13px;">Pilih</button>'
+                + '</div>';
         });
-
-        gdalReady = !!gdal;
-        console.log('GDAL siap:', Object.keys(gdal.drivers?.raster || {}).length, 'driver raster');
-        showNotification('✅ Mesin GIS siap', 1800);
-      } catch (err) {
-        console.warn('GDAL tidak dapat diinisialisasi:', err);
-        gdalReady = false;
-        gdal = null;
-      }
-    }
-
-    // ================================================================
-    // LOAD MAPS FROM INDEXEDDB
-    // ================================================================
-    async function loadAllMapsFromDB() {
-      try {
-        mapCollection = await getAllMapsFromDB();
-        renderLibraryContent();
-        renderPointsView();
-      } catch (err) {
-        console.warn('Gagal load maps dari IndexedDB:', err);
-        mapCollection = [];
-      }
-    }
-
-    // ================================================================
-    // GPS & KOMPAS
-    // ================================================================
-    function centerToGPS() {
-      if (!navigator.geolocation) {
-        alert("Geolocation tidak didukung oleh browser ini.");
-        return;
-      }
-
-      const currentZoom = map.getZoom();
-
-      if (map.setBearing) {
-        map.setBearing(0);
-      }
-
-      const wrapperEl = document.getElementById('user-heading-wrapper');
-      if (wrapperEl) {
-        wrapperEl.style.transform = 'rotate(0deg)';
-      }
-
-      if (latestCoords) {
-        map.setView([latestCoords.lat, latestCoords.lng], currentZoom);
-        updateUserMarker(latestCoords.lat, latestCoords.lng);
-      } else {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            latestCoords = { lat, lng };
-            map.setView([lat, lng], currentZoom);
-            updateUserMarker(lat, lng);
-          },
-          (err) => {
-            let errorMsg = "Gagal mendapatkan lokasi.";
-            if (err.code === 1) errorMsg = "Izin lokasi ditolak. Harap izinkan akses lokasi di browser HP Anda.";
-            else if (err.code === 2) errorMsg = "Sinyal GPS tidak tersedia.";
-            else if (err.code === 3) errorMsg = "Waktu permintaan lokasi habis (Timeout).";
-            alert(errorMsg);
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      }
-    }
-
-    function updateUserMarker(lat, lng) {
-      if (userLocationMarker) {
-        userLocationMarker.setLatLng([lat, lng]);
-      } else {
-        const customIcon = L.divIcon({
-          className: 'custom-user-icon',
-          html: `
-            <div class="user-location-container">
-              <div class="user-heading-wrapper" id="user-heading-wrapper">
-                <div class="user-heading-cone"></div>
-                <div class="heading-pointer-dot"></div>
-              </div>
-              <div class="user-pulse"></div>
-              <div class="user-dot"></div>
-            </div>
-          `,
-          iconSize: [60, 60],
-          iconAnchor: [30, 30]
-        });
-
-        userLocationMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-      }
-    }
-
-    function handleOrientation(event) {
-      let alpha = event.alpha;
-      let heading = null;
-
-      if (event.webkitCompassHeading) {
-        heading = event.webkitCompassHeading;
-      } else if (alpha !== null) {
-        heading = 360 - alpha;
-      }
-
-      if (heading !== null) {
-        currentHeading = heading;
-        const wrapperEl = document.getElementById('user-heading-wrapper');
-        if (wrapperEl) {
-          wrapperEl.style.transform = 'rotate(' + heading + 'deg)';
-        }
-      }
-    }
-
-    function initOrientationWatcher() {
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-          .then(response => {
-            if (response === 'granted') {
-              window.addEventListener('deviceorientation', handleOrientation, true);
-            }
-          })
-          .catch(console.error);
-      } else if ('ondeviceorientationabsolute' in window) {
-        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-      } else if ('ondeviceorientation' in window) {
-        window.addEventListener('deviceorientation', handleOrientation, true);
-      }
-    }
-
-    function initGPSWatcher() {
-      const statusEl = document.getElementById('gps-status');
-      const accuracyEl = document.getElementById('gps-accuracy');
-
-      if ('geolocation' in navigator) {
-        const options = {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0
-        };
-
-        navigator.geolocation.watchPosition(
-          (position) => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            const accuracy = Math.round(position.coords.accuracy);
-
-            latestCoords = { lat, lng };
-            updateUserMarker(lat, lng);
-
-            accuracyEl.textContent = '± ' + accuracy + ' m';
-
-            if (accuracy <= 10) {
-              statusEl.textContent = 'Sinyal Kuat';
-              statusEl.className = 'value status-strong';
-            } else if (accuracy <= 30) {
-              statusEl.textContent = 'Sinyal Sedang';
-              statusEl.className = 'value status-medium';
-            } else {
-              statusEl.textContent = 'Sinyal Lemah';
-              statusEl.className = 'value status-weak';
-            }
-          },
-          (error) => {
-            accuracyEl.textContent = '-';
-            switch (error.code) {
-              case error.PERMISSION_DENIED:
-                statusEl.textContent = 'Izin Ditolak';
-                break;
-              case error.POSITION_UNAVAILABLE:
-                statusEl.textContent = 'GPS Tdk Terdeteksi';
-                break;
-              case error.TIMEOUT:
-                statusEl.textContent = 'Mencari Sinyal...';
-                break;
-              default:
-                statusEl.textContent = 'GPS Tdk Terdeteksi';
-                break;
-            }
-            statusEl.className = 'value status-no-signal';
-          },
-          options
-        );
-      } else {
-        statusEl.textContent = 'Tidak Didukung';
-        statusEl.className = 'value status-no-signal';
-        accuracyEl.textContent = 'API tidak ada';
-      }
-    }
-
-    // ================================================================
-    // UPLOAD FILE - TANPA PILIH FOLDER
-    // ================================================================
-    function uploadKMZFile() {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.kmz,.kml';
-      input.multiple = true;
-      input.onchange = async (e) => {
-        const files = Array.from(e.target.files);
-        for (const file of files) {
-          try {
-            const data = await file.arrayBuffer();
-            const newMap = {
-              id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-              name: file.name,
-              type: file.name.endsWith('.kmz') ? 'kmz' : 'kml',
-              fileData: data,
-              geojson: { type: 'FeatureCollection', features: [] },
-              created: new Date().toISOString(),
-              isActive: false,
-              source: 'upload'
-            };
-            await saveMapToDB(newMap);
-            mapCollection.push(newMap);
-          } catch (err) {
-            console.error('Gagal upload file:', err);
-            alert('Gagal upload file: ' + err.message);
-          }
-        }
-        renderLibraryContent();
-        renderPointsView();
-        alert('✅ ' + files.length + ' file berhasil diupload!');
-      };
-      input.click();
-    }
-
-    // ================================================================
-    // KONVERSI GEOPDF -> WebP + JSON
-    // ================================================================
-    async function convertGeoPDFToWebP(fileData, filename) {
-      // Salin bytes di awal. PDF.js (dan kadang GDAL) dapat me-detach ArrayBuffer
-      // sehingga byteLength menjadi 0 jika buffer yang sama dipakai ulang.
-      const src = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
-      if (!src.byteLength) {
-        throw new Error('Data PDF kosong (ArrayBuffer length 0).');
-      }
-      const bytesForGeo = src.slice(0);   // salinan untuk parser GPTS
-      const bytesForGdal = src.slice(0);  // salinan untuk GDAL
-      const bytesForPdf = src.slice(0);   // salinan untuk PDF.js
-
-      // ---- A. Jalur GDAL, jika PDF driver tersedia ----
-      if (gdalReady && gdal) {
-        try {
-          const file = new File([bytesForGdal], filename, { type: 'application/pdf' });
-          const opened = await gdal.open(file);
-
-          if (opened && opened.datasets && opened.datasets.length) {
-            const dataset = opened.datasets[0];
-            const info = await gdal.getInfo(dataset);
-
-            if (info && info.type === 'raster' && info.corners?.length) {
-              const webpPath = await gdal.gdal_translate(
-                dataset,
-                ['-of', 'WEBP', '-co', 'QUALITY=90'],
-                filename.replace(/\.[^/.]+$/, '')
-              );
-              const webpBytes = await gdal.getFileBytes(webpPath);
-
-              const bounds = await cornersToLeafletBounds(info.corners, info.projectionWkt);
-              if (!bounds) throw new Error('GDAL membaca PDF tetapi tidak menemukan georeferensi yang dapat dipetakan ke WGS84.');
-
-              try { gdal.close(dataset); } catch (_) {}
-
-              return {
-                webpData: toArrayBuffer(webpBytes),
-                metadata: {
-                  name: filename,
-                  bounds,
-                  width: info.width,
-                  height: info.height,
-                  projectionWkt: info.projectionWkt || '',
-                  source: 'gdal3.js',
-                  format: 'webp',
-                  scheme: 'image-overlay',
-                  jsonVersion: 1
-                }
-              };
-            }
-          }
-        } catch (err) {
-          console.warn('Jalur GDAL-PDF gagal, lanjut PDF.js:', err);
-        }
-      }
-
-      // ---- B. Ekstrak georeferensi SEBELUM PDF.js (buffer masih utuh) ----
-      const geo = await extractGeoPDFGeoreference(bytesForGeo);
-      if (!geo || !geo.bounds) {
-        console.warn('[GeoPDF] Georeferensi gagal di tahap awal. byteLength salinan geo:', bytesForGeo.byteLength);
-      }
-
-      // ---- C. Render halaman PDF dengan PDF.js ----
-      if (typeof pdfjsLib === 'undefined') {
-        throw new Error('PDF.js belum tersedia. Pastikan koneksi internet aktif saat aplikasi pertama kali dibuka.');
-      }
-
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-      // Selalu berikan salinan buffer ke PDF.js agar tidak me-detach buffer lain
-      const loadingTask = pdfjsLib.getDocument({ data: bytesForPdf.slice(0).buffer });
-      const pdf = await loadingTask.promise;
-      const page = await pdf.getPage(1);
-
-      const baseViewport = page.getViewport({ scale: 1 });
-      const maxPixels = 18000000;
-      let scale = 2.0;
-      if ((baseViewport.width * scale) * (baseViewport.height * scale) > maxPixels) {
-        scale = Math.sqrt(maxPixels / (baseViewport.width * baseViewport.height));
-      }
-      scale = Math.max(0.75, Math.min(scale, 3.0));
-
-      const viewport = page.getViewport({ scale });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      const ctx = canvas.getContext('2d', { alpha: false });
-
-      await page.render({
-        canvasContext: ctx,
-        viewport
-      }).promise;
-
-      const webpBlob = await canvasToWebP(canvas, 0.90);
-      const webpData = await webpBlob.arrayBuffer();
-
-      if (!geo || !geo.bounds) {
-        throw new Error(
-          'Halaman PDF berhasil dirender menjadi WebP, tetapi georeferensi GeoPDF tidak dapat dibaca. ' +
-          'Kemungkinan: (1) file bukan GeoPDF (PDF biasa tanpa /GPTS), ' +
-          '(2) metadata georef tersimpan dalam format yang belum didukung, ' +
-          '(3) koordinat projected tanpa CRS yang dikenali. ' +
-          'Buka Console (F12) dan cari log [GeoPDF] untuk detail. ' +
-          'Alternatif: konversi dulu ke WebP+JSON di luar PWA, lalu Import WebP+JSON.'
-        );
-      }
-
-      return {
-        webpData,
-        metadata: {
-          name: filename,
-          bounds: geo.bounds,
-          epsg: geo.epsg || null,
-          projectionWkt: geo.projectionWkt || null,
-          source: 'pdf.js + GeoPDF metadata',
-          format: 'webp',
-          scheme: 'image-overlay',
-          width: canvas.width,
-          height: canvas.height,
-          page: 1,
-          pdfPages: pdf.numPages,
-          jsonVersion: 1,
-          gpts: geo.gpts || null,
-          geoSource: geo.source || null
-        }
-      };
-    }
-
-    function toArrayBuffer(value) {
-      if (value instanceof ArrayBuffer) return value;
-      if (value instanceof Uint8Array) {
-        return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
-      }
-      return new Uint8Array(value).buffer;
-    }
-
-    function canvasToWebP(canvas, quality) {
-      return new Promise((resolve, reject) => {
-        canvas.toBlob(blob => {
-          if (blob) resolve(blob);
-          else reject(new Error('Browser tidak mendukung encoding WebP.'));
-        }, 'image/webp', quality);
-      });
-    }
-
-    async function cornersToLeafletBounds(corners, projectionWkt) {
-      if (!Array.isArray(corners) || corners.length < 4) return null;
-      const xy = corners.map(c => [Number(c[0]), Number(c[1])]);
-      if (xy.some(c => !Number.isFinite(c[0]) || !Number.isFinite(c[1]))) return null;
-
-      if (xy.every(c => Math.abs(c[0]) <= 180 && Math.abs(c[1]) <= 90)) {
-        return [
-          Math.min(...xy.map(c => c[1])),
-          Math.min(...xy.map(c => c[0])),
-          Math.max(...xy.map(c => c[1])),
-          Math.max(...xy.map(c => c[0]))
-        ];
-      }
-
-      if (!projectionWkt || typeof proj4 !== 'function') return null;
-
-      try {
-        const source = projectionWkt;
-        const target = proj4.WGS84 || 'EPSG:4326';
-        const ll = xy.map(c => proj4(source, target, c));
-        return [
-          Math.min(...ll.map(c => c[1])),
-          Math.min(...ll.map(c => c[0])),
-          Math.max(...ll.map(c => c[1])),
-          Math.max(...ll.map(c => c[0]))
-        ];
-      } catch (err) {
-        console.warn('Reproject corner gagal:', err);
-        return null;
-      }
-    }
-
-    // ================================================================
-    // PARSER GEOPDF: GPTS + LPTS (robust)
-    // ================================================================
-    function bytesToLatin1(bytes) {
-      let out = '';
-      const chunk = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunk) {
-        const end = Math.min(i + chunk, bytes.length);
-        let part = '';
-        for (let j = i; j < end; j++) part += String.fromCharCode(bytes[j]);
-        out += part;
-      }
-      return out;
-    }
-
-    function inflatePdfStream(bytes) {
-      if (typeof pako === 'undefined') return null;
-      try {
-        return new TextDecoder('latin1').decode(pako.inflate(bytes));
-      } catch (_) {
-        try {
-          return new TextDecoder('latin1').decode(pako.inflateRaw(bytes));
-        } catch (_) {
-          return null;
-        }
-      }
-    }
-
-    function collectPdfTextLayers(fileData) {
-      const bytes = fileData instanceof Uint8Array
-        ? fileData
-        : new Uint8Array(fileData);
-
-      if (!bytes.byteLength) {
-        console.warn('[GeoPDF] collectPdfTextLayers: buffer kosong (byteLength=0). ' +
-          'Kemungkinan ArrayBuffer sudah di-detach oleh PDF.js/GDAL.');
-        return [''];
-      }
-
-      const raw = bytesToLatin1(bytes);
-      const texts = [raw];
-
-      let pos = 0;
-      const maxStreams = 8000;
-      let streamCount = 0;
-
-      while (pos < raw.length && streamCount < maxStreams) {
-        const streamPos = raw.indexOf('stream', pos);
-        if (streamPos < 0) break;
-
-        const before = streamPos > 0 ? raw.charCodeAt(streamPos - 1) : 32;
-        const after = raw.charCodeAt(streamPos + 6);
-        if ((before === 47) || (after !== 10 && after !== 13 && after !== 32 && after !== 9)) {
-          pos = streamPos + 6;
-          continue;
-        }
-
-        const dictStart = Math.max(0, raw.lastIndexOf('<<', streamPos));
-        const dict = dictStart >= 0 ? raw.slice(dictStart, streamPos) : '';
-
-        const endStream = raw.indexOf('endstream', streamPos + 6);
-        if (endStream < 0) break;
-
-        let dataStart = streamPos + 6;
-        if (raw.charCodeAt(dataStart) === 13 && raw.charCodeAt(dataStart + 1) === 10) dataStart += 2;
-        else if (raw.charCodeAt(dataStart) === 10 || raw.charCodeAt(dataStart) === 13) dataStart += 1;
-
-        const dataEnd = endStream;
-        if (dataEnd > dataStart && /\/FlateDecode\b/i.test(dict)) {
-          const compressed = bytes.slice(dataStart, dataEnd);
-          const inflated = inflatePdfStream(compressed);
-          if (inflated) texts.push(inflated);
-        }
-
-        streamCount++;
-        pos = endStream + 9;
-      }
-
-      return texts;
-    }
-
-    function parsePdfNumbers(value) {
-      return (value.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) || [])
-        .map(Number)
-        .filter(Number.isFinite);
-    }
-
-    function resolveIndirectArray(fullText, objNum) {
-      const objRegex = new RegExp('(?:^|[^0-9])' + objNum + '\\s+\\d+\\s+obj\\b', 'g');
-      let m;
-      while ((m = objRegex.exec(fullText)) !== null) {
-        const objStart = m.index + m[0].length;
-        const endobjPos = fullText.indexOf('endobj', objStart);
-        const end = endobjPos > 0 ? endobjPos : Math.min(fullText.length, objStart + 50000);
-        const body = fullText.slice(objStart, end);
-
-        // Direct array
-        const bracketStart = body.indexOf('[');
-        if (bracketStart >= 0) {
-          let depth = 0;
-          for (let i = bracketStart; i < body.length; i++) {
-            if (body[i] === '[') depth++;
-            else if (body[i] === ']') {
-              depth--;
-              if (depth === 0) {
-                const nums = parsePdfNumbers(body.slice(bracketStart + 1, i));
-                if (nums.length >= 2) return nums;
-                break;
-              }
-            }
-          }
-        }
-
-        // Stream object containing array data
-        const streamIdx = body.indexOf('stream');
-        if (streamIdx >= 0) {
-          let dataStart = streamIdx + 6;
-          if (body.charCodeAt(dataStart) === 13 && body.charCodeAt(dataStart + 1) === 10) dataStart += 2;
-          else if (body.charCodeAt(dataStart) === 10 || body.charCodeAt(dataStart) === 13) dataStart += 1;
-          const streamEnd = body.indexOf('endstream', dataStart);
-          if (streamEnd > dataStart) {
-            const streamText = body.slice(dataStart, streamEnd);
-            const nums = parsePdfNumbers(streamText);
-            if (nums.length >= 2) return nums;
-          }
-        }
-      }
-      return null;
-    }
-
-    function extractPdfArrayAfterToken(text, token, fromIndex) {
-      const tokenPos = text.indexOf(token, fromIndex || 0);
-      if (tokenPos < 0) return null;
-
-      const afterToken = text.slice(tokenPos + token.length, tokenPos + token.length + 80);
-      const refMatch = afterToken.match(/^\s*(\d+)\s+\d+\s+R\b/);
-      if (refMatch) {
-        const values = resolveIndirectArray(text, refMatch[1]);
-        if (values && values.length >= 2) {
-          return { values, start: tokenPos, end: tokenPos + token.length + refMatch[0].length };
-        }
-      }
-
-      // Inline array — allow whitespace/newlines between token and [
-      const searchWindow = text.slice(tokenPos + token.length, tokenPos + token.length + 400);
-      const bracketRel = searchWindow.search(/\[/);
-      if (bracketRel < 0) return null;
-      const bracketStart = tokenPos + token.length + bracketRel;
-
-      let depth = 0;
-      for (let i = bracketStart; i < text.length && i < bracketStart + 20000; i++) {
-        const ch = text[i];
-        if (ch === '[') depth++;
-        else if (ch === ']') {
-          depth--;
-          if (depth === 0) {
-            return {
-              values: parsePdfNumbers(text.slice(bracketStart + 1, i)),
-              start: tokenPos,
-              end: i + 1
-            };
-          }
-        }
-      }
-      return null;
-    }
-
-    function extractGeoPdfCRSNear(text, start, end) {
-      const windowStart = Math.max(0, start - 3000);
-      const windowEnd = Math.min(text.length, end + 12000);
-      const area = text.slice(windowStart, windowEnd);
-
-      // /WKT (....)
-      const wktMatch = area.match(/\/WKT\s*\(([^)]{10,20000})\)/i);
-      if (wktMatch) return { type: 'wkt', value: wktMatch[1] };
-
-      // EPSG in various forms
-      const epsgMatch =
-        area.match(/\/EPSG\s*[:=]?\s*(\d{4,5})\b/i) ||
-        area.match(/EPSG[:\s]*(\d{4,5})\b/i) ||
-        area.match(/\/EPSGCode\s*(\d{4,5})\b/i);
-      if (epsgMatch) return { type: 'epsg', value: Number(epsgMatch[1]) };
-
-      // Common Indonesian UTM zones near GEO measure
-      const utmMatch = area.match(/UTM\s*zone\s*(\d{1,2})\s*([NS])/i);
-      if (utmMatch) {
-        const zone = Number(utmMatch[1]);
-        const hemi = utmMatch[2].toUpperCase();
-        const epsg = hemi === 'S' ? 32700 + zone : 32600 + zone;
-        return { type: 'epsg', value: epsg };
-      }
-
-      // /Type /GEOGCS or PROJCS with name
-      const gcsMatch = area.match(/\/GEOGCS\s*\(([^)]{5,200})\)/i);
-      if (gcsMatch && /WGS.?84|ITRF/i.test(gcsMatch[1])) {
-        return { type: 'epsg', value: 4326 };
-      }
-
-      return null;
-    }
-
-    function tryReprojectPoints(xyPairs, crs) {
-      if (!crs || typeof proj4 !== 'function') return null;
-
-      try {
-        let source;
-        if (crs.type === 'epsg') {
-          source = 'EPSG:' + crs.value;
-          // Ensure common Indonesian UTM defs exist
-          if (crs.value >= 32646 && crs.value <= 32654) {
-            const zone = crs.value - 32600;
-            try { proj4.defs(source, '+proj=utm +zone=' + zone + ' +datum=WGS84 +units=m +no_defs'); } catch (_) {}
-          }
-          if (crs.value >= 32746 && crs.value <= 32754) {
-            const zone = crs.value - 32700;
-            try { proj4.defs(source, '+proj=utm +zone=' + zone + ' +south +datum=WGS84 +units=m +no_defs'); } catch (_) {}
-          }
-        } else if (crs.type === 'wkt') {
-          source = crs.value;
-        } else {
-          return null;
-        }
-
-        const target = 'EPSG:4326';
-        const ll = xyPairs.map(c => {
-          const out = proj4(source, target, c);
-          return [out[1], out[0]]; // lat, lon
-        });
-
-        if (ll.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return null;
-        if (ll.some(p => Math.abs(p[0]) > 90 || Math.abs(p[1]) > 180)) return null;
-        return ll;
-      } catch (err) {
-        console.warn('Reproject GPTS gagal:', err.message || err);
-        return null;
-      }
-    }
-
-    function gptsToLatLonPoints(gpts, text, start, end) {
-      if (!gpts || gpts.length < 4 || gpts.length % 2 !== 0) return null;
-
-      const pairs = [];
-      for (let i = 0; i < gpts.length; i += 2) {
-        pairs.push([Number(gpts[i]), Number(gpts[i + 1])]);
-      }
-      if (pairs.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return null;
-
-      // Case 1: already geographic — try lat,lon then lon,lat
-      const asLatLon = pairs.every(p => Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180);
-      if (asLatLon) {
-        // Prefer order that yields more realistic Indonesia-ish span if ambiguous
-        return pairs.map(p => [p[0], p[1]]); // lat, lon (Adobe GPTS standard)
-      }
-
-      const asLonLat = pairs.every(p => Math.abs(p[1]) <= 90 && Math.abs(p[0]) <= 180);
-      if (asLonLat) {
-        return pairs.map(p => [p[1], p[0]]); // swap to lat, lon
-      }
-
-      // Case 2: projected coordinates — need CRS
-      const crs = extractGeoPdfCRSNear(text, start, end);
-      if (crs) {
-        const reprojected = tryReprojectPoints(pairs, crs);
-        if (reprojected) return reprojected;
-
-        // Try swapped axis (northing,easting)
-        const swapped = pairs.map(p => [p[1], p[0]]);
-        const reprojected2 = tryReprojectPoints(swapped, crs);
-        if (reprojected2) return reprojected2;
-      }
-
-      // Case 3: large numbers look like UTM easting/northing for Indonesia (~200000-900000, 9000000-)
-      // Guess common zones if CRS missing
-      const looksLikeUTM = pairs.every(p =>
-        Math.abs(p[0]) > 180 && Math.abs(p[0]) < 1000000 &&
-        Math.abs(p[1]) > 180
-      );
-      if (looksLikeUTM && typeof proj4 === 'function') {
-        const meanX = pairs.reduce((s, p) => s + p[0], 0) / pairs.length;
-        const meanY = pairs.reduce((s, p) => s + p[1], 0) / pairs.length;
-        // Indonesia typically zone 46-54, south if Y ~ 9e6 or negative
-        const isSouth = meanY < 0 || meanY > 5000000;
-        // rough zone from longitude estimate is hard without lon; try zones 47-52
-        const zonesToTry = [47, 48, 49, 50, 51, 52, 46, 53, 54];
-        for (const zone of zonesToTry) {
-          const epsg = isSouth ? 32700 + zone : 32600 + zone;
-          const crsGuess = { type: 'epsg', value: epsg };
-          const rep = tryReprojectPoints(pairs, crsGuess);
-          if (rep) {
-            // Prefer results over Indonesia roughly
-            const meanLon = rep.reduce((s, p) => s + p[1], 0) / rep.length;
-            const meanLat = rep.reduce((s, p) => s + p[0], 0) / rep.length;
-            if (meanLon >= 90 && meanLon <= 145 && meanLat >= -15 && meanLat <= 10) {
-              console.log('GPTS diinterpretasi sebagai UTM zona', zone, isSouth ? 'S' : 'N', '→ EPSG:' + epsg);
-              return rep;
-            }
-          }
-        }
-      }
-
-      return null;
-    }
-
-    function scoreLatLonPoints(points, text, start, hasLpts) {
-      if (!points || points.length < 2) return -1;
-
-      for (const p of points) {
-        if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])) return -1;
-        if (Math.abs(p[0]) > 90 || Math.abs(p[1]) > 180) return -1;
-      }
-
-      const latSpan = Math.max(...points.map(p => p[0])) - Math.min(...points.map(p => p[0]));
-      const lonSpan = Math.max(...points.map(p => p[1])) - Math.min(...points.map(p => p[1]));
-      if (latSpan <= 0 || lonSpan <= 0) return -1;
-      // Unrealistic map size > ~20 deg usually not a single sheet
-      if (latSpan > 25 || lonSpan > 25) return -1;
-
-      let score = 0;
-      const ctx = text.slice(Math.max(0, start - 2000), Math.min(text.length, start + 3000));
-      if (/\/Subtype\s*\/GEO\b/i.test(ctx)) score += 1000000;
-      if (/\/Measure\b/i.test(ctx)) score += 500000;
-      if (/\/GPTS\b/i.test(ctx)) score += 100000;
-      if (hasLpts) score += 80000;
-      score += Math.min(latSpan * lonSpan * 500000, 20000);
-      score += Math.min(points.length * 10, 200);
-
-      // Bonus for Indonesia-ish bounds
-      const meanLat = points.reduce((s, p) => s + p[0], 0) / points.length;
-      const meanLon = points.reduce((s, p) => s + p[1], 0) / points.length;
-      if (meanLat >= -15 && meanLat <= 10 && meanLon >= 90 && meanLon <= 145) score += 50000;
-
-      return score;
-    }
-
-    function boundsFromPoints(points) {
-      const lats = points.map(p => p[0]);
-      const lons = points.map(p => p[1]);
-      return [
-        Math.min(...lats),
-        Math.min(...lons),
-        Math.max(...lats),
-        Math.max(...lons)
-      ];
-    }
-
-    async function extractGeoPDFGeoreference(fileData) {
-      const texts = collectPdfTextLayers(fileData);
-      const combinedText = texts.join('\n');
-
-      console.log('[GeoPDF] Panjang teks digabung:', combinedText.length,
-        '| stream layers:', texts.length - 1,
-        '| ada /GPTS:', combinedText.includes('/GPTS'),
-        '| ada /LPTS:', combinedText.includes('/LPTS'),
-        '| ada /Measure:', combinedText.includes('/Measure'),
-        '| ada /GEO:', /\/GEO\b/.test(combinedText));
-
-      const candidates = [];
-
-      // ----------------------------------------------------------
-      // PATH 1 (prioritas): regex langsung Adobe Measure/GEO + GPTS
-      // Contoh: /GPTS[-2.97899 118.60855 -2.07968 118.60744 ...]
-      // ----------------------------------------------------------
-      try {
-        const gptsRegex = /\/GPTS\s*\[\s*([^\]]{8,2000})\s*\]/gi;
-        let m;
-        while ((m = gptsRegex.exec(combinedText)) !== null) {
-          const nums = parsePdfNumbers(m[1]);
-          if (nums.length < 4 || nums.length % 2 !== 0) continue;
-
-          const start = m.index;
-          const end = m.index + m[0].length;
-
-          const region = combinedText.slice(Math.max(0, start - 600), Math.min(combinedText.length, end + 600));
-          let lpts = null;
-          const lptsMatch = region.match(/\/LPTS\s*\[\s*([^\]]{4,500})\s*\]/i);
-          if (lptsMatch) lpts = parsePdfNumbers(lptsMatch[1]);
-
-          const points = gptsToLatLonPoints(nums, combinedText, start, end);
-          if (!points) {
-            console.log('[GeoPDF] PATH1 GPTS match tapi bukan lat/lon. sample:', nums.slice(0, 8));
-            continue;
-          }
-
-          const score = scoreLatLonPoints(points, combinedText, start, !!lpts) + 500000;
-          if (score < 0) continue;
-
-          const bounds = boundsFromPoints(points);
-          const validBounds =
-            bounds.every(Number.isFinite) &&
-            bounds[0] >= -90 && bounds[2] <= 90 &&
-            bounds[1] >= -180 && bounds[3] <= 180 &&
-            bounds[0] < bounds[2] && bounds[1] < bounds[3];
-
-          if (!validBounds) continue;
-
-          candidates.push({
-            score,
-            bounds,
-            gpts: nums,
-            lpts,
-            points,
-            crs: extractGeoPdfCRSNear(combinedText, start, end),
-            source: 'GPTS-regex'
-          });
-          console.log('[GeoPDF] PATH1 kandidat score=', score, 'bounds=', bounds);
-        }
-      } catch (err) {
-        console.warn('[GeoPDF] PATH1 regex gagal:', err);
-      }
-
-      // ----------------------------------------------------------
-      // PATH 2: parser token generik (indirect + inline)
-      // ----------------------------------------------------------
-      if (!candidates.length) {
-        let cursor = 0;
-        let guard = 0;
-
-        while (cursor < combinedText.length && guard < 2000) {
-          const g = extractPdfArrayAfterToken(combinedText, '/GPTS', cursor);
-          if (!g) break;
-
-          const regionStart = Math.max(0, g.start - 800);
-          const regionEnd = Math.min(combinedText.length, g.end + 800);
-          const region = combinedText.slice(regionStart, regionEnd);
-          let lpts = null;
-          const lInRegion = extractPdfArrayAfterToken(region, '/LPTS', 0);
-          if (lInRegion && lInRegion.values && lInRegion.values.length >= 4) {
-            lpts = lInRegion.values;
-          } else {
-            const lNear = extractPdfArrayAfterToken(combinedText, '/LPTS', Math.max(0, g.start - 500));
-            if (lNear && Math.abs(lNear.start - g.start) < 2000) lpts = lNear.values;
-          }
-
-          const points = gptsToLatLonPoints(g.values, combinedText, g.start, g.end);
-          if (points) {
-            const score = scoreLatLonPoints(points, combinedText, g.start, !!lpts);
-            if (score >= 0) {
-              const bounds = boundsFromPoints(points);
-              const validBounds =
-                bounds.every(Number.isFinite) &&
-                bounds[0] >= -90 && bounds[2] <= 90 &&
-                bounds[1] >= -180 && bounds[3] <= 180 &&
-                bounds[0] < bounds[2] && bounds[1] < bounds[3];
-
-              if (validBounds) {
-                candidates.push({
-                  score,
-                  bounds,
-                  gpts: g.values,
-                  lpts,
-                  points,
-                  crs: extractGeoPdfCRSNear(combinedText, g.start, g.end),
-                  source: 'GPTS-token'
-                });
-                console.log('[GeoPDF] PATH2 kandidat score=', score, 'bounds=', bounds);
-              }
-            } else {
-              console.log('[GeoPDF] PATH2 GPTS score ditolak. sample:', g.values.slice(0, 8));
-            }
-          } else {
-            console.log('[GeoPDF] PATH2 GPTS bukan lat/lon. sample:', g.values.slice(0, 8));
-          }
-
-          cursor = g.end;
-          guard++;
-        }
-      }
-
-      // ----------------------------------------------------------
-      // PATH 3: fallback di sekitar /Measure atau /Subtype/GEO
-      // ----------------------------------------------------------
-      if (!candidates.length) {
-        const measureIdx = combinedText.search(/\/Subtype\s*\/GEO\b|\/Type\s*\/Measure\b/i);
-        if (measureIdx >= 0) {
-          const area = combinedText.slice(measureIdx, measureIdx + 12000);
-          const gptsInArea = area.match(/\/GPTS\s*\[\s*([^\]]+)\s*\]/i);
-          if (gptsInArea) {
-            const nums = parsePdfNumbers(gptsInArea[1]);
-            const points = gptsToLatLonPoints(nums, combinedText, measureIdx, measureIdx + 500);
-            if (points) {
-              const score = scoreLatLonPoints(points, combinedText, measureIdx, true);
-              if (score >= 0) {
-                candidates.push({
-                  score,
-                  bounds: boundsFromPoints(points),
-                  gpts: nums,
-                  lpts: null,
-                  points,
-                  source: 'Measure-GPTS-fallback'
-                });
-                console.log('[GeoPDF] PATH3 Measure-GPTS bounds=', boundsFromPoints(points));
-              }
-            }
-          }
-
-          if (!candidates.length) {
-            const nums = parsePdfNumbers(area);
-            for (let i = 0; i + 7 < nums.length; i++) {
-              const slice = nums.slice(i, i + 8);
-              // Skip unit-square Bounds [0 1 0 0 1 0 1 1]
-              if (slice.every(n => n === 0 || n === 1)) continue;
-
-              const pts = [];
-              let ok = true;
-              for (let j = 0; j < 8; j += 2) {
-                const a = slice[j], b = slice[j + 1];
-                if (Math.abs(a) <= 90 && Math.abs(b) <= 180 && (Math.abs(a) > 0.5 || Math.abs(b) > 0.5)) {
-                  pts.push([a, b]);
-                } else if (Math.abs(b) <= 90 && Math.abs(a) <= 180 && (Math.abs(a) > 0.5 || Math.abs(b) > 0.5)) {
-                  pts.push([b, a]);
-                } else {
-                  ok = false;
-                  break;
-                }
-              }
-              if (ok && pts.length === 4) {
-                const score = scoreLatLonPoints(pts, combinedText, measureIdx, false);
-                if (score >= 0) {
-                  candidates.push({
-                    score: score - 5000,
-                    bounds: boundsFromPoints(pts),
-                    gpts: slice,
-                    lpts: null,
-                    points: pts,
-                    source: 'Measure-numeric-fallback'
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (!candidates.length) {
-        const gIdx = combinedText.indexOf('/GPTS');
-        if (gIdx >= 0) {
-          console.warn('[GeoPDF] Ada /GPTS tapi tidak bisa diparse. Snippet:\n',
-            combinedText.slice(Math.max(0, gIdx - 80), gIdx + 200));
-        } else {
-          console.warn('[GeoPDF] Tidak ada /GPTS di teks PDF.');
-        }
-        return null;
-      }
-
-      candidates.sort((a, b) => b.score - a.score);
-      const best = candidates[0];
-      console.log('[GeoPDF] Bounds terpilih:', best.bounds, 'sumber:', best.source, 'score:', best.score);
-
-      return {
-        bounds: best.bounds,
-        gpts: best.gpts,
-        lpts: best.lpts,
-        projectionWkt: best.crs && best.crs.type === 'wkt' ? best.crs.value : null,
-        epsg: best.crs && best.crs.type === 'epsg' ? best.crs.value : null,
-        source: best.source,
-        candidates: candidates.length
-      };
-    }
-
-    // ================================================================
-    // UPLOAD GEOPDF DENGAN KONVERSI
-    // ================================================================
-    function uploadGeoPDF() {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.pdf,.geopdf';
-      input.multiple = true;
-      input.onchange = async (e) => {
-        const files = Array.from(e.target.files);
-        for (const file of files) {
-          try {
-            showNotification('⏳ Mengkonversi ' + file.name + '...', 5000);
-
-            const data = await file.arrayBuffer();
-
-            const result = await convertGeoPDFToWebP(data, file.name);
-
-            const newMap = {
-              id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-              name: file.name.replace(/\.[^/.]+$/, '') + '.webp',
-              type: 'webp_json',
-              fileData: data,
-              webpData: result.webpData,
-              metadata: result.metadata,
-              geojson: { type: 'FeatureCollection', features: [] },
-              created: new Date().toISOString(),
-              isActive: false,
-              source: 'geopdf',
-              isGeoPDF: true,
-              converted: true,
-              bounds: result.metadata.bounds,
-              minZoom: result.metadata.minZoom || 1,
-              maxZoom: result.metadata.maxZoom || 22,
-              jsonData: JSON.stringify(result.metadata)
-            };
-
-            await saveMapToDB(newMap);
-            mapCollection.push(newMap);
-            showNotification('✅ ' + file.name + ' berhasil dikonversi ke WebP+JSON!', 3000);
-
-          } catch (err) {
-            console.error('Gagal konversi GeoPDF:', err);
-            alert('Gagal konversi ' + file.name + ': ' + err.message);
-          }
-        }
-        renderLibraryContent();
-        renderPointsView();
-      };
-      input.click();
-    }
-
-    // ================================================================
-    // WEBP + JSON SUPPORT
-    // ================================================================
-    function uploadWebPJSON() {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.webp,.json';
-      input.multiple = true;
-
-      input.onchange = async (e) => {
-        const files = Array.from(e.target.files || []);
-        const webpFile = files.find(f => f.name.toLowerCase().endsWith('.webp'));
-        const jsonFile = files.find(f => f.name.toLowerCase().endsWith('.json'));
-
-        if (!webpFile || !jsonFile) {
-          alert('Pilih 2 file sekaligus: satu .webp dan satu .json.');
-          return;
-        }
-
-        try {
-          const webpData = await webpFile.arrayBuffer();
-          const metadata = JSON.parse(await jsonFile.text());
-
-          const bounds = normalizeMapBounds(
-            metadata.bounds ||
-            metadata.bbox ||
-            metadata.extent ||
-            metadata.boundingBox
-          );
-
-          if (!bounds) {
-            throw new Error(
-              'JSON tidak memiliki bounds/bbox/extent yang valid.'
-            );
-          }
-
-          const baseName = webpFile.name.replace(/\.[^/.]+$/, '');
-
-          const newMap = {
-            id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-            name: baseName + '.webp',
-            type: 'webp_json',
-
-            webpData: webpData,
-            tilesData: webpData,
-
-            metadata: {
-              ...metadata,
-              bounds: bounds,
-              format: 'webp',
-              sourceJson: jsonFile.name
-            },
-
-            bounds: bounds,
-            minZoom: Number(metadata.minZoom || metadata.minzoom || 1),
-            maxZoom: Number(metadata.maxZoom || metadata.maxzoom || 22),
-
-            geojson: { type: 'FeatureCollection', features: [] },
-            created: new Date().toISOString(),
-            isActive: false,
-            source: 'webp_json_upload',
-            isGeoPDF: false,
-            converted: true
-          };
-
-          await saveMapToDB(newMap);
-          mapCollection.push(newMap);
-
-          renderLibraryContent();
-          renderPointsView();
-
-          showNotification(
-            '✅ ' + webpFile.name + ' + ' + jsonFile.name + ' berhasil ditambahkan.',
-            3500
-          );
-        } catch (err) {
-          console.error('Gagal membaca WebP+JSON:', err);
-          alert('Gagal membaca WebP+JSON: ' + err.message);
-        }
-      };
-
-      input.click();
-    }
-
-    function normalizeMapBounds(value) {
-      if (!Array.isArray(value) || value.length < 4) return null;
-
-      const a = Number(value[0]);
-      const b = Number(value[1]);
-      const c = Number(value[2]);
-      const d = Number(value[3]);
-
-      if (![a, b, c, d].every(Number.isFinite)) return null;
-
-      if (
-        a >= -90 && a <= 90 &&
-        c >= -90 && c <= 90 &&
-        b >= -180 && b <= 180 &&
-        d >= -180 && d <= 180 &&
-        a <= c
-      ) {
-        return [a, b, c, d];
-      }
-
-      if (
-        a >= -180 && a <= 180 &&
-        c >= -180 && c <= 180 &&
-        b >= -90 && b <= 90 &&
-        d >= -90 && d <= 90 &&
-        b <= d
-      ) {
-        return [b, a, d, c];
-      }
-
-      return null;
-    }
-
-    function getWebPArrayBuffer(mapData) {
-      const candidates = [
-        mapData.webpData,
-        mapData.imageData,
-        mapData.webPData,
-        mapData.tilesData
-      ];
-
-      for (const value of candidates) {
-        if (value instanceof ArrayBuffer && value.byteLength > 0) {
-          return value;
-        }
-
-        if (value instanceof Uint8Array && value.byteLength > 0) {
-          return value.buffer.slice(
-            value.byteOffset,
-            value.byteOffset + value.byteLength
-          );
-        }
-
-        if (value && value.buffer instanceof ArrayBuffer && value.byteLength > 0) {
-          return value.buffer.slice(
-            value.byteOffset || 0,
-            (value.byteOffset || 0) + value.byteLength
-          );
-        }
-      }
-
-      return null;
-    }
-
-    function createWebPImageLayer(mapData) {
-      const bytes = getWebPArrayBuffer(mapData);
-
-      if (!bytes) {
-        throw new Error(
-          'Data WebP tidak ditemukan. Record peta hanya berisi metadata/PDF, bukan gambar WebP.'
-        );
-      }
-
-      const rawBounds =
-        mapData.bounds ||
-        mapData.metadata?.bounds ||
-        mapData.metadata?.bbox ||
-        mapData.metadata?.extent ||
-        mapData.metadata?.boundingBox;
-
-      const bounds = normalizeMapBounds(rawBounds);
-
-      if (!bounds) {
-        throw new Error(
-          'Bounds WebP tidak valid. JSON harus memiliki bounds atau bbox.'
-        );
-      }
-
-      const blob = new Blob([bytes], { type: 'image/webp' });
-      const imageUrl = URL.createObjectURL(blob);
-
-      const imageBounds = L.latLngBounds(
-        [bounds[0], bounds[1]],
-        [bounds[2], bounds[3]]
-      );
-
-      const imageLayer = L.imageOverlay(imageUrl, imageBounds, {
-        opacity: 1,
-        interactive: false,
-        crossOrigin: false,
-        zIndex: 300
-      });
-
-      imageLayer._webpObjectUrl = imageUrl;
-
-      imageLayer.on('load', () => {
-        console.log('✅ WebP berhasil dirender:', mapData.name);
-      });
-
-      imageLayer.on('error', () => {
-        console.error('❌ Browser gagal merender WebP:', mapData.name);
-        showNotification(
-          '❌ Gambar WebP gagal dirender. Periksa file WebP.',
-          4000
-        );
-      });
-
-      return {
-        layer: imageLayer,
-        bounds: imageBounds
-      };
-    }
-
-    // ================================================================
-    // LIBRARY CONTENT - RENDER
-    // ================================================================
-    function renderLibraryContent() {
-      const container = document.getElementById('library-content');
-
-      let html = `
-        <div class="upload-btn-wrapper">
-          <button class="add-btn" onclick="uploadKMZFile()">
-            <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload KMZ/KML
-          </button>
-          <button class="add-btn" onclick="uploadGeoPDF()" style="background:#ff9800;">
-            <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload GeoPDF
-          </button>
-          <button class="add-btn" onclick="uploadWebPJSON()" style="background:#607d8b;">
-            <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Import WebP+JSON
-          </button>
-          <button class="add-btn" onclick="uploadWebPJSON()" style="background:#6a5acd;">
-            <svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload WebP+JSON
-          </button>
-        </div>
-        <div style="font-size:12px; color:#555; margin-bottom:8px;">
-          Total: <b>${mapCollection.length}</b> peta tersimpan
-          ${gdalReady ? '<span style="color:#4CAF50; margin-left:8px;">✅ gdal3.js siap</span>' : '<span style="color:#ff9800; margin-left:8px;">⚠️ gdal3.js tidak tersedia</span>'}
-          <div style="font-size:11px;color:#777;margin-top:5px;">
-            WebP+JSON ditampilkan sebagai image overlay georeferensi.
-          </div>
-        </div>
-        <div id="library-file-list"></div>
-      `;
-      container.innerHTML = html;
-
-      renderLibraryFileList();
-    }
-
-    function renderLibraryFileList() {
-      const listContainer = document.getElementById('library-file-list');
-      if (!listContainer) return;
-
-      if (mapCollection.length === 0) {
-        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">📭 Belum ada file. Upload KMZ/KML atau GeoPDF di atas.</p>`;
-        return;
-      }
-
-      let html = '';
-      mapCollection.forEach((mapData, index) => {
-        const isActive = activeLayers[mapData.id] !== undefined;
-        const icon = mapData.type === 'kmz' || mapData.type === 'kml' ? 'icon-file-code' :
-                     mapData.type === 'webp_json' ? 'icon-globe' : 'icon-file-pdf';
-        const typeLabel = mapData.type === 'webp_json' ? '🗺️ WebP' :
-                          mapData.type === 'kmz' ? '📦 KMZ' :
-                          mapData.type === 'kml' ? '📄 KML' : '📄 PDF';
-        const pointCount = mapData.geojson?.features?.length || 0;
-        const isGeoPDF = mapData.isGeoPDF || false;
-
-        html += `
-          <div class="file-item" style="${isActive ? 'border-left:3px solid #4CAF50;' : ''}">
-            <div class="file-info">
-              <svg class="icon"><use href="#${icon}"></use></svg>
-              <span class="file-name">${mapData.name}</span>
-              <span style="font-size:10px; color:#999; white-space:nowrap;">${typeLabel}</span>
-              ${isGeoPDF ? '<span style="font-size:9px; color:#ff9800; white-space:nowrap;">📄 GeoPDF</span>' : ''}
-              <span style="font-size:10px; color:#888; white-space:nowrap;">📍${pointCount}</span>
-              ${isActive ? '<span class="map-item-status active">AKTIF</span>' : ''}
-            </div>
-            <div class="file-actions">
-              ${!isActive ? `<button class="add-btn" onclick="activateMap('${mapData.id}')">Aktifkan</button>` :
-                            `<button class="remove-btn" onclick="deactivateMap('${mapData.id}')">Nonaktif</button>`}
-              <button class="delete-btn" onclick="deleteMap('${mapData.id}')" title="Hapus dari Library">
-                <svg class="icon" style="width:14px;height:14px;"><use href="#icon-trash"></use></svg>
-              </button>
-            </div>
-          </div>
-        `;
-      });
-      listContainer.innerHTML = html;
-    }
-
-    // ================================================================
-    // ACTIVATE / DEACTIVATE MAP - DENGAN DUKUNGAN WebP+JSON
-    // ================================================================
-    function activateMap(mapId) {
-      const mapData = mapCollection.find(m => m.id === mapId);
-      if (!mapData) return;
-
-      if (activeLayers[mapId]) {
-        deactivateMap(mapId);
-      }
-
-      try {
-        if (mapData.type === 'kmz' || mapData.type === 'kml') {
-          const blob = new Blob([mapData.fileData]);
-          const reader = new FileReader();
-          reader.onload = async function(e) {
-            try {
-              let kmlText = '';
-              if (mapData.type === 'kmz') {
-                const zip = await JSZip.loadAsync(mapData.fileData);
-                const kmlFile = Object.keys(zip.files).find(f => f.toLowerCase().endsWith('.kml'));
-                if (kmlFile) {
-                  kmlText = await zip.files[kmlFile].async('string');
-                } else {
-                  alert('Tidak ditemukan KML di dalam KMZ');
-                  return;
-                }
-              } else {
-                kmlText = new TextDecoder().decode(mapData.fileData);
-              }
-
-              const featureGroup = parseKMLToLeaflet(kmlText);
-              if (featureGroup.getLayers().length === 0) {
-                alert('Tidak ada fitur yang valid di file ini.');
-                return;
-              }
-
-              featureGroup.addTo(map);
-              const bounds = featureGroup.getBounds();
-              if (bounds.isValid()) {
-                map.fitBounds(bounds, { padding: [20, 20] });
-              }
-
-              activeLayers[mapId] = { name: mapData.name, layer: featureGroup };
-              mapData.isActive = true;
-              updateActiveLayersUI();
-              renderLibraryContent();
-              renderPointsView();
-              activeMapId = mapId;
-              showNotification('✅ ' + mapData.name + ' diaktifkan');
-            } catch (err) {
-              alert('Gagal memuat file: ' + err.message);
-            }
-          };
-          reader.readAsArrayBuffer(blob);
-
-        } else if (mapData.type === 'webp_json') {
-          try {
-            const result = createWebPImageLayer(mapData);
-
-            result.layer.addTo(map);
-
-            activeLayers[mapId] = {
-              name: mapData.name,
-              layer: result.layer,
-              type: 'webp_json'
-            };
-
-            mapData.isActive = true;
-
-            updateActiveLayersUI();
-            renderLibraryContent();
-            renderPointsView();
-
-            activeMapId = mapId;
-
-            setTimeout(() => {
-              map.invalidateSize();
-
-              map.fitBounds(result.bounds, {
-                padding: [20, 20],
-                maxZoom: Number(mapData.maxZoom || 22)
-              });
-
-              updateReticleCoordinates();
-            }, 50);
-
-            showNotification(
-              '✅ ' + mapData.name + ' (WebP+JSON) ditampilkan di peta',
-              3000
-            );
-          } catch (err) {
-            console.error('Gagal menampilkan WebP+JSON:', err);
-            alert('Gagal menampilkan WebP+JSON: ' + err.message);
-          }
-        } else {
-          showNotification('⚠️ Format tidak didukung: ' + mapData.type);
-        }
-      } catch (err) {
-        alert('Gagal mengaktifkan peta: ' + err.message);
-      }
-    }
-
-    function deactivateMap(mapId) {
-      if (activeLayers[mapId]) {
-        const layer = activeLayers[mapId].layer;
-        map.removeLayer(layer);
-
-        if (layer && layer._webpObjectUrl) {
-          URL.revokeObjectURL(layer._webpObjectUrl);
-          layer._webpObjectUrl = null;
-        }
-
-        delete activeLayers[mapId];
-        const mapData = mapCollection.find(m => m.id === mapId);
-        if (mapData) mapData.isActive = false;
-        updateActiveLayersUI();
-        renderLibraryContent();
-        renderPointsView();
-        if (activeMapId === mapId) activeMapId = null;
-        showNotification('🗑️ Peta dinonaktifkan');
-      }
-    }
-
-    // ================================================================
-    // DELETE MAP (HAPUS DARI LIBRARY + INDEXEDDB)
-    // ================================================================
-    async function deleteMap(mapId) {
-      const mapData = mapCollection.find(m => m.id === mapId);
-      if (!mapData) return;
-
-      if (!confirm('Hapus "' + mapData.name + '" dari Library? Semua data titik akan ikut terhapus.')) return;
-
-      try {
-        if (activeLayers[mapId]) {
-          const layer = activeLayers[mapId].layer;
-          map.removeLayer(layer);
-
-          if (layer && layer._webpObjectUrl) {
-            URL.revokeObjectURL(layer._webpObjectUrl);
-            layer._webpObjectUrl = null;
-          }
-
-          delete activeLayers[mapId];
-        }
-
-        await deleteMapFromDB(mapId);
-
-        mapCollection = mapCollection.filter(m => m.id !== mapId);
-        if (activeMapId === mapId) activeMapId = null;
-
-        updateActiveLayersUI();
-        renderLibraryContent();
-        renderPointsView();
-        showNotification('🗑️ "' + mapData.name + '" dihapus dari Library');
-      } catch (err) {
-        alert('Gagal menghapus peta: ' + err.message);
-      }
-    }
-
-    // ================================================================
-    // ACTIVE LAYERS UI
-    // ================================================================
-    function updateActiveLayersUI() {
-      const container = document.getElementById('active-layers');
-      let html = '';
-
-      Object.keys(activeLayers).forEach(id => {
-        const item = activeLayers[id];
-        html += `
-          <div class="file-item">
-            <div class="file-info">
-              <svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg>
-              <span class="file-name">${item.name}</span>
-            </div>
-            <button class="remove-btn" onclick="deactivateMap('${id}')">Hapus</button>
-          </div>
-        `;
-      });
-
-      container.innerHTML = html;
-    }
-
-    // ================================================================
-    // PARSE KML (Tetap sama)
-    // ================================================================
-    function kmlColorToLeaflet(kmlColor) {
-      if (!kmlColor || kmlColor.trim().length !== 8) {
-        return { color: '#3388ff', opacity: 1 };
-      }
-      const hexStr = kmlColor.trim();
-      const a = parseInt(hexStr.substring(0, 2), 16) / 255;
-      const b = hexStr.substring(2, 4);
-      const g = hexStr.substring(4, 6);
-      const r = hexStr.substring(6, 8);
-
-      return {
-        color: '#' + r + g + b,
-        opacity: isNaN(a) ? 1 : a
-      };
-    }
-
-    function parseKMLToLeaflet(kmlText) {
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(kmlText, "text/xml");
-      const layerGroup = L.featureGroup();
-
-      const styleMap = {};
-
-      const styles = xmlDoc.getElementsByTagName("Style");
-      for (let i = 0; i < styles.length; i++) {
-        const style = styles[i];
-        const id = style.getAttribute("id");
-        if (!id) continue;
-
-        styleMap[id] = {};
-
-        const lineStyle = style.getElementsByTagName("LineStyle")[0];
-        if (lineStyle) {
-          const c = lineStyle.getElementsByTagName("color")[0]?.textContent;
-          const w = lineStyle.getElementsByTagName("width")[0]?.textContent;
-          if (c) styleMap[id].line = kmlColorToLeaflet(c);
-          if (w) styleMap[id].weight = parseFloat(w);
-        }
-
-        const polyStyle = style.getElementsByTagName("PolyStyle")[0];
-        if (polyStyle) {
-          const c = polyStyle.getElementsByTagName("color")[0]?.textContent;
-          const fill = polyStyle.getElementsByTagName("fill")[0]?.textContent;
-          const outline = polyStyle.getElementsByTagName("outline")[0]?.textContent;
-
-          if (c) styleMap[id].poly = kmlColorToLeaflet(c);
-          if (fill !== undefined) styleMap[id].hasFill = fill.trim() !== '0';
-          if (outline !== undefined) styleMap[id].hasOutline = outline.trim() !== '0';
-        }
-      }
-
-      const styleMaps = xmlDoc.getElementsByTagName("StyleMap");
-      for (let i = 0; i < styleMaps.length; i++) {
-        const sm = styleMaps[i];
-        const smId = sm.getAttribute("id");
-        if (!smId) continue;
-
-        const pairs = sm.getElementsByTagName("Pair");
-        for (let j = 0; j < pairs.length; j++) {
-          const key = pairs[j].getElementsByTagName("key")[0]?.textContent?.trim();
-          if (key === "normal") {
-            const styleUrl = pairs[j].getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#", "");
-            if (styleUrl && styleMap[styleUrl]) {
-              styleMap[smId] = styleMap[styleUrl];
-            }
-          }
-        }
-      }
-
-      const placemarks = xmlDoc.getElementsByTagName("Placemark");
-      for (let i = 0; i < placemarks.length; i++) {
-        const pm = placemarks[i];
-        const nameEl = pm.getElementsByTagName("name")[0];
-        const name = nameEl ? nameEl.textContent : "Elemen " + (i + 1);
-
-        const sUrl = pm.getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#", "");
-        const activeStyle = styleMap[sUrl] || {};
-
-        const isOutlineActive = activeStyle.hasOutline !== undefined ? activeStyle.hasOutline : false;
-        const lineHex = activeStyle.line?.color || '#000000';
-        const lineOpacity = activeStyle.line?.opacity !== undefined ? activeStyle.opacity : 1;
-        const strokeWidth = isOutlineActive ? (activeStyle.weight || 1) : 0;
-
-        const isFillActive = activeStyle.hasFill !== undefined ? activeStyle.hasFill : true;
-        const fillHex = activeStyle.poly?.color || lineHex;
-        const fillOpacity = activeStyle.poly?.opacity !== undefined ? activeStyle.poly.opacity : 0.6;
-
-        const points = pm.getElementsByTagName("Point");
-        for (let j = 0; j < points.length; j++) {
-          const coords = points[j].getElementsByTagName("coordinates")[0];
-          if (coords) {
-            const parts = coords.textContent.trim().split(",");
-            if (parts.length >= 2) {
-              const lng = parseFloat(parts[0]);
-              const lat = parseFloat(parts[1]);
-              if (!isNaN(lat) && !isNaN(lng)) {
-                L.circleMarker([lat, lng], {
-                  radius: 6,
-                  color: lineHex,
-                  fillColor: fillHex,
-                  fillOpacity: 0.9,
-                  weight: 1.5
-                }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
-              }
-            }
-          }
-        }
-
-        const lines = pm.getElementsByTagName("LineString");
-        for (let j = 0; j < lines.length; j++) {
-          const coordsEl = lines[j].getElementsByTagName("coordinates")[0];
-          if (coordsEl) {
-            const rawCoords = coordsEl.textContent.trim().split(/\s+/);
-            const latLngs = [];
-            rawCoords.forEach(c => {
-              const parts = c.split(",");
-              if (parts.length >= 2) {
-                const lng = parseFloat(parts[0]);
-                const lat = parseFloat(parts[1]);
-                if (!isNaN(lat) && !isNaN(lng)) latLngs.push([lat, lng]);
-              }
-            });
-            if (latLngs.length > 0) {
-              L.polyline(latLngs, {
-                color: lineHex,
-                opacity: lineOpacity,
-                weight: activeStyle.weight || 3
-              }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
-            }
-          }
-        }
-
-        const polygons = pm.getElementsByTagName("Polygon");
-        for (let j = 0; j < polygons.length; j++) {
-          const coordsEl = polygons[j].getElementsByTagName("coordinates")[0];
-          if (coordsEl) {
-            const rawCoords = coordsEl.textContent.trim().split(/\s+/);
-            const latLngs = [];
-            rawCoords.forEach(c => {
-              const parts = c.split(",");
-              if (parts.length >= 2) {
-                const lng = parseFloat(parts[0]);
-                const lat = parseFloat(parts[1]);
-                if (!isNaN(lat) && !isNaN(lng)) latLngs.push([lat, lng]);
-              }
-            });
-
-            if (latLngs.length > 0) {
-              L.polygon(latLngs, {
-                stroke: isOutlineActive && strokeWidth > 0,
-                color: lineHex,
-                opacity: lineOpacity,
-                weight: strokeWidth,
-                fill: isFillActive,
-                fillColor: fillHex,
-                fillOpacity: fillOpacity
-              }).bindPopup('<b>' + name + '</b>').addTo(layerGroup);
-            }
-          }
-        }
-      }
-
-      return layerGroup;
-    }
-
-    // ================================================================
-    // BASEMAP
-    // ================================================================
-    function setBasemap(key) {
-      const provider = BASEMAP_PROVIDERS[key];
-      if (!provider) return;
-
-      if (activeLayers['basemap']) {
-        map.removeLayer(activeLayers['basemap'].layer);
-      }
-
-      const tileLayer = L.tileLayer(provider.url, {
-        maxZoom: 22,
-        maxNativeZoom: provider.maxNativeZoom || 19,
-        attribution: provider.name
-      }).addTo(map);
-
-      activeLayers['basemap'] = { name: provider.name, layer: tileLayer };
-      updateActiveLayersUI();
-    }
-
-    // ================================================================
-    // POINTS MANAGEMENT (BUKU CATATAN PER PETA)
-    // ================================================================
-    function renderPointsView() {
-      const container = document.getElementById('points-list-container');
-      const mapNameEl = document.getElementById('points-map-name');
-
-      const activeMap = mapCollection.find(m => m.isActive === true);
-
-      if (!activeMap) {
-        mapNameEl.textContent = 'Pilih peta terlebih dahulu';
-        container.innerHTML = `<div class="empty-points">📭 Tidak ada peta aktif. Aktifkan peta dari tab Layers.</div>`;
-        return;
-      }
-
-      mapNameEl.textContent = '📄 ' + activeMap.name + ' (' + (activeMap.geojson?.features?.length || 0) + ' titik)';
-
-      const features = activeMap.geojson?.features || [];
-
-      if (features.length === 0) {
-        container.innerHTML = `<div class="empty-points">📭 Belum ada titik. Klik "Tambah" atau klik peta untuk menambah titik.</div>`;
-        return;
-      }
-
-      let html = '';
-      features.forEach((feature, index) => {
-        const coords = feature.geometry.coordinates;
-        const name = feature.properties?.name || 'Titik ' + (index + 1);
-        const note = feature.properties?.note || '';
-        const timestamp = feature.properties?.timestamp || '';
-
-        html += `
-          <div class="point-item">
-            <div class="point-info">
-              <span class="point-name">${name}</span>
-              <span class="point-coords">${coords[1].toFixed(6)}, ${coords[0].toFixed(6)} ${note ? '• ' + note : ''}</span>
-            </div>
-            <div class="point-actions">
-              <button onclick="flyToPoint(${index})" title="Lokasi">📍</button>
-              <button class="btn-delete-point" onclick="deletePoint(${index})" title="Hapus">✕</button>
-            </div>
-          </div>
-        `;
-      });
-      container.innerHTML = html;
-    }
-
-    function addPointFromCrosshair() {
-      const activeMap = mapCollection.find(m => m.isActive === true);
-      if (!activeMap) {
-        alert('Aktifkan peta terlebih dahulu dari tab Layers.');
-        return;
-      }
-
-      const center = map.getCenter();
-      const name = prompt('Nama titik:', 'Waypoint ' + waypointCount);
-      if (!name) return;
-      const note = prompt('Catatan (opsional):', '');
-
-      if (!activeMap.geojson) {
-        activeMap.geojson = { type: 'FeatureCollection', features: [] };
-      }
-
-      activeMap.geojson.features.push({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [center.lng, center.lat]
-        },
-        properties: {
-          name: name,
-          note: note || '',
-          timestamp: new Date().toISOString()
-        }
-      });
-
-      saveMapToDB(activeMap).then(() => {
-        waypointCount++;
-        renderPointsView();
-        renderLibraryContent();
-        showNotification('✅ Titik "' + name + '" ditambahkan');
-      });
-
-      const marker = L.marker([center.lat, center.lng]).addTo(map);
-      marker.bindPopup('<b>' + name + '</b><br>' + center.lat.toFixed(5) + ', ' + center.lng.toFixed(5) + (note ? '<br>' + note : '')).openPopup();
-    }
-
-    function flyToPoint(index) {
-      const activeMap = mapCollection.find(m => m.isActive === true);
-      if (!activeMap) return;
-
-      const feature = activeMap.geojson?.features[index];
-      if (!feature) return;
-
-      const coords = feature.geometry.coordinates;
-      map.flyTo([coords[1], coords[0]], 17);
-    }
-
-    async function deletePoint(index) {
-      const activeMap = mapCollection.find(m => m.isActive === true);
-      if (!activeMap) return;
-
-      if (!confirm('Hapus titik ini?')) return;
-
-      activeMap.geojson.features.splice(index, 1);
-      await saveMapToDB(activeMap);
-      renderPointsView();
-      renderLibraryContent();
-      showNotification('🗑️ Titik dihapus');
-    }
-
-    async function clearAllPoints() {
-      const activeMap = mapCollection.find(m => m.isActive === true);
-      if (!activeMap) return;
-
-      const count = activeMap.geojson?.features?.length || 0;
-      if (count === 0) {
-        alert('Tidak ada titik untuk dihapus.');
-        return;
-      }
-
-      if (!confirm('Hapus semua ' + count + ' titik?')) return;
-
-      activeMap.geojson.features = [];
-      await saveMapToDB(activeMap);
-      renderPointsView();
-      renderLibraryContent();
-      showNotification('🗑️ Semua titik dihapus');
-    }
-
-    // ================================================================
-    // EXPORT POINTS
-    // ================================================================
-    function exportPoints(format) {
-      const activeMap = mapCollection.find(m => m.isActive === true);
-      if (!activeMap) {
-        alert('Aktifkan peta terlebih dahulu dari tab Layers.');
-        return;
-      }
-
-      const features = activeMap.geojson?.features || [];
-      if (features.length === 0) {
-        alert('Tidak ada titik untuk diexport.');
-        return;
-      }
-
-      let content = '';
-      let filename = activeMap.name.replace(/\.[^/.]+$/, '') + '_points';
-      let mimeType = '';
-
-      switch(format) {
-        case 'txt':
-          content = 'Name\tLat\tLng\tNote\n';
-          content += features.map(f =>
-            f.properties.name + '\t' + f.geometry.coordinates[1].toFixed(6) + '\t' + f.geometry.coordinates[0].toFixed(6) + '\t' + (f.properties.note || '')
-          ).join('\n');
-          filename += '.txt';
-          mimeType = 'text/plain';
-          break;
-
-        case 'csv':
-          content = 'Name,Lat,Lng,Note\n';
-          content += features.map(f =>
-            '"' + f.properties.name + '",' + f.geometry.coordinates[1].toFixed(6) + ',' + f.geometry.coordinates[0].toFixed(6) + ',"' + (f.properties.note || '') + '"'
-          ).join('\n');
-          filename += '.csv';
-          mimeType = 'text/csv';
-          break;
-
-        case 'kml':
-          content = '<?xml version="1.0" encoding="UTF-8"?>\n';
-          content += '<kml xmlns="http://www.opengis.net/kml/2.2">\n';
-          content += '  <Document>\n';
-          content += '    <name>' + activeMap.name + '</name>\n';
-          features.forEach(f => {
-            content += '    <Placemark>\n';
-            content += '      <name>' + f.properties.name + '</name>\n';
-            if (f.properties.note) {
-              content += '      <description>' + f.properties.note + '</description>\n';
-            }
-            content += '      <Point>\n';
-            content += '        <coordinates>' + f.geometry.coordinates[0] + ',' + f.geometry.coordinates[1] + '</coordinates>\n';
-            content += '      </Point>\n';
-            content += '    </Placemark>\n';
-          });
-          content += '  </Document>\n';
-          content += '</kml>';
-          filename += '.kml';
-          mimeType = 'application/vnd.google-earth.kml+xml';
-          break;
-
-        default:
-          alert('Format tidak didukung');
-          return;
-      }
-
-      const blob = new Blob([content], { type: mimeType + ';charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      showNotification('✅ ' + filename + ' berhasil diexport (' + features.length + ' titik)');
-    }
-
-    // ================================================================
-    // NOTIFICATION
-    // ================================================================
-    function showNotification(message, duration = 3000) {
-      const existing = document.querySelector('.custom-notification');
-      if (existing) existing.remove();
-
-      const notif = document.createElement('div');
-      notif.className = 'custom-notification';
-      notif.style.cssText = `
-        position: fixed;
-        bottom: 80px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0,0,0,0.85);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-size: 13px;
-        z-index: 99999;
-        max-width: 90%;
-        text-align: center;
-        animation: slideUp 0.3s ease;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        backdrop-filter: blur(10px);
-      `;
-      notif.textContent = message;
-      document.body.appendChild(notif);
-
-      setTimeout(() => {
-        notif.style.animation = 'slideDown 0.3s ease';
-        setTimeout(() => notif.remove(), 300);
-      }, duration);
-    }
-
-    // ================================================================
-    // VIEW NAVIGATION
-    // ================================================================
-    function toggleView() {
-      const mapView = document.getElementById('map-view');
-      const layersView = document.getElementById('layers-view');
-      const pointsView = document.getElementById('points-view');
-      const navIconUse = document.getElementById('nav-icon-use');
-      const mapControls = document.querySelectorAll('.map-only-control');
-
-      if (currentView === 'map') {
-        mapView.classList.remove('active');
-        layersView.classList.add('active');
-        pointsView.classList.remove('active');
-        navIconUse.setAttribute('href', '#icon-map');
-        mapControls.forEach(el => el.style.visibility = 'hidden');
-        currentView = 'layers';
-      } else if (currentView === 'layers') {
-        layersView.classList.remove('active');
-        pointsView.classList.add('active');
-        mapView.classList.remove('active');
-        navIconUse.setAttribute('href', '#icon-layers');
-        mapControls.forEach(el => el.style.visibility = 'hidden');
-        currentView = 'points';
-        renderPointsView();
-      } else {
-        pointsView.classList.remove('active');
-        mapView.classList.add('active');
-        layersView.classList.remove('active');
-        navIconUse.setAttribute('href', '#icon-layers');
-        mapControls.forEach(el => el.style.visibility = 'visible');
-        currentView = 'map';
-        setTimeout(() => {
-          map.invalidateSize();
-
-          const activeMap = mapCollection.find(m => m.isActive === true);
-          if (
-            activeMap &&
-            activeLayers[activeMap.id] &&
-            activeLayers[activeMap.id].type === 'webp_json'
-          ) {
-            const layer = activeLayers[activeMap.id].layer;
-            if (layer && layer.getBounds && layer.getBounds().isValid()) {
-              map.fitBounds(layer.getBounds(), { padding: [20, 20] });
-            }
-          }
-        }, 100);
-      }
-    }
-
-    // ================================================================
-    // TAB SWITCH (Untuk Library)
-    // ================================================================
-    function switchTab(tabName, event) {
-      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
-      event.currentTarget.classList.add('active');
-
-      if (tabName === 'basemap') renderLibraryBasemaps();
-      else if (tabName === 'kmz') renderLibraryContent();
-      else if (tabName === 'maps') {
-        document.getElementById('library-content').innerHTML = `
-          <div style="font-size:13px; color:#555; margin-bottom:10px;">
-            📄 File PDF referensi (belum support GeoPDF)
-          </div>
-          <div class="file-item">
-            <div class="file-info">
-              <svg class="icon"><use href="#icon-file-pdf"></use></svg>
-              <span class="file-name">Peta_Topografi_Zone48S.pdf</span>
-            </div>
-          </div>
-          <div style="margin-top:12px; padding:12px; background:#fff3cd; border-radius:4px; font-size:13px; color:#856404;">
-            ⚠️ File PDF hanya sebagai referensi. Untuk peta interaktif, gunakan KMZ/KML atau WebP+JSON.
-          </div>
-        `;
-      }
-    }
-
-    function renderLibraryBasemaps() {
-      const container = document.getElementById('library-content');
-      let html = '';
-
-      Object.keys(BASEMAP_PROVIDERS).forEach(key => {
-        const item = BASEMAP_PROVIDERS[key];
-        html += `
-          <div class="file-item">
-            <div class="file-info">
-              <svg class="icon"><use href="#${item.icon}"></use></svg>
-              <span class="file-name">${item.name}</span>
-            </div>
-            <button class="add-btn" onclick="setBasemap('${key}')">+ Aktifkan</button>
-          </div>
-        `;
-      });
-
-      container.innerHTML = html;
-    }
-
-    // ================================================================
-    // WAYPOINT FROM RETICLE
-    // ================================================================
-    function addWaypointAtReticle() {
-      const center = map.getCenter();
-      const marker = L.marker([center.lat, center.lng]).addTo(map);
-      marker.bindPopup('<b>Waypoint ' + waypointCount + '</b><br>Lat: ' + center.lat.toFixed(5) + '<br>Lng: ' + center.lng.toFixed(5)).openPopup();
-      waypointCount++;
-
-      const activeMap = mapCollection.find(m => m.isActive === true);
-      if (activeMap) {
-        if (!activeMap.geojson) {
-          activeMap.geojson = { type: 'FeatureCollection', features: [] };
-        }
-        activeMap.geojson.features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [center.lng, center.lat]
-          },
-          properties: {
-            name: 'Waypoint ' + (waypointCount - 1),
-            note: 'Dari crosshair',
-            timestamp: new Date().toISOString()
-          }
-        });
-        saveMapToDB(activeMap);
-        renderPointsView();
-        renderLibraryContent();
-      }
-    }
-
-    // ================================================================
-    // SETTINGS (Tetap dipertahankan untuk kompatibilitas)
-    // ================================================================
-    function openSettings() {
-      document.getElementById('settings-modal').classList.add('active');
-    }
-    function closeSettings() {
-      document.getElementById('settings-modal').classList.remove('active');
-    }
-
-    async function selectDefaultKMZFolder() {
-      if ('showDirectoryPicker' in window) {
-        try {
-          defaultDirHandle = await window.showDirectoryPicker();
-          await saveHandleToIDB(defaultDirHandle);
-          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
-          await scanFilesFromHandle(defaultDirHandle);
-          renderKMZLibrary();
-          alert("Folder default KMZ/KML berhasil disimpan!");
-        } catch (err) {
-          console.warn("Pemilihan folder dibatalkan:", err);
-        }
-      } else {
-        document.getElementById('folder-fallback-input').click();
-      }
-    }
-
-    function handleFallbackFolderSelect(event) {
-      const files = Array.from(event.target.files).filter(f =>
-        f.name.toLowerCase().endsWith('.kmz') || f.name.toLowerCase().endsWith('.kml')
-      );
-      scannedKmzFiles = files;
-      defaultDirHandle = { name: 'Folder dipilih (khusus sesi ini)' };
-      document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
-      renderKMZLibrary();
-      if (files.length === 0) {
-        alert('Tidak ditemukan file .kmz/.kml pada folder yang dipilih.');
-      }
-    }
-
-    async function saveHandleToIDB(handle) {
-      try {
-        const db = await openDB();
-        const tx = db.transaction('config', 'readwrite');
-        const store = tx.objectStore('config');
-        store.put(handle, 'defaultKMZFolder');
-      } catch (err) {
-        console.warn('IndexedDB tidak tersedia, folder tidak akan diingat antar sesi:', err);
-      }
-    }
-
-    async function getHandleFromIDB() {
-      try {
-        const db = await openDB();
-        return new Promise(resolve => {
-          const tx = db.transaction('config', 'readonly');
-          const store = tx.objectStore('config');
-          const req = store.get('defaultKMZFolder');
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => resolve(null);
-        });
-      } catch (err) {
-        return null;
-      }
-    }
-
-    async function initStoredKMZFolder() {
-      try {
-        defaultDirHandle = await getHandleFromIDB();
-        if (defaultDirHandle) {
-          document.getElementById('folder-path-text').innerText = defaultDirHandle.name;
-          if (defaultDirHandle.queryPermission) {
-            const opts = { mode: 'read' };
-            if ((await defaultDirHandle.queryPermission(opts)) === 'granted') {
-              await scanFilesFromHandle(defaultDirHandle);
-            } else {
-              document.getElementById('folder-path-text').innerText = defaultDirHandle.name + ' (Izin diperlukan)';
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Gagal memuat folder tersimpan:', err);
-      }
-      renderKMZLibrary();
-    }
-
-    async function scanFilesFromHandle(dirHandle) {
-      scannedKmzFiles = [];
-      try {
-        for await (const entry of dirHandle.values()) {
-          if (entry.kind === 'file' && (entry.name.endsWith('.kmz') || entry.name.endsWith('.kml'))) {
-            const file = await entry.getFile();
-            scannedKmzFiles.push(file);
-          }
-        }
-        renderKMZFileList();
-      } catch (err) {
-        console.warn("Gagal membaca isi folder:", err);
-      }
-    }
-
-    function renderKMZLibrary() {
-      const container = document.getElementById('library-content');
-      container.innerHTML = `
-        <div style="font-size:12px; color:#555; margin-bottom:8px;">
-          Folder Aktif: <b id="current-folder-label">${defaultDirHandle ? defaultDirHandle.name : 'Belum diatur'}</b>
-        </div>
-        <div id="kmz-file-list"></div>
-      `;
-      renderKMZFileList();
-    }
-
-    function renderKMZFileList() {
-      const listContainer = document.getElementById('kmz-file-list');
-      if (!listContainer) return;
-
-      if (!defaultDirHandle) {
-        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Atur folder default KMZ melalui menu Setting (ikon kunci pas).</p>`;
-        return;
-      }
-
-      if (scannedKmzFiles.length === 0) {
-        listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:13px; margin-top:20px;">Tidak ada file .kmz/.kml di dalam folder ini.</p>`;
-        return;
-      }
-
-      let html = '';
-      scannedKmzFiles.forEach((file, index) => {
-        html += `
-          <div class="file-item">
-            <div class="file-info">
-              <svg class="icon"><use href="#icon-file-code"></use></svg>
-              <span class="file-name">${file.name}</span>
-            </div>
-            <button class="add-btn" onclick="activateKMZFile(${index})">+ Aktifkan</button>
-          </div>
-        `;
-      });
-      listContainer.innerHTML = html;
-    }
-
-    async function activateKMZFile(index) {
-      const file = scannedKmzFiles[index];
-      if (!file) return;
-
-      try {
-        const data = await file.arrayBuffer();
-        const newMap = {
-          id: 'map_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-          name: file.name,
-          type: file.name.endsWith('.kmz') ? 'kmz' : 'kml',
-          fileData: data,
-          geojson: { type: 'FeatureCollection', features: [] },
-          created: new Date().toISOString(),
-          isActive: false,
-          source: 'folder'
-        };
-        await saveMapToDB(newMap);
-        mapCollection.push(newMap);
-        renderLibraryContent();
-        renderPointsView();
-        alert('✅ ' + file.name + ' berhasil disimpan ke Library!');
-      } catch (err) {
-        console.error(err);
-        alert('Gagal memuat file: ' + err.message);
-      }
-    }
-
-    // ================================================================
-    // FULLSCREEN
-    // ================================================================
-    function toggleFullScreen() {
-      const docEl = document.documentElement;
-
-      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (docEl.requestFullscreen) {
-          docEl.requestFullscreen();
-        } else if (docEl.webkitRequestFullscreen) {
-          docEl.webkitRequestFullscreen();
-        }
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-          document.webkitExitFullscreen();
-        }
-      }
-    }
-
-    function updateFullscreenButton() {
-      const fsBtn = document.getElementById('btn-fullscreen');
-      if (!fsBtn) return;
-
-      if (document.fullscreenElement || document.webkitFullscreenElement) {
-        fsBtn.innerText = '[x]';
-      } else {
-        fsBtn.innerText = '[ ]';
-      }
-    }
-
-    document.addEventListener('fullscreenchange', updateFullscreenButton);
-    document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
-
-    // ================================================================
-    // RESIZE HANDLER
-    // ================================================================
-    window.addEventListener('resize', () => {
-      if (map) {
-        map.invalidateSize();
-      }
+        listEl.innerHTML = html;
+        document.getElementById('geopdf-select-modal').classList.add('active');
     });
+}
+function selectGeoCandidate(index) {
+    if (window._geoSelectionResolve) {
+        window._geoSelectionResolve(window._geoCandidates[index]);
+        document.getElementById('geopdf-select-modal').classList.remove('active');
+    }
+}
+function cancelGeoSelection() {
+    if (window._geoSelectionReject) {
+        window._geoSelectionReject(new Error('Pemilihan georeferensi dibatalkan.'));
+        document.getElementById('geopdf-select-modal').classList.remove('active');
+    }
+}
 
-    // ================================================================
-    // START
-    // ================================================================
-    window.onload = initMap;
-  </script>
+function uploadGeoPDF(){
+const input=document.createElement('input');input.type='file';input.accept='.pdf,.geopdf';input.multiple=true;
+input.onchange=async(e)=>{const files=Array.from(e.target.files);for(const file of files){try{showNotification('⏳ Mengkonversi '+file.name+'...',5000);const data=await file.arrayBuffer();const result=await convertGeoPDFToWebP(data,file.name);const m={id:'map_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),name:file.name.replace(/\.[^/.]+$/,'')+'.webp',type:'webp_json',fileData:data,webpData:result.webpData,metadata:result.metadata,geojson:{type:'FeatureCollection',features:[]},created:new Date().toISOString(),isActive:false,source:'geopdf',isGeoPDF:true,converted:true,bounds:result.metadata.bounds,minZoom:1,maxZoom:22,jsonData:JSON.stringify(result.metadata)};await saveMapToDB(m);mapCollection.push(m);showNotification('✅ '+file.name+' berhasil dikonversi!',3000);}catch(err){console.error('Gagal konversi GeoPDF:',err);if(err.message!=='Pemilihan georeferensi dibatalkan.')alert('Gagal konversi '+file.name+': '+err.message);}}renderLibraryContent();renderPointsView();};
+input.click();
+}
+
+function uploadWebPJSON(){
+const input=document.createElement('input');input.type='file';input.accept='.webp,.json';input.multiple=true;
+input.onchange=async(e)=>{const files=Array.from(e.target.files||[]);const wf=files.find(f=>f.name.toLowerCase().endsWith('.webp'));const jf=files.find(f=>f.name.toLowerCase().endsWith('.json'));if(!wf||!jf){alert('Pilih 2 file: .webp dan .json');return;}
+try{const wd=await wf.arrayBuffer();const meta=JSON.parse(await jf.text());const bounds=normalizeMapBounds(meta.bounds||meta.bbox||meta.extent||meta.boundingBox);if(!bounds)throw new Error('JSON tidak memiliki bounds valid.');const m={id:'map_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),name:wf.name.replace(/\.[^/.]+$/,'')+'.webp',type:'webp_json',webpData:wd,tilesData:wd,metadata:{...meta,bounds,format:'webp',sourceJson:jf.name},bounds,minZoom:Number(meta.minZoom||meta.minzoom||1),maxZoom:Number(meta.maxZoom||meta.maxzoom||22),geojson:{type:'FeatureCollection',features:[]},created:new Date().toISOString(),isActive:false,source:'webp_json_upload',isGeoPDF:false,converted:true};await saveMapToDB(m);mapCollection.push(m);renderLibraryContent();renderPointsView();showNotification('✅ '+wf.name+' ditambahkan.',3500);}catch(err){alert('Gagal: '+err.message);}};
+input.click();
+}
+function normalizeMapBounds(v){if(!Array.isArray(v)||v.length<4)return null;const a=Number(v[0]),b=Number(v[1]),c=Number(v[2]),d=Number(v[3]);if(![a,b,c,d].every(Number.isFinite))return null;if(a>=-90&&a<=90&&c>=-90&&c<=90&&b>=-180&&b<=180&&d>=-180&&d<=180&&a<=c)return[a,b,c,d];if(a>=-180&&a<=180&&c>=-180&&c<=180&&b>=-90&&b<=90&&d>=-90&&d<=90&&b<=d)return[b,a,d,c];return null;}
+function getWebPArrayBuffer(md){for(const v of[md.webpData,md.imageData,md.webPData,md.tilesData]){if(v instanceof ArrayBuffer&&v.byteLength>0)return v;if(v instanceof Uint8Array&&v.byteLength>0)return v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength);if(v&&v.buffer instanceof ArrayBuffer&&v.byteLength>0)return v.buffer.slice(v.byteOffset||0,(v.byteOffset||0)+v.byteLength);}return null;}
+const GEOPDF_BOUNDS_OFFSET={dLat:0,dLon:0};
+function createWebPImageLayer(mapData){
+const bytes=getWebPArrayBuffer(mapData);if(!bytes)throw new Error('Data WebP tidak ditemukan.');
+const raw=mapData.bounds||mapData.metadata?.bounds||mapData.metadata?.bbox||mapData.metadata?.extent;
+let bounds=normalizeMapBounds(raw);if(!bounds)throw new Error('Bounds WebP tidak valid.');
+const oLat=Number(mapData.metadata?.offsetLat??GEOPDF_BOUNDS_OFFSET.dLat)||0;
+const oLon=Number(mapData.metadata?.offsetLon??GEOPDF_BOUNDS_OFFSET.dLon)||0;
+if(oLat||oLon)bounds=[bounds[0]+oLat,bounds[1]+oLon,bounds[2]+oLat,bounds[3]+oLon];
+const blob=new Blob([bytes],{type:'image/webp'});const url=URL.createObjectURL(blob);
+const ib=L.latLngBounds([bounds[0],bounds[1]],[bounds[2],bounds[3]]);
+const layer=L.imageOverlay(url,ib,{opacity:1,interactive:false,crossOrigin:false,zIndex:300});
+layer._webpObjectUrl=url;
+layer.on('load',()=>console.log('✅ WebP dirender:',mapData.name));
+layer.on('error',()=>{console.error('❌ WebP gagal:',mapData.name);showNotification('❌ WebP gagal dirender.',4000);});
+return{layer,bounds:ib};
+}
+
+function renderLibraryContent(){
+const c=document.getElementById('library-content');
+c.innerHTML='<div class="upload-btn-wrapper">'
++'<button class="add-btn" onclick="uploadKMZFile()"><svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload KMZ/KML</button>'
++'<button class="add-btn" onclick="uploadGeoPDF()" style="background:#ff9800;"><svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Upload GeoPDF</button>'
++'<button class="add-btn" onclick="uploadWebPJSON()" style="background:#607d8b;"><svg class="icon" style="width:14px;height:14px;display:inline;vertical-align:middle;"><use href="#icon-upload"></use></svg> Import WebP+JSON</button>'
++'</div>'
++'<div style="font-size:12px;color:#555;margin-bottom:8px;">Total: <b>'+mapCollection.length+'</b> peta tersimpan '
++(gdalReady?'<span style="color:#4CAF50;margin-left:8px;">✅ gdal3.js siap</span>':'<span style="color:#ff9800;margin-left:8px;">⚠️ gdal3.js tidak tersedia</span>')
++'</div>'
++'<div id="library-file-list"></div>';
+renderLibraryFileList();
+}
+
+// ★★★ PERBAIKAN: renderLibraryFileList ★★★
+function renderLibraryFileList(){
+const lc=document.getElementById('library-file-list');if(!lc)return;
+if(!mapCollection.length){lc.innerHTML='<p style="text-align:center;color:#666;font-size:13px;margin-top:20px;">📭 Belum ada file.</p>';return;}
+let h='';
+mapCollection.forEach(md=>{
+const isActive=activeLayers[md.id]!==undefined;
+const icon=md.type==='kmz'||md.type==='kml'?'icon-file-kmz':md.type==='webp_json'?'icon-pdf':'icon-pdf';
+const pc=md.geojson?.features?.length||0;
+
+// ★ HILANGKAN EKSTENSI dari nama peta
+const displayName = md.name.replace(/\.[^/.]+$/, '');
+
+h+='<div class="file-item" style="'+(isActive?'border-left:3px solid #4CAF50;':'')+'">'
++'<div class="file-info">'
++'<svg class="icon"><use href="#'+icon+'"></use></svg>'
+// ★ Hanya nama peta (tanpa ekstensi), tanpa typeLabel, tanpa GeoPDF badge
++'<span class="file-name" title="'+md.name+'">'+displayName+'</span>'
++'<span style="font-size:10px;color:#888;white-space:nowrap;">📍'+pc+'</span>'
++'</div>'
++'<div class="file-actions">'
+// ★ GANTI: "Aktifkan" → "Add", "Nonaktif" → "ON" (hijau)
++(!isActive
+    ? '<button class="add-btn" onclick="activateMap(\''+md.id+'\')">Add</button>'
+    : '<button class="on-btn" onclick="deactivateMap(\''+md.id+'\')">ON</button>')
++'<button class="delete-btn" onclick="deleteMap(\''+md.id+'\')" title="Hapus"><svg class="icon" style="width:14px;height:14px;"><use href="#icon-trash"></use></svg></button>'
++'</div></div>';
+});
+lc.innerHTML=h;
+}
+
+function activateMap(mapId){
+const md=mapCollection.find(m=>m.id===mapId);if(!md)return;
+if(activeLayers[mapId])deactivateMap(mapId);
+try{
+if(md.type==='kmz'||md.type==='kml'){
+const reader=new FileReader();
+reader.onload=async function(e){
+try{let kmlText='';
+if(md.type==='kmz'){const zip=await JSZip.loadAsync(md.fileData);const kf=Object.keys(zip.files).find(f=>f.toLowerCase().endsWith('.kml'));if(kf)kmlText=await zip.files[kf].async('string');else{alert('Tidak ada KML di KMZ');return;}}
+else kmlText=new TextDecoder().decode(md.fileData);
+const fg=parseKMLToLeaflet(kmlText);if(!fg.getLayers().length){alert('Tidak ada fitur valid.');return;}
+fg.addTo(map);const b=fg.getBounds();if(b.isValid())map.fitBounds(b,{padding:[20,20]});
+activeLayers[mapId]={name:md.name,layer:fg};md.isActive=true;
+updateActiveLayersUI();renderLibraryContent();renderPointsView();activeMapId=mapId;
+showNotification('✅ '+md.name+' diaktifkan');
+}catch(err){alert('Gagal: '+err.message);}};
+reader.readAsArrayBuffer(new Blob([md.fileData]));
+}else if(md.type==='webp_json'){
+try{const result=createWebPImageLayer(md);if(typeof result.layer.setOpacity==='function')result.layer.setOpacity(webpOpacity);
+result.layer.addTo(map);activeLayers[mapId]={name:md.name,layer:result.layer,type:'webp_json'};md.isActive=true;
+updateActiveLayersUI();renderLibraryContent();renderPointsView();activeMapId=mapId;
+setTimeout(()=>{map.invalidateSize();map.fitBounds(result.bounds,{padding:[20,20],maxZoom:Number(md.maxZoom||22)});updateReticleCoordinates();},50);
+showNotification('✅ '+md.name+' ditampilkan di peta',3000);
+}catch(err){alert('Gagal: '+err.message);}}
+else showNotification('⚠️ Format tidak didukung: '+md.type);
+}catch(err){alert('Gagal mengaktifkan: '+err.message);}
+}
+function deactivateMap(mapId){if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];const md=mapCollection.find(m=>m.id===mapId);if(md)md.isActive=false;updateActiveLayersUI();renderLibraryContent();renderPointsView();if(activeMapId===mapId)activeMapId=null;showNotification('🗑️ Peta dinonaktifkan');}}
+async function deleteMap(mapId){const md=mapCollection.find(m=>m.id===mapId);if(!md)return;if(!confirm('Hapus "'+md.name+'"?'))return;try{if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];}await deleteMapFromDB(mapId);mapCollection=mapCollection.filter(m=>m.id!==mapId);if(activeMapId===mapId)activeMapId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();showNotification('🗑️ "'+md.name+'" dihapus');}catch(err){alert('Gagal menghapus: '+err.message);}}
+
+function updateActiveLayersUI(){const c=document.getElementById('active-layers');let h='';Object.keys(activeLayers).forEach(id=>{const it=activeLayers[id];h+='<div class="file-item"><div class="file-info"><svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg><span class="file-name">'+it.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="remove-btn" onclick="deactivateMap(\''+id+'\')">Hapus</button></div>';});c.innerHTML=h;}
+
+function kmlColorToLeaflet(kc){if(!kc||kc.trim().length!==8)return{color:'#3388ff',opacity:1};const h=kc.trim();const a=parseInt(h.substring(0,2),16)/255;return{color:'#'+h.substring(6,8)+h.substring(4,6)+h.substring(2,4),opacity:isNaN(a)?1:a};}
+function parseKMLToLeaflet(kmlText){
+const parser=new DOMParser();const xml=parser.parseFromString(kmlText,"text/xml");const lg=L.featureGroup();const sm={};
+const styles=xml.getElementsByTagName("Style");for(let i=0;i<styles.length;i++){const s=styles[i];const id=s.getAttribute("id");if(!id)continue;sm[id]={};const ls=s.getElementsByTagName("LineStyle")[0];if(ls){const c=ls.getElementsByTagName("color")[0]?.textContent;const w=ls.getElementsByTagName("width")[0]?.textContent;if(c)sm[id].line=kmlColorToLeaflet(c);if(w)sm[id].weight=parseFloat(w);}const ps=s.getElementsByTagName("PolyStyle")[0];if(ps){const c=ps.getElementsByTagName("color")[0]?.textContent;const f=ps.getElementsByTagName("fill")[0]?.textContent;const o=ps.getElementsByTagName("outline")[0]?.textContent;if(c)sm[id].poly=kmlColorToLeaflet(c);if(f!==undefined)sm[id].hasFill=f.trim()!=='0';if(o!==undefined)sm[id].hasOutline=o.trim()!=='0';}}
+const sms=xml.getElementsByTagName("StyleMap");for(let i=0;i<sms.length;i++){const s=sms[i];const id=s.getAttribute("id");if(!id)continue;const pairs=s.getElementsByTagName("Pair");for(let j=0;j<pairs.length;j++){const key=pairs[j].getElementsByTagName("key")[0]?.textContent?.trim();if(key==="normal"){const su=pairs[j].getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#","");if(su&&sm[su])sm[id]=sm[su];}}}
+const pms=xml.getElementsByTagName("Placemark");for(let i=0;i<pms.length;i++){const pm=pms[i];const name=pm.getElementsByTagName("name")[0]?.textContent||"Elemen "+(i+1);const su=pm.getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#","");const as=sm[su]||{};const lHex=as.line?.color||'#000000';const lOp=as.line?.opacity??1;const fHex=as.poly?.color||lHex;const fOp=as.poly?.opacity??0.6;
+const pts=pm.getElementsByTagName("Point");for(let j=0;j<pts.length;j++){const co=pts[j].getElementsByTagName("coordinates")[0];if(co){const p=co.textContent.trim().split(",");if(p.length>=2){const lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))L.circleMarker([lat,lng],{radius:6,color:lHex,fillColor:fHex,fillOpacity:0.9,weight:1.5}).bindPopup('<b>'+name+'</b>').addTo(lg);}}}
+const lines=pm.getElementsByTagName("LineString");for(let j=0;j<lines.length;j++){const co=lines[j].getElementsByTagName("coordinates")[0];if(co){const ll=[];co.textContent.trim().split(/\s+/).forEach(c=>{const p=c.split(",");if(p.length>=2){const lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))ll.push([lat,lng]);}});if(ll.length)L.polyline(ll,{color:lHex,opacity:lOp,weight:as.weight||3}).bindPopup('<b>'+name+'</b>').addTo(lg);}}
+const polys=pm.getElementsByTagName("Polygon");for(let j=0;j<polys.length;j++){const co=polys[j].getElementsByTagName("coordinates")[0];if(co){const ll=[];co.textContent.trim().split(/\s+/).forEach(c=>{const p=c.split(",");if(p.length>=2){const lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))ll.push([lat,lng]);}});if(ll.length)L.polygon(ll,{stroke:true,color:lHex,opacity:lOp,weight:as.weight||1,fill:true,fillColor:fHex,fillOpacity:fOp}).bindPopup('<b>'+name+'</b>').addTo(lg);}}}
+return lg;
+}
+
+function setBasemap(key){const p=BASEMAP_PROVIDERS[key];if(!p)return;if(activeLayers['basemap'])map.removeLayer(activeLayers['basemap'].layer);const tl=L.tileLayer(p.url,{maxZoom:22,maxNativeZoom:p.maxNativeZoom||19,attribution:p.name}).addTo(map);activeLayers['basemap']={name:p.name,layer:tl};updateActiveLayersUI();}
+
+function renderPointsView(){
+const c=document.getElementById('points-list-container');const mn=document.getElementById('points-map-name');
+const am=mapCollection.find(m=>m.isActive===true);
+if(!am){mn.textContent='Pilih peta terlebih dahulu';c.innerHTML='<div class="empty-points">📭 Tidak ada peta aktif.</div>';return;}
+mn.textContent='📄 '+am.name.replace(/\.[^/.]+$/,'')+' ('+(am.geojson?.features?.length||0)+' titik)';
+const f=am.geojson?.features||[];
+if(!f.length){c.innerHTML='<div class="empty-points">📭 Belum ada titik.</div>';return;}
+let h='';f.forEach((ft,i)=>{const co=ft.geometry.coordinates;const nm=ft.properties?.name||'Titik '+(i+1);const nt=ft.properties?.note||'';
+h+='<div class="point-item"><div class="point-info"><span class="point-name">'+nm+'</span><span class="point-coords">'+co[1].toFixed(6)+', '+co[0].toFixed(6)+(nt?' • '+nt:'')+'</span></div><div class="point-actions"><button onclick="flyToPoint('+i+')" title="Lokasi">📍</button><button class="btn-delete-point" onclick="deletePoint('+i+')" title="Hapus">✕</button></div></div>';});
+c.innerHTML=h;
+}
+function addPointFromCrosshair(){
+const am=mapCollection.find(m=>m.isActive===true);if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
+const c=map.getCenter();const name=prompt('Nama titik:','Waypoint '+waypointCount);if(!name)return;const note=prompt('Catatan (opsional):','');
+if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};
+am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name,note:note||'',timestamp:new Date().toISOString()}});
+saveMapToDB(am).then(()=>{waypointCount++;renderPointsView();renderLibraryContent();showNotification('✅ Titik "'+name+'" ditambahkan');});
+L.marker([c.lat,c.lng]).addTo(map).bindPopup('<b>'+name+'</b><br>'+c.lat.toFixed(5)+', '+c.lng.toFixed(5)+(note?'<br>'+note:'')).openPopup();
+}
+function flyToPoint(i){const am=mapCollection.find(m=>m.isActive===true);if(!am)return;const f=am.geojson?.features[i];if(!f)return;map.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],17);}
+async function deletePoint(i){const am=mapCollection.find(m=>m.isActive===true);if(!am)return;if(!confirm('Hapus titik ini?'))return;am.geojson.features.splice(i,1);await saveMapToDB(am);renderPointsView();renderLibraryContent();showNotification('🗑️ Titik dihapus');}
+async function clearAllPoints(){const am=mapCollection.find(m=>m.isActive===true);if(!am)return;const c=am.geojson?.features?.length||0;if(!c){alert('Tidak ada titik.');return;}if(!confirm('Hapus semua '+c+' titik?'))return;am.geojson.features=[];await saveMapToDB(am);renderPointsView();renderLibraryContent();showNotification('🗑️ Semua titik dihapus');}
+
+function exportPoints(format){
+const am=mapCollection.find(m=>m.isActive===true);if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
+const f=am.geojson?.features||[];if(!f.length){alert('Tidak ada titik.');return;}
+let content='',filename=am.name.replace(/\.[^/.]+$/,'')+'_points',mimeType='';
+switch(format){
+case'txt':content='Name\tLat\tLng\tNote\n'+f.map(x=>x.properties.name+'\t'+x.geometry.coordinates[1].toFixed(6)+'\t'+x.geometry.coordinates[0].toFixed(6)+'\t'+(x.properties.note||'')).join('\n');filename+='.txt';mimeType='text/plain';break;
+case'csv':content='Name,Lat,Lng,Note\n'+f.map(x=>'"'+x.properties.name+'",'+x.geometry.coordinates[1].toFixed(6)+','+x.geometry.coordinates[0].toFixed(6)+',"'+(x.properties.note||'')+'"').join('\n');filename+='.csv';mimeType='text/csv';break;
+case'kml':content='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<name>'+am.name+'</name>\n';f.forEach(x=>{content+='<Placemark>\n<name>'+x.properties.name+'</name>\n';if(x.properties.note)content+='<description>'+x.properties.note+'</description>\n';content+='<Point>\n<coordinates>'+x.geometry.coordinates[0]+','+x.geometry.coordinates[1]+'</coordinates>\n</Point>\n</Placemark>\n';});content+='</Document>\n</kml>';filename+='.kml';mimeType='application/vnd.google-earth.kml+xml';break;
+default:return;}
+const blob=new Blob([content],{type:mimeType+';charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+showNotification('✅ '+filename+' diexport ('+f.length+' titik)');
+}
+
+function showNotification(msg,dur=3000){const e=document.querySelector('.custom-notification');if(e)e.remove();const n=document.createElement('div');n.className='custom-notification';n.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:white;padding:10px 20px;border-radius:8px;font-size:13px;z-index:99999;max-width:90%;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.3);backdrop-filter:blur(10px);transition:opacity 0.3s;';n.textContent=msg;document.body.appendChild(n);setTimeout(()=>{n.style.opacity='0';setTimeout(()=>n.remove(),300);},dur);}
+
+function toggleView(){
+const mv=document.getElementById('map-view'),lv=document.getElementById('layers-view'),pv=document.getElementById('points-view');
+const nu=document.getElementById('nav-icon-use');const mc=document.querySelectorAll('.map-only-control');
+if(currentView==='map'){mv.classList.remove('active');lv.classList.add('active');pv.classList.remove('active');nu.setAttribute('href','#icon-map');mc.forEach(el=>el.style.visibility='hidden');currentView='layers';}
+else if(currentView==='layers'){lv.classList.remove('active');pv.classList.add('active');mv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='hidden');currentView='points';renderPointsView();}
+else{pv.classList.remove('active');mv.classList.add('active');lv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='visible');currentView='map';setTimeout(()=>{map.invalidateSize();const am=mapCollection.find(m=>m.isActive===true);if(am&&activeLayers[am.id]&&activeLayers[am.id].type==='webp_json'){const l=activeLayers[am.id].layer;if(l&&l.getBounds&&l.getBounds().isValid())map.fitBounds(l.getBounds(),{padding:[20,20]});}},100);}
+}
+
+function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));event.currentTarget.classList.add('active');if(tabName==='basemap')renderLibraryBasemaps();else if(tabName==='kmz')renderLibraryContent();else if(tabName==='maps'){document.getElementById('library-content').innerHTML='<div style="font-size:13px;color:#555;margin-bottom:10px;">📄 File PDF referensi</div><div style="margin-top:12px;padding:12px;background:#fff3cd;border-radius:4px;font-size:13px;color:#856404;">⚠️ Gunakan Upload GeoPDF untuk peta interaktif.</div>';}}
+function renderLibraryBasemaps(){const c=document.getElementById('library-content');let h='';Object.keys(BASEMAP_PROVIDERS).forEach(k=>{const it=BASEMAP_PROVIDERS[k];h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#'+it.icon+'"></use></svg><span class="file-name">'+it.name+'</span></div><button class="add-btn" onclick="setBasemap(\''+k+'\')">+ Aktifkan</button></div>';});c.innerHTML=h;}
+
+function addWaypointAtReticle(){const c=map.getCenter();L.marker([c.lat,c.lng]).addTo(map).bindPopup('<b>Waypoint '+waypointCount+'</b><br>Lat: '+c.lat.toFixed(5)+'<br>Lng: '+c.lng.toFixed(5)).openPopup();waypointCount++;const am=mapCollection.find(m=>m.isActive===true);if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'Dari crosshair',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();}}
+
+function openSettings(){document.getElementById('settings-modal').classList.add('active');}
+function closeSettings(){document.getElementById('settings-modal').classList.remove('active');}
+async function selectDefaultKMZFolder(){if('showDirectoryPicker' in window){try{defaultDirHandle=await window.showDirectoryPicker();await saveHandleToIDB(defaultDirHandle);document.getElementById('folder-path-text').innerText=defaultDirHandle.name;await scanFilesFromHandle(defaultDirHandle);renderKMZLibrary();alert("Folder disimpan!");}catch(err){console.warn(err);}}else document.getElementById('folder-fallback-input').click();}
+function handleFallbackFolderSelect(event){const files=Array.from(event.target.files).filter(f=>f.name.toLowerCase().endsWith('.kmz')||f.name.toLowerCase().endsWith('.kml'));scannedKmzFiles=files;defaultDirHandle={name:'Folder (sesi ini)'};document.getElementById('folder-path-text').innerText=defaultDirHandle.name;renderKMZLibrary();if(!files.length)alert('Tidak ada .kmz/.kml.');}
+async function saveHandleToIDB(h){try{const db=await openDB();db.transaction('config','readwrite').objectStore('config').put(h,'defaultKMZFolder');}catch(e){}}
+async function getHandleFromIDB(){try{const db=await openDB();return new Promise(r=>{const req=db.transaction('config','readonly').objectStore('config').get('defaultKMZFolder');req.onsuccess=()=>r(req.result);req.onerror=()=>r(null);});}catch(e){return null;}}
+async function scanFilesFromHandle(dh){scannedKmzFiles=[];try{for await(const e of dh.values())if(e.kind==='file'&&(e.name.endsWith('.kmz')||e.name.endsWith('.kml')))scannedKmzFiles.push(await e.getFile());renderKMZFileList();}catch(e){console.warn(e);}}
+function renderKMZLibrary(){const c=document.getElementById('library-content');c.innerHTML='<div style="font-size:12px;color:#555;margin-bottom:8px;">Folder: <b>'+(defaultDirHandle?defaultDirHandle.name:'Belum diatur')+'</b></div><div id="kmz-file-list"></div>';renderKMZFileList();}
+function renderKMZFileList(){const lc=document.getElementById('kmz-file-list');if(!lc)return;if(!defaultDirHandle){lc.innerHTML='<p style="text-align:center;color:#666;font-size:13px;margin-top:20px;">Atur folder via Settings.</p>';return;}if(!scannedKmzFiles.length){lc.innerHTML='<p style="text-align:center;color:#666;font-size:13px;margin-top:20px;">Tidak ada file .kmz/.kml.</p>';return;}let h='';scannedKmzFiles.forEach((f,i)=>{h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#icon-file-code"></use></svg><span class="file-name">'+f.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="add-btn" onclick="activateKMZFile('+i+')">+ Aktifkan</button></div>';});lc.innerHTML=h;}
+async function activateKMZFile(i){const f=scannedKmzFiles[i];if(!f)return;try{const d=await f.arrayBuffer();const m={id:'map_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),name:f.name,type:f.name.endsWith('.kmz')?'kmz':'kml',fileData:d,geojson:{type:'FeatureCollection',features:[]},created:new Date().toISOString(),isActive:false,source:'folder'};await saveMapToDB(m);mapCollection.push(m);renderLibraryContent();renderPointsView();alert('✅ '+f.name+' disimpan!');}catch(e){alert('Gagal: '+e.message);}}
+
+function toggleOpacityPanel(){const e=document.getElementById('opacity-control');if(e)e.classList.toggle('collapsed');}
+function setWebPOpacity(pct){const v=Math.max(0,Math.min(100,Number(pct)));webpOpacity=v/100;const l=document.getElementById('opacity-value');if(l)l.textContent=Math.round(v)+'%';const s=document.getElementById('opacity-slider');if(s&&Number(s.value)!==v)s.value=v;Object.keys(activeLayers).forEach(id=>{const it=activeLayers[id];if(it&&it.type==='webp_json'&&it.layer&&typeof it.layer.setOpacity==='function')it.layer.setOpacity(webpOpacity);});}
+
+function toggleFullScreen(){const d=document.documentElement;if(!document.fullscreenElement&&!document.webkitFullscreenElement){if(d.requestFullscreen)d.requestFullscreen();else if(d.webkitRequestFullscreen)d.webkitRequestFullscreen();}else{if(document.exitFullscreen)document.exitFullscreen();else if(d.webkitExitFullscreen)d.webkitExitFullscreen();}}
+function updateFullscreenButton(){const b=document.getElementById('btn-fullscreen');if(!b)return;b.innerText=(document.fullscreenElement||document.webkitFullscreenElement)?'[x]':'[ ]';}
+document.addEventListener('fullscreenchange',updateFullscreenButton);
+document.addEventListener('webkitfullscreenchange',updateFullscreenButton);
+window.addEventListener('resize',()=>{if(map)map.invalidateSize();});
+window.onload=initMap;
+</script>
 </body>
 </html>
