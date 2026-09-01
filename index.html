@@ -691,15 +691,133 @@ async function deleteMap(mapId){const md=mapCollection.find(m=>m.id===mapId);if(
 function updateActiveLayersUI(){const c=document.getElementById('active-layers');let h='';Object.keys(activeLayers).forEach(id=>{const it=activeLayers[id];h+='<div class="file-item"><div class="file-info"><svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg><span class="file-name">'+it.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="remove-btn" onclick="deactivateMap(\''+id+'\')">Hapus</button></div>';});c.innerHTML=h;}
 
 function kmlColorToLeaflet(kc){if(!kc||kc.trim().length!==8)return{color:'#3388ff',opacity:1};const h=kc.trim();const a=parseInt(h.substring(0,2),16)/255;return{color:'#'+h.substring(6,8)+h.substring(4,6)+h.substring(2,4),opacity:isNaN(a)?1:a};}
-function parseKMLToLeaflet(kmlText){
-const parser=new DOMParser();const xml=parser.parseFromString(kmlText,"text/xml");const lg=L.featureGroup();const sm={};
-const styles=xml.getElementsByTagName("Style");for(let i=0;i<styles.length;i++){const s=styles[i];const id=s.getAttribute("id");if(!id)continue;sm[id]={};const ls=s.getElementsByTagName("LineStyle")[0];if(ls){const c=ls.getElementsByTagName("color")[0]?.textContent;const w=ls.getElementsByTagName("width")[0]?.textContent;if(c)sm[id].line=kmlColorToLeaflet(c);if(w)sm[id].weight=parseFloat(w);}const ps=s.getElementsByTagName("PolyStyle")[0];if(ps){const c=ps.getElementsByTagName("color")[0]?.textContent;const f=ps.getElementsByTagName("fill")[0]?.textContent;const o=ps.getElementsByTagName("outline")[0]?.textContent;if(c)sm[id].poly=kmlColorToLeaflet(c);if(f!==undefined)sm[id].hasFill=f.trim()!=='0';if(o!==undefined)sm[id].hasOutline=o.trim()!=='0';}}
-const sms=xml.getElementsByTagName("StyleMap");for(let i=0;i<sms.length;i++){const s=sms[i];const id=s.getAttribute("id");if(!id)continue;const pairs=s.getElementsByTagName("Pair");for(let j=0;j<pairs.length;j++){const key=pairs[j].getElementsByTagName("key")[0]?.textContent?.trim();if(key==="normal"){const su=pairs[j].getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#","");if(su&&sm[su])sm[id]=sm[su];}}}
-const pms=xml.getElementsByTagName("Placemark");for(let i=0;i<pms.length;i++){const pm=pms[i];const name=pm.getElementsByTagName("name")[0]?.textContent||"Elemen "+(i+1);const su=pm.getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#","");const as=sm[su]||{};const lHex=as.line?.color||'#000000';const lOp=as.line?.opacity??1;const fHex=as.poly?.color||lHex;const fOp=as.poly?.opacity??0.6;
-const pts=pm.getElementsByTagName("Point");for(let j=0;j<pts.length;j++){const co=pts[j].getElementsByTagName("coordinates")[0];if(co){const p=co.textContent.trim().split(",");if(p.length>=2){const lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))L.circleMarker([lat,lng],{radius:6,color:lHex,fillColor:fHex,fillOpacity:0.9,weight:1.5}).bindPopup('<b>'+name+'</b>').addTo(lg);}}}
-const lines=pm.getElementsByTagName("LineString");for(let j=0;j<lines.length;j++){const co=lines[j].getElementsByTagName("coordinates")[0];if(co){const ll=[];co.textContent.trim().split(/\s+/).forEach(c=>{const p=c.split(",");if(p.length>=2){const lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))ll.push([lat,lng]);}});if(ll.length)L.polyline(ll,{color:lHex,opacity:lOp,weight:as.weight||3}).bindPopup('<b>'+name+'</b>').addTo(lg);}}
-const polys=pm.getElementsByTagName("Polygon");for(let j=0;j<polys.length;j++){const co=polys[j].getElementsByTagName("coordinates")[0];if(co){const ll=[];co.textContent.trim().split(/\s+/).forEach(c=>{const p=c.split(",");if(p.length>=2){const lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))ll.push([lat,lng]);}});if(ll.length)L.polygon(ll,{stroke:true,color:lHex,opacity:lOp,weight:as.weight||1,fill:true,fillColor:fHex,fillOpacity:fOp}).bindPopup('<b>'+name+'</b>').addTo(lg);}}}
-return lg;
+function parseKMLToLeaflet(kmlText) {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(kmlText, "text/xml");
+    const lg = L.featureGroup();
+    const sm = {};
+
+    const styles = xml.getElementsByTagName("Style");
+    for (let i = 0; i < styles.length; i++) {
+        const s = styles[i];
+        const id = s.getAttribute("id");
+        if (!id) continue;
+        sm[id] = {};
+        const ls = s.getElementsByTagName("LineStyle")[0];
+        if (ls) {
+            const c = ls.getElementsByTagName("color")[0]?.textContent;
+            const w = ls.getElementsByTagName("width")[0]?.textContent;
+            if (c) sm[id].line = kmlColorToLeaflet(c);
+            if (w) sm[id].weight = parseFloat(w);
+        }
+        const ps = s.getElementsByTagName("PolyStyle")[0];
+        if (ps) {
+            const c = ps.getElementsByTagName("color")[0]?.textContent;
+            const f = ps.getElementsByTagName("fill")[0]?.textContent;
+            const o = ps.getElementsByTagName("outline")[0]?.textContent;
+            if (c) sm[id].poly = kmlColorToLeaflet(c);
+            if (f !== undefined) sm[id].hasFill = f.trim() !== '0';
+            if (o !== undefined) sm[id].hasOutline = o.trim() !== '0';
+        }
+    }
+
+    const sms = xml.getElementsByTagName("StyleMap");
+    for (let i = 0; i < sms.length; i++) {
+        const s = sms[i];
+        const id = s.getAttribute("id");
+        if (!id) continue;
+        const pairs = s.getElementsByTagName("Pair");
+        for (let j = 0; j < pairs.length; j++) {
+            const key = pairs[j].getElementsByTagName("key")[0]?.textContent?.trim();
+            if (key === "normal") {
+                const su = pairs[j].getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#", "");
+                if (su && sm[su]) sm[id] = sm[su];
+            }
+        }
+    }
+
+    const pms = xml.getElementsByTagName("Placemark");
+    for (let i = 0; i < pms.length; i++) {
+        const pm = pms[i];
+        const name = pm.getElementsByTagName("name")[0]?.textContent || "Elemen " + (i + 1);
+        const su = pm.getElementsByTagName("styleUrl")[0]?.textContent?.trim().replace("#", "");
+        const as = sm[su] || {};
+        const lHex = as.line?.color || '#000000';
+        const lOp = as.line?.opacity ?? 1;
+        const fHex = as.poly?.color || lHex;
+        const fOp = as.poly?.opacity ?? 0.6;
+
+        // POINTS
+        const pts = pm.getElementsByTagName("Point");
+        for (let j = 0; j < pts.length; j++) {
+            const co = pts[j].getElementsByTagName("coordinates")[0];
+            if (co) {
+                const p = co.textContent.trim().split(",");
+                if (p.length >= 2) {
+                    const lng = parseFloat(p[0]), lat = parseFloat(p[1]);
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        L.circleMarker([lat, lng], {
+                            radius: 6,
+                            color: lHex,
+                            fillColor: fHex,
+                            fillOpacity: 0.9,
+                            weight: 1.5
+                        }).bindPopup('<b>' + name + '</b>').addTo(lg);
+                    }
+                }
+            }
+        }
+
+        // LINES
+        const lines = pm.getElementsByTagName("LineString");
+        for (let j = 0; j < lines.length; j++) {
+            const co = lines[j].getElementsByTagName("coordinates")[0];
+            if (co) {
+                const ll = [];
+                co.textContent.trim().split(/\s+/).forEach(c => {
+                    const p = c.split(",");
+                    if (p.length >= 2) {
+                        const lng = parseFloat(p[0]), lat = parseFloat(p[1]);
+                        if (!isNaN(lat) && !isNaN(lng)) ll.push([lat, lng]);
+                    }
+                });
+                if (ll.length) {
+                    L.polyline(ll, {
+                        color: lHex,
+                        opacity: lOp,
+                        weight: as.weight || 3
+                    }).bindPopup('<b>' + name + '</b>').addTo(lg);
+                }
+            }
+        }
+
+        // ★ POLYGONS - OUTLINE DIHILANGKAN
+        const polys = pm.getElementsByTagName("Polygon");
+        for (let j = 0; j < polys.length; j++) {
+            const co = polys[j].getElementsByTagName("coordinates")[0];
+            if (co) {
+                const ll = [];
+                co.textContent.trim().split(/\s+/).forEach(c => {
+                    const p = c.split(",");
+                    if (p.length >= 2) {
+                        const lng = parseFloat(p[0]), lat = parseFloat(p[1]);
+                        if (!isNaN(lat) && !isNaN(lng)) ll.push([lat, lng]);
+                    }
+                });
+                if (ll.length) {
+                    L.polygon(ll, {
+                        stroke: false,              // ★ MATIKAN OUTLINE
+                        color: 'transparent',       // ★ WARNA TRANSPARENT
+                        weight: 0,                  // ★ TEBAL 0
+                        fill: true,
+                        fillColor: fHex,
+                        fillOpacity: fOp
+                    }).bindPopup('<b>' + name + '</b>').addTo(lg);
+                }
+            }
+        }
+    }
+    return lg;
 }
 
 function setBasemap(key){const p=BASEMAP_PROVIDERS[key];if(!p)return;if(activeLayers['basemap'])map.removeLayer(activeLayers['basemap'].layer);const tl=L.tileLayer(p.url,{maxZoom:22,maxNativeZoom:p.maxNativeZoom||19,attribution:p.name}).addTo(map);activeLayers['basemap']={name:p.name,layer:tl};updateActiveLayersUI();}
