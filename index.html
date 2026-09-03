@@ -300,6 +300,10 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
         <div class="popup-item" onclick="openSettings()">
             Map Features
         </div>
+		<!-- Item Baru: Settings -->
+			<div class="popup-item" onclick="openAppSettings()">
+        Settings
+		</div>
     </div>
 </div>
 </div>
@@ -1200,7 +1204,6 @@ function renderLibraryBasemaps(){const c=document.getElementById('library-conten
 
 function addWaypointAtReticle(){const c=map.getCenter();L.marker([c.lat,c.lng]).addTo(map).bindPopup('<b>Waypoint '+waypointCount+'</b><br>Lat: '+c.lat.toFixed(5)+'<br>Lng: '+c.lng.toFixed(5)).openPopup();waypointCount++;const am=mapCollection.find(m=>m.isActive===true);if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'Dari crosshair',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();}}
 
-function openSettings(){document.getElementById('settings-modal').classList.add('active');}
 function closeSettings(){document.getElementById('settings-modal').classList.remove('active');}
 async function selectDefaultKMZFolder(){if('showDirectoryPicker' in window){try{defaultDirHandle=await window.showDirectoryPicker();await saveHandleToIDB(defaultDirHandle);document.getElementById('folder-path-text').innerText=defaultDirHandle.name;await scanFilesFromHandle(defaultDirHandle);renderKMZLibrary();alert("Folder disimpan!");}catch(err){console.warn(err);}}else document.getElementById('folder-fallback-input').click();}
 function handleFallbackFolderSelect(event){const files=Array.from(event.target.files).filter(f=>f.name.toLowerCase().endsWith('.kmz')||f.name.toLowerCase().endsWith('.kml'));scannedKmzFiles=files;defaultDirHandle={name:'Folder (sesi ini)'};document.getElementById('folder-path-text').innerText=defaultDirHandle.name;renderKMZLibrary();if(!files.length)alert('Tidak ada .kmz/.kml.');}
@@ -1257,12 +1260,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Fungsi placeholder untuk item menu (nanti bisa diganti fungsi asli)
-function openSettings() {
-    // Panggil modal pengaturan lama jika masih ada
-    const oldModal = document.getElementById('settings-modal');
-    if (oldModal) oldModal.classList.add('active');
-    else alert("Fitur Map Features / Pengaturan Lama");
+// Fungsi untuk item "Map Features" di popup
+function openMapFeatures() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) {
+        modal.classList.add('active');
+    } else {
+        alert("Fitur Map Features belum tersedia.");
+    }
+    // Tutup popup tools setelah diklik
+    const popup = document.getElementById('tools-popup');
+    if (popup) popup.style.display = 'none';
+}
+
+// Fungsi untuk item "Settings" di popup
+function openAppSettings() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) {
+        modal.classList.add('active');
+    } else {
+        alert("Modal pengaturan tidak ditemukan.");
+    }
+    // Tutup popup tools setelah diklik
+    const popup = document.getElementById('tools-popup');
+    if (popup) popup.style.display = 'none';
 }
 </script>
 </body>
