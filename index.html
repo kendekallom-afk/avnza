@@ -379,57 +379,38 @@ async function convertGeoPDFToWebP(fileData, filename) {
     if (!src.byteLength) throw new Error('Data PDF kosong.');
     const bytesForGeo = src.slice(0), bytesForGdal = src.slice(0), bytesForPdf = src.slice(0);
 
-    // 1. Coba Jalur GDAL (Jika tersedia)
+    // 1. Coba Jalur GDAL
     if (gdalReady && gdal) {
         try {
             const file = new File([bytesForGdal], filename, { type: 'application/pdf' });
             const opened = await gdal.open(file);
-            if (opened && opened.datasets && opened.datasets.length) {
+            if (opened?.datasets?.length) {
                 const dataset = opened.datasets[0];
                 const info = await gdal.getInfo(dataset);
-                if (info && info.type === 'raster' && info.corners && info.corners.length) {
+                if (info?.type === 'raster' && info.corners?.length) {
                     const webpPath = await gdal.gdal_translate(dataset, ['-of', 'WEBP', '-co', 'QUALITY=90'], filename.replace(/\.[^/.]+$/, ''));
                     const webpBytes = await gdal.getFileBytes(webpPath);
                     const bounds = await cornersToLeafletBounds(info.corners, info.projectionWkt);
-                    if (!bounds) throw new Error('GDAL: georeferensi tidak dapat dipetakan ke WGS84.');
+                    if (!bounds) throw new Error('GDAL: georeferensi tidak valid.');
                     try { gdal.close(dataset); } catch (_) {}
-                    return {
-                        webpData: toArrayBuffer(webpBytes),
-                        metadata: {
-                            name: filename, bounds, width: info.width, height: info.height,
-                            projectionWkt: info.projectionWkt || '', source: 'gdal3.js',
-                            format: 'webp', scheme: 'image-overlay', jsonVersion: 1
-                        }
-                    };
+                    return { webpData: toArrayBuffer(webpBytes), metadata: { name: filename, bounds, width: info.width, height: info.height, projectionWkt: info.projectionWkt || '', source: 'gdal3.js', format: 'webp', scheme: 'image-overlay', jsonVersion: 1 } };
                 }
             }
-        } catch (err) {
-            console.warn('Jalur GDAL-PDF gagal, lanjut PDF.js:', err);
-        }
+        } catch (err) { console.warn('Jalur GDAL gagal, lanjut PDF.js:', err); }
     }
 
-    // 2. Ekstrak Georeferensi Manual (GPTS/LPTS)
+    // 2. Ekstrak Georeferensi
     const geoCandidates = await extractAllGeoPDFGeoreferences(bytesForGeo);
     let selectedGeo = null;
-
     if (geoCandidates && geoCandidates.length > 0) {
-        // ==========================================
-        // LOGIKA UNIVERSAL (BEBAS LOKASI)
-        // ==========================================
-        // Urutkan berdasarkan 'score' tertinggi.
-        // Karena scoreLatLonPoints sudah diprioritaskan berdasarkan pageFrac 
-        // (ukuran visual di halaman), skor tertinggi PASTI milik Peta Utama, 
-        // baik itu peta Mamuju, Jakarta, New York, atau Tokyo.
         geoCandidates.sort((a, b) => b.score - a.score);
         selectedGeo = geoCandidates[0];
-        
-        console.log(`[GeoPDF] ✅ Memilih Peta Utama (Skor Tertinggi):`, selectedGeo.bounds);
-        console.log(`[GeoPDF] 📏 PageFrac: ${selectedGeo.pageFrac.toFixed(2)} | GeoArea: ${selectedGeo.geoArea.toFixed(4)} deg²`);
+        console.log(`[GeoPDF] ✅ Memilih Peta Utama:`, selectedGeo.bounds);
     } else {
         throw new Error('Tidak ditemukan georeferensi valid di PDF.');
     }
 
-    // 3. Render PDF ke Canvas menggunakan PDF.js
+    // 3. Render PDF ke Canvas
     if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js belum tersedia.');
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const loadingTask = pdfjsLib.getDocument({ data: bytesForPdf.slice(0).buffer });
@@ -438,12 +419,9 @@ async function convertGeoPDFToWebP(fileData, filename) {
     const baseViewport = page.getViewport({ scale: 1 });
     const pageWidth = baseViewport.width, pageHeight = baseViewport.height;
 
-    // Tentukan skala render (maksimal 18 juta piksel agar tidak berat)
     const maxPixels = 18000000;
     let scale = 2.0;
-    if ((pageWidth * scale) * (pageHeight * scale) > maxPixels) {
-        scale = Math.sqrt(maxPixels / (pageWidth * pageHeight));
-    }
+    if ((pageWidth * scale) * (pageHeight * scale) > maxPixels) scale = Math.sqrt(maxPixels / (pageWidth * pageHeight));
     scale = Math.max(0.75, Math.min(scale, 3.0));
 
     const viewport = page.getViewport({ scale });
@@ -453,54 +431,79 @@ async function convertGeoPDFToWebP(fileData, filename) {
     const fullCtx = fullCanvas.getContext('2d', { alpha: false });
     await page.render({ canvasContext: fullCtx, viewport }).promise;
 
-    // 4. Logika Crop (Menggunakan viewportBBox yang sudah difilter di findNearbyViewportBBox)
-    let outCanvas = fullCanvas, cropInfo = null;
-    
-    if (selectedGeo && selectedGeo.viewportBBox && selectedGeo.viewportBBox.length >= 4) {
+    // 4. FULL PAGE DENGAN CORNER-BASED RECALCULATION (STABIL)
+    let outCanvas = fullCanvas;
+    let finalBounds = selectedGeo.bounds;
+    let mediaBox = selectedGeo.mediaBox;
+
+    if (mediaBox && mediaBox.length >= 4 && selectedGeo.viewportBBox) {
         const bb = selectedGeo.viewportBBox;
+        // Pastikan koordinat BBox benar (x1 < x2, y1 < y2)
         const pdfX0 = Math.min(bb[0], bb[2]), pdfX1 = Math.max(bb[0], bb[2]);
         const pdfY0 = Math.min(bb[1], bb[3]), pdfY1 = Math.max(bb[1], bb[3]);
+        
+        const paperX0 = Math.min(mediaBox[0], mediaBox[2]), paperX1 = Math.max(mediaBox[0], mediaBox[2]);
+        const paperY0 = Math.min(mediaBox[1], mediaBox[3]), paperY1 = Math.max(mediaBox[1], mediaBox[3]);
 
-        let cLeft, cTop, cRight, cBottom;
-        if (typeof viewport.convertToViewportRectangle === 'function') {
-            const vr = viewport.convertToViewportRectangle([pdfX0, pdfY0, pdfX1, pdfY1]);
-            cLeft = Math.min(vr[0], vr[2]); cRight = Math.max(vr[0], vr[2]);
-            cTop = Math.min(vr[1], vr[3]); cBottom = Math.max(vr[1], vr[3]);
-        } else {
-            cLeft = pdfX0 * scale; cRight = pdfX1 * scale;
-            cTop = (pageHeight - pdfY1) * scale; cBottom = (pageHeight - pdfY0) * scale;
+        const [minLat, minLon, maxLat, maxLon] = selectedGeo.bounds;
+        
+        // Hitung span geografis dan dimensi PDF
+        const latSpan = maxLat - minLat;
+        const lonSpan = maxLon - minLon;
+        const bboxW = pdfX1 - pdfX0;
+        const bboxH = pdfY1 - pdfY0;
+
+        // Hindari pembagian dengan nol
+        if (bboxW > 0 && bboxH > 0) {
+            // Fungsi interpolasi linear
+            function getGeoFromPdf(x, y) {
+                // Normalisasi posisi x,y relatif terhadap BBox Peta Utama
+                // Perhatikan: Di PDF, Y naik ke atas. Di Geo, Lat naik ke Utara.
+                const relX = (x - pdfX0) / bboxW;
+                const relY = (y - pdfY0) / bboxH; 
+                
+                return [
+                    minLat + (relY * latSpan),
+                    minLon + (relX * lonSpan)
+                ];
+            }
+
+            // Hitung bounds untuk 4 sudut KERTAS (MediaBox)
+            const cBL = getGeoFromPdf(paperX0, paperY0); // Bottom-Left
+            const cBR = getGeoFromPdf(paperX1, paperY0); // Bottom-Right
+            const cTL = getGeoFromPdf(paperX0, paperY1); // Top-Left
+            const cTR = getGeoFromPdf(paperX1, paperY1); // Top-Right
+
+            const lats = [cBL[0], cBR[0], cTL[0], cTR[0]];
+            const lons = [cBL[1], cBR[1], cTL[1], cTR[1]];
+
+            const newMinLat = Math.min(...lats);
+            const newMaxLat = Math.max(...lats);
+            const newMinLon = Math.min(...lons);
+            const newMaxLon = Math.max(...lons);
+
+            // Validasi agar bounds tidak terbalik
+            if (newMinLat < newMaxLat && newMinLon < newMaxLon) {
+                finalBounds = [newMinLat, newMinLon, newMaxLat, newMaxLon];
+                console.log('[GeoPDF] 📏 Bounds Full Page berhasil dihitung ulang.');
+            } else {
+                console.warn('[GeoPDF] ⚠️ Perhitungan bounds gagal (terbalik), menggunakan bounds asli.');
+            }
         }
-
-        cLeft = Math.max(0, Math.floor(cLeft)); cTop = Math.max(0, Math.floor(cTop));
-        cRight = Math.min(fullCanvas.width, Math.ceil(cRight)); cBottom = Math.min(fullCanvas.height, Math.ceil(cBottom));
-
-        const cropW = cRight - cLeft, cropH = cBottom - cTop;
-        if (cropW > 10 && cropH > 10 && cropW * cropH > fullCanvas.width * fullCanvas.height * 0.05) {
-            const cropped = document.createElement('canvas');
-            cropped.width = cropW; cropped.height = cropH;
-            cropped.getContext('2d', { alpha: false }).drawImage(fullCanvas, cLeft, cTop, cropW, cropH, 0, 0, cropW, cropH);
-            outCanvas = cropped;
-            cropInfo = { cLeft, cTop, cropW, cropH };
-            console.log('[GeoPDF] ✅ Crop berhasil diterapkan →', cropInfo);
-        }
-    } else {
-        console.log('[GeoPDF] ⚠️ Tidak ada viewportBBox valid, menggunakan Full Page Canvas.');
     }
 
-    // 5. Konversi Canvas ke WebP
+    // 5. Konversi ke WebP
     const webpBlob = await canvasToWebP(outCanvas, 0.90);
     const webpData = await webpBlob.arrayBuffer();
-    
-    if (!selectedGeo || !selectedGeo.bounds) throw new Error('Georeferensi GeoPDF tidak dapat dibaca.');
 
     return {
         webpData,
         metadata: {
             name: filename,
-            bounds: selectedGeo.bounds,
+            bounds: finalBounds, 
             epsg: selectedGeo.epsg || null,
             projectionWkt: selectedGeo.projectionWkt || null,
-            source: 'pdf.js + GeoPDF metadata',
+            source: 'pdf.js + GeoPDF metadata (Full Page Adjusted)',
             format: 'webp',
             scheme: 'image-overlay',
             width: outCanvas.width,
@@ -511,10 +514,10 @@ async function convertGeoPDFToWebP(fileData, filename) {
             gpts: selectedGeo.gpts || null,
             lpts: selectedGeo.lpts || null,
             geoSource: selectedGeo.source || null,
-            viewportBBox: selectedGeo.viewportBBox || null,
+            viewportBBox: null,
             mediaBox: selectedGeo.mediaBox || null,
             needsVerticalFlip: false,
-            cropped: !!cropInfo,
+            cropped: false,
             role: selectedGeo.role,
             geoArea: selectedGeo.geoArea
         }
@@ -588,44 +591,55 @@ function scoreLatLonPoints(points, text, start, hasLpts, pageInfo) {
     }
 
     // ==========================================
-    // PERBAIKAN LOGIKA ROLE (KUNCI UTAMA)
+    // LOGIKA ROLE KHUSUS MULTI-FRAME
     // ==========================================
-    // Prioritaskan pageFrac (ukuran visual di halaman) daripada geoArea (ukuran geografis).
-    // Peta 1:35.000 memiliki geoArea kecil (~0.004) tapi pageFrac besar (0.61).
     let role = 'main';
-    if (pageFrac >= 0.25) {
-        role = 'main'; // Jika memenuhi >25% halaman, ini Peta Utama
-    } else if (pageFrac > 0 && pageFrac < 0.15) {
-        role = 'inset'; // Jika sangat kecil di halaman (<15%), ini Inset
-    } else if (geoArea > 5) {
-        role = 'index'; // Jika luas geografis >5 deg², biasanya Peta Indeks/Situasi
+    
+    // 1. Jika mengisi > 20% halaman, anggap sebagai kandidat Peta Utama
+    if (pageFrac >= 0.20) {
+        role = 'main';
+    } 
+    // 2. Jika sangat kecil (< 10%) atau sangat luas secara geografis (> 5 deg²), anggap Inset/Index
+    else if (pageFrac < 0.10 || geoArea > 5.0) {
+        role = 'inset'; 
+    } 
+    // 3. Sisanya adalah area menengah (bisa jadi peta situasi)
+    else {
+        role = 'index';
     }
 
     let score = 0;
     if (/\/Subtype\s*\/GEO\b/i.test(text.slice(Math.max(0, start - 2000), Math.min(text.length, start + 3000)))) score += 1000000;
     if (/\/Measure\b/i.test(text.slice(Math.max(0, start - 2000), Math.min(text.length, start + 3000)))) score += 500000;
     
-    // Bonus sangat besar untuk peta yang memenuhi halaman
-    score += Math.min(pageFrac * 5000000, 5000000); 
+    // Bonus sangat besar untuk pageFrac (kunci utama pemilihan frame visual)
+    score += Math.min(pageFrac * 6000000, 6000000); 
     
-    // HAPUS penalti untuk geoArea kecil! (Ini yang sebelumnya membunuh Peta Utama 1:35.000)
-    // if(geoArea>=0.05&&geoArea<=8) score+=200000;
-    // else if(geoArea<0.01) score-=2000000; 
-    // else if(geoArea>15) score-=500000;
+    // Penalti berat untuk area geografis yang terlalu luas (Peta Indeks/Pulau)
+    if (geoArea > 0.5) {
+        score -= 5000000; // Hukuman MATI untuk Peta Situasi/Kabupaten/Provinsi
+    } else if (geoArea > 0.1) {
+        score -= 1000000; // Hukuman sedang untuk area yang agak luas
+    } else if (geoArea < 0.000044) {
+        score -= 3000000; // Hukuman untuk titik/garis yang bukan area peta
+    }; 
+	if (points.length < 4) {
+        score -= 3000000; // Ini kemungkinan titik atau garis, bukan bidang peta
+    }
+	score += Math.min(points.length * 10, 200);
     
-    score += Math.min(points.length * 10, 200);
-    
-    // Bonus lokasi (Sulawesi / Indonesia)
+    // Bonus lokasi Indonesia
     const ml = points.reduce((s, p) => s + p[0], 0) / points.length;
     const mn = points.reduce((s, p) => s + p[1], 0) / points.length;
     if (ml >= -15 && ml <= 10 && mn >= 90 && mn <= 145) score += 50000;
     
-    if (role === 'main') score += 3000000;
-    if (role === 'inset') score -= 3000000;
-    if (role === 'index') score -= 1500000;
+    if (role === 'main') score += 4000000; // Bonus lebih besar untuk main
+    if (role === 'inset') score -= 4000000; // Penalti lebih berat untuk inset
+    if (role === 'index') score -= 2000000;
     
     return { score, role, geoArea, pageFrac, bbox, latSpan, lonSpan };
 }
+
 function isFullPageBBox(bbox,mediaBox){if(!bbox||!mediaBox||mediaBox.length<4)return false;const mw=Math.abs(mediaBox[2]-mediaBox[0]);const mh=Math.abs(mediaBox[3]-mediaBox[1]);if(mw<1||mh<1)return false;return(Math.abs(bbox[2]-bbox[0])/mw)>0.97&&(Math.abs(bbox[3]-bbox[1])/mh)>0.97;}
 function findMeasureObjectNumForGpts(text,gptsStart){const before=text.slice(Math.max(0,gptsStart-8000),gptsStart);const m=[...before.matchAll(/(?:^|[^0-9])(\d+)\s+\d+\s+obj\b/g)];if(!m.length)return null;const last=m[m.length-1];if(/endobj/i.test(before.slice(last.index)))return null;return last[1];}
 function findViewportBBoxForMeasure(text,measureObjNum,mediaBox){if(!measureObjNum)return null;const re=new RegExp('/Measure\\s+'+measureObjNum+'\\s+\\d+\\s+R','g');let m;while((m=re.exec(text))!==null){const ws=Math.max(0,m.index-800);const we=Math.min(text.length,m.index+400);const win=text.slice(ws,we);const bm=win.match(/\/BBox\s*\[\s*([^\]]+)\s*\]/i);if(bm){const n=parsePdfNumbers(bm[1]);if(n.length>=4&&!isFullPageBBox(n,mediaBox))return n.slice(0,4);}}return null;}
@@ -642,13 +656,10 @@ function findNearbyViewportBBox(text, start, mediaBox) {
             const bboxArea = lw * lh;
             const frac = bboxArea / pageArea;
 
-            // PERBAIKAN: Izinkan crop jika BBox mencakup 10% sampai 90% halaman.
-            // Frac 0.61 (61%) adalah bingkai Peta Utama, jadi harus DITERIMA.
+            // Terima BBox jika mencakup 10% - 90% halaman
             if (frac >= 0.10 && frac <= 0.90) {
-                console.log('[GeoPDF] ✅ BBox via Measure DITERIMA (Frac:', frac.toFixed(2), ') →', l);
+                console.log('[GeoPDF] ✅ BBox via Measure DITERIMA (Frac:', frac.toFixed(2), ')');
                 return l;
-            } else {
-                console.warn('[GeoPDF] ❌ BBox via Measure DITOLAK (Frac:', frac.toFixed(2), ')');
             }
         }
     }
