@@ -198,6 +198,51 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .geo-select-item .geo-label { font-weight: 700; font-size: 15px; }
 .geo-select-item .geo-detail { font-size: 11px; color: #555; }
 .geo-select-item .geo-bounds { font-size: 10px; color: #888; font-family: monospace; }
+/* Style untuk Popup Menu Tools (Wrench) */
+.tools-popup {
+    position: absolute;
+    top: 100%; /* Muncul tepat di bawah tombol */
+    right: 0;  /* Rata kanan dengan tombol */
+    margin-top: 8px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    width: 220px;
+    z-index: 99999; /* Naikkan agar tidak tertutup peta/modal */
+    overflow: hidden;
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Item di dalam popup */
+.popup-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.popup-item:last-child {
+    border-bottom: none;
+}
+
+.popup-item:hover {
+    background-color: #f5f5f5;
+    color: #000;
+}
+
+.popup-item span {
+    font-weight: 500;
+}
+
+/* Animasi muncul */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 </style>
 </head>
 <body>
@@ -234,7 +279,29 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 <button class="tool-btn map-only-control" id="btn-pin" onclick="addWaypointAtReticle()" title="Tambah Titik" style="visibility:hidden;"><svg class="icon"><use href="#icon-pin"></use></svg></button>
 <div class="coords-display map-only-control" style="visibility:hidden;"><div id="lat">0.00000</div><div id="lng">0.00000</div></div>
 <button class="tool-btn" id="btn-toggle-view" onclick="toggleView()" title="Beralih Tampilan"><svg class="icon" id="nav-icon"><use id="nav-icon-use" href="#icon-map"></use></svg></button>
-<button class="tool-btn" id="btn-tools" onclick="openSettings()" title="Pengaturan"><svg class="icon"><use href="#icon-wrench"></use></svg></button>
+<!-- Container Relative untuk posisi popup -->
+<div style="position: relative; display: inline-block;">
+    <!-- Tombol Wrench (Tools) -->
+    <button class="tool-btn" id="btn-tools" title="Menu Alat">
+        <svg class="icon"><use href="#icon-wrench"></use></svg>
+    </button>
+
+    <!-- Popup Menu (Awalnya tersembunyi) -->
+    <div id="tools-popup" class="tools-popup" style="display: none;">
+        <div class="popup-item" onclick="alert('Fitur Cari Koordinat')">
+            Find By Coordinates
+        </div>
+        <div class="popup-item" onclick="alert('Fitur Rekam GPS')">
+            Record GPS Tracks
+        </div>
+        <div class="popup-item" onclick="alert('Fitur Ukur Jarak/Luas')">
+            Measure Distance or Area
+        </div>
+        <div class="popup-item" onclick="openSettings()">
+            Map Features
+        </div>
+    </div>
+</div>
 </div>
 <div id="map-view" class="view">
 <div id="map"></div>
@@ -1164,6 +1231,39 @@ function setWebPOpacity(pct){
 }
 
 window.onload = initMap;
+</script>
+<script>
+// ==========================================
+// LOGIKA POPUP MENU TOOLS (WRENCH)
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    const btnTools = document.getElementById('btn-tools');
+    const toolsPopup = document.getElementById('tools-popup');
+
+    if (btnTools && toolsPopup) {
+        // 1. Toggle Popup saat tombol diklik
+        btnTools.addEventListener('click', (e) => {
+            e.stopPropagation(); // Mencegah klik tembus ke dokumen
+            const isHidden = toolsPopup.style.display === 'none' || toolsPopup.style.display === '';
+            toolsPopup.style.display = isHidden ? 'block' : 'none';
+        });
+
+        // 2. Tutup popup jika klik di luar area menu
+        document.addEventListener('click', (e) => {
+            if (!toolsPopup.contains(e.target) && !btnTools.contains(e.target)) {
+                toolsPopup.style.display = 'none';
+            }
+        });
+    }
+});
+
+// Fungsi placeholder untuk item menu (nanti bisa diganti fungsi asli)
+function openSettings() {
+    // Panggil modal pengaturan lama jika masih ada
+    const oldModal = document.getElementById('settings-modal');
+    if (oldModal) oldModal.classList.add('active');
+    else alert("Fitur Map Features / Pengaturan Lama");
+}
 </script>
 </body>
 </html>
