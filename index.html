@@ -318,7 +318,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 <div id="opacity-control" class="opacity-control map-only-control collapsed" style="visibility:hidden;" title="Transparansi peta WebP" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
 <button type="button" class="opacity-toggle-btn" onclick="toggleOpacityPanel()" aria-label="Transparansi">◐</button>
 <div class="opacity-panel">
-<label for="opacity-slider">PDF</label>
+<label for="opacity-slider">WebP</label>
 <input type="range" id="opacity-slider" min="0" max="100" value="100" oninput="setWebPOpacity(this.value)" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
 <span class="opacity-value" id="opacity-value">100%</span>
 </div>
@@ -382,8 +382,6 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 let map, userLocationMarker=null, currentHeading=0, currentView='layers', waypointCount=1, latestCoords=null, activeMapId=null;
-let waypoints = []; // Array untuk menyimpan data titik
-let waypointMarkers = []; // Array untuk menyimpan marker di peta
 let gdalReady=false, gdal=null, activeLayers={}, scannedKmzFiles=[], defaultDirHandle=null, mapCollection=[], webpOpacity=1;
 const BASEMAP_PROVIDERS = {
 'google_sat':{name:'Google Satellite',url:'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',icon:'icon-globe',maxNativeZoom:20},
@@ -407,41 +405,6 @@ loadAllMapsFromDB();
 initGPSWatcher();
 initOrientationWatcher();
 initGDAL();
-loadWaypoints();
-}
-// Fungsi untuk menampilkan marker titik di peta
-function renderWaypointsForMap(mapId) {
-    // Hapus semua marker yang ada
-    waypointMarkers.forEach(marker => map.removeLayer(marker));
-    waypointMarkers = [];
-    
-    // Filter titik berdasarkan mapId
-    const filteredPoints = waypoints.filter(p => p.mapId === mapId);
-    
-    // Buat marker untuk setiap titik
-    filteredPoints.forEach(point => {
-        const marker = L.marker([point.lat, point.lng], {
-            title: point.name
-        }).addTo(map);
-        
-        marker.bindPopup(`
-            <strong>${point.name}</strong><br>
-            Lat: ${point.lat.toFixed(5)}<br>
-            Lng: ${point.lng.toFixed(5)}<br>
-            <small>${new Date(point.timestamp).toLocaleString()}</small>
-        `);
-        
-        waypointMarkers.push(marker);
-    });
-    
-    console.log(`✅ ${filteredPoints.length} titik ditampilkan untuk map ${mapId}`);
-}
-
-// Fungsi untuk menghapus semua marker dari peta
-function clearAllWaypointsFromMap() {
-    waypointMarkers.forEach(marker => map.removeLayer(marker));
-    waypointMarkers = [];
-    console.log('🗑️ Semua marker titik dihapus dari peta');
 }
 function updateReticleCoordinates(){const c=map.getCenter();document.getElementById('lat').innerText=c.lat.toFixed(5);document.getElementById('lng').innerText=c.lng.toFixed(5);}
 
@@ -1055,75 +1018,8 @@ showNotification('✅ '+md.name+' ditampilkan di peta',3000);
 }catch(err){alert('Gagal: '+err.message);}}
 else showNotification('⚠️ Format tidak didukung: '+md.type);
 }catch(err){alert('Gagal mengaktifkan: '+err.message);}
-activeMapId = mapId;
-    renderWaypointsForMap(mapId);
 }
-function deactivateMap(mapId) {
-    // 1. Cek apakah map ada di koleksi
-    const md = mapCollection.find(m => m.id === mapId);
-    if (!md) {
-        console.warn('Map tidak ditemukan:', mapId);
-        return;
-    }
-    
-    // 2. Hapus layer dari peta (jika ada)
-    if (activeLayers[mapId]) {
-        try {
-            // Hapus layer dari peta
-            const layer = activeLayers[mapId];
-            if (layer && map.hasLayer(layer)) {
-                map.removeLayer(layer);
-            }
-            
-            // Hapus juga image overlay jika ada
-            if (layer._webpObjectUrl) {
-                URL.revokeObjectURL(layer._webpObjectUrl);
-            }
-        } catch (e) {
-            console.warn('Gagal menghapus layer:', e);
-        }
-        
-        // Hapus dari object activeLayers
-        delete activeLayers[mapId];
-    }
-    
-    // 3. Tandai map sebagai tidak aktif di database
-    md.isActive = false;
-    saveMapToDB(md); // Simpan status ke IndexedDB
-    
-    // 4. 🔥 HAPUS SEMUA MARKER TITIK DARI PETA
-    if (activeMapId === mapId) {
-        // Hapus semua marker titik
-        if (window.waypointMarkers) {
-            window.waypointMarkers.forEach(marker => {
-                if (map.hasLayer(marker)) {
-                    map.removeLayer(marker);
-                }
-            });
-            window.waypointMarkers = [];
-        }
-        
-        // Reset activeMapId
-        activeMapId = null;
-        
-        // Update tampilan daftar titik (kosongkan)
-        if (typeof renderPointsList === 'function') {
-            renderPointsList();
-        }
-        
-        console.log(`🗑️ Map ${md.name} dinonaktifkan, semua titik dihapus dari peta`);
-    }
-    
-    // 5. Update UI library
-    renderLibraryContent();
-    
-    // 6. Tampilkan notifikasi
-    if (typeof showNotification === 'function') {
-        showNotification(`❌ Map "${md.name}" dinonaktifkan`, 2000);
-    } else {
-        console.log(`❌ Map "${md.name}" dinonaktifkan`);
-    }
-}
+function deactivateMap(mapId){if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];const md=mapCollection.find(m=>m.id===mapId);if(md)md.isActive=false;updateActiveLayersUI();renderLibraryContent();renderPointsView();if(activeMapId===mapId)activeMapId=null;showNotification('🗑️ Peta dinonaktifkan');}}
 async function deleteMap(mapId){const md=mapCollection.find(m=>m.id===mapId);if(!md)return;if(!confirm('Hapus "'+md.name+'"?'))return;try{if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];}await deleteMapFromDB(mapId);mapCollection=mapCollection.filter(m=>m.id!==mapId);if(activeMapId===mapId)activeMapId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();showNotification('🗑️ "'+md.name+'" dihapus');}catch(err){alert('Gagal menghapus: '+err.message);}}
 
 function updateActiveLayersUI(){const c=document.getElementById('active-layers');let h='';Object.keys(activeLayers).forEach(id=>{const it=activeLayers[id];h+='<div class="file-item"><div class="file-info"><svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg><span class="file-name">'+it.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="remove-btn" onclick="deactivateMap(\''+id+'\')">Hapus</button></div>';});c.innerHTML=h;}
@@ -1268,53 +1164,13 @@ let h='';f.forEach((ft,i)=>{const co=ft.geometry.coordinates;const nm=ft.propert
 h+='<div class="point-item"><div class="point-info"><span class="point-name">'+nm+'</span><span class="point-coords">'+co[1].toFixed(6)+', '+co[0].toFixed(6)+(nt?' • '+nt:'')+'</span></div><div class="point-actions"><button onclick="flyToPoint('+i+')" title="Lokasi">📍</button><button class="btn-delete-point" onclick="deletePoint('+i+')" title="Hapus">✕</button></div></div>';});
 c.innerHTML=h;
 }
-function addPointFromCrosshair() {
-    // Cek apakah ada map aktif
-    if (!activeMapId) {
-        alert('⚠️ Aktifkan map terlebih dahulu sebelum menambah titik!');
-        return;
-    }
-    
-    // Ambil koordinat dari crosshair
-    const center = map.getCenter();
-    
-    // Buat data titik baru
-    const newPoint = {
-        id: 'point_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-        name: 'Waypoint #' + (waypoints.length + 1),
-        lat: center.lat,
-        lng: center.lng,
-        timestamp: new Date().toISOString(),
-        mapId: activeMapId
-    };
-    
-    // Simpan ke array
-    waypoints.push(newPoint);
-    
-    // Tampilkan marker
-    renderWaypointsForMap(activeMapId);
-    
-    // Update daftar titik di UI (jika ada)
-    if (typeof renderPointsList === 'function') {
-        renderPointsList();
-    }
-    
-    alert(`✅ Titik "${newPoint.name}" ditambahkan!`);
-}
-// Simpan titik ke localStorage (sementara)
-function saveWaypoints() {
-    localStorage.setItem('waypoints', JSON.stringify(waypoints));
-}
-// Load titik dari localStorage
-function loadWaypoints() {
-    const data = localStorage.getItem('waypoints');
-    if (data) {
-        waypoints = JSON.parse(data);
-        // Jika ada map aktif, tampilkan titiknya
-        if (activeMapId) {
-            renderWaypointsForMap(activeMapId);
-        }
-    }
+function addPointFromCrosshair(){
+const am=mapCollection.find(m=>m.isActive===true);if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
+const c=map.getCenter();const name=prompt('Nama titik:','Waypoint '+waypointCount);if(!name)return;const note=prompt('Catatan (opsional):','');
+if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};
+am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name,note:note||'',timestamp:new Date().toISOString()}});
+saveMapToDB(am).then(()=>{waypointCount++;renderPointsView();renderLibraryContent();showNotification('✅ Titik "'+name+'" ditambahkan');});
+L.marker([c.lat,c.lng]).addTo(map).bindPopup('<b>'+name+'</b><br>'+c.lat.toFixed(5)+', '+c.lng.toFixed(5)+(note?'<br>'+note:'')).openPopup();
 }
 function flyToPoint(i){const am=mapCollection.find(m=>m.isActive===true);if(!am)return;const f=am.geojson?.features[i];if(!f)return;map.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],17);}
 async function deletePoint(i){const am=mapCollection.find(m=>m.isActive===true);if(!am)return;if(!confirm('Hapus titik ini?'))return;am.geojson.features.splice(i,1);await saveMapToDB(am);renderPointsView();renderLibraryContent();showNotification('🗑️ Titik dihapus');}
