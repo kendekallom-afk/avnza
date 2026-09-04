@@ -1642,62 +1642,63 @@ function openAppSettings() {
 }
 </script>
 <script>
-// === INTEGRASI KOMPAS DENGAN LEAFLET-ROTATE ===
+// === FIX KOMPAS DENGAN LEAFLET-ROTATE ===
 
-let currentDeviceHeading = 0; // Arah kompas HP (0 - 360 derajat)
+let currentDeviceHeading = 0; // Arah HP dari sensor
 
-// Fungsi untuk memperbarui rotasi kerucut kompas secara relatif
 function updateHeading(deviceHeading) {
     if (deviceHeading === null || deviceHeading === undefined) return;
     currentDeviceHeading = deviceHeading;
     
-    // Ambil nilai rotasi peta dari plugin leaflet-rotate (dalam derajat)
     let mapBearing = 0;
-    if (typeof map !== 'undefined' && map && typeof map.getBearing === 'function') {
-        mapBearing = map.getBearing() || 0;
+    
+    // Membaca sudut peta dari leaflet-rotate
+    if (typeof map !== 'undefined' && map) {
+        if (typeof map.getBearing === 'function') {
+            mapBearing = map.getBearing() || 0;
+        } else if (map._bearing) {
+            mapBearing = map._bearing || 0;
+        }
     }
     
-    // Hitung arah relatif: Arah Kompas HP dikurangi Arah Rotasi Peta
-    const relativeHeading = (deviceHeading - mapBearing + 360) % 360;
+    // Hitung penyesuaian sudut kompas terhadap rotasi peta
+    // Menggunakan penambahan ( + mapBearing ) untuk menyelaraskan rotasi kanvas peta
+    const relativeHeading = (deviceHeading + mapBearing + 360) % 360;
 
-    // Putar elemen kerucut/segitiga merah
     const headingEl = document.getElementById('user-heading');
     if (headingEl) {
         headingEl.style.transform = `rotate(${relativeHeading}deg)`;
     }
 }
 
-// 1. Membaca Sensor Kompas HP / Device Orientation
-window.addEventListener('deviceorientation', function(event) {
+// 1. Membaca Sensor Kompas HP
+function handleOrientation(event) {
     let heading = null;
-
     if (event.webkitCompassHeading) {
-        // Untuk iOS (iPhone/iPad)
-        heading = event.webkitCompassHeading;
+        heading = event.webkitCompassHeading; // iOS
     } else if (event.alpha !== null) {
-        // Untuk Android
-        heading = 360 - event.alpha;
+        heading = 360 - event.alpha; // Android
     }
 
     if (heading !== null) {
         updateHeading(heading);
     }
-}, true);
+}
 
-// 2. Hubungkan ke Event Rotasi Peta (leaflet-rotate)
-window.addEventListener('DOMContentLoaded', function() {
-    // Tunggu sebentar sampai variabel 'map' diinisialisasi
-    setTimeout(function() {
-        if (typeof map !== 'undefined' && map) {
-            
-            // Setiap kali peta diputar dengan 2 jari atau digeser
-            map.on('rotate rotateend move zoom', function() {
-                updateHeading(currentDeviceHeading);
-            });
-            
-        }
-    }, 500);
-});
+window.addEventListener('deviceorientation', handleOrientation, true);
+window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+
+// 2. Hubungkan langsung dengan event leaflet-rotate
+setInterval(function() {
+    if (typeof map !== 'undefined' && map && !map._compassBound) {
+        map._compassBound = true;
+        
+        // Listener event bawaan leaflet-rotate
+        map.on('rotate compass rotateend zoom move', function() {
+            updateHeading(currentDeviceHeading);
+        });
+    }
+}, 500);
 </script>
 </body>
 </html>
