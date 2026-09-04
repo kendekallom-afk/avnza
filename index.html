@@ -370,6 +370,23 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 </div>
 <span style="font-size:11px; color:#777;">Semua file KMZ/KML di dalam folder ini akan otomatis dimuat ke tab KMZ.</span>
 </div>
+<div class="setting-group">
+<span class="setting-label">Penyimpanan Foto Titik:</span>
+<div style="display:flex;flex-direction:column;gap:8px;">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+        <input type="radio" name="photo-storage-mode" id="photo-mode-auto" value="auto" checked onchange="savePhotoStorageMode('auto');document.getElementById('photo-folder-picker-box').style.display='none';">
+        Otomatis (Direkomendasikan) — foto disimpan di dalam app
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;" id="photo-mode-folder-label">
+		<input type="radio" name="photo-storage-mode" id="photo-mode-folder" value="folder" onchange="savePhotoStorageMode('folder');document.getElementById('photo-folder-picker-box').style.display='flex';">
+		Pilih Folder Sendiri — hanya Android + Chrome
+	</label>
+</div>
+<div class="setting-value-box" id="photo-folder-picker-box" style="display:none;">
+    <span id="photo-folder-path-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;">Belum dipilih</span>
+    <button class="action-btn" onclick="selectPhotoFolder()">Pilih Folder</button>
+</div>
+</div>
 </div>
 </div>
 <div class="modal-overlay" id="point-edit-modal">
@@ -436,6 +453,7 @@ async function deleteMapFromDB(id){const db=await openDB();return new Promise((r
 async function savePhotoToDB(photoData){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(PHOTO_STORE,'readwrite');tx.objectStore(PHOTO_STORE).put(photoData);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
 async function getPhotoFromDB(id){const db=await openDB();return new Promise((resolve,reject)=>{const req=db.transaction(PHOTO_STORE,'readonly').objectStore(PHOTO_STORE).get(id);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function deletePhotoFromDB(id){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(PHOTO_STORE,'readwrite');tx.objectStore(PHOTO_STORE).delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+async function deletePhotoQuiet(photoId){if(!photoId)return;try{await deletePhotoFromDB(photoId);}catch(e){}}
 
 function initMap(){
 map=L.map('map',{zoomControl:false,maxZoom:22,rotate:true,touchRotate:true}).setView([-2.66491,118.85193],15);
@@ -1125,7 +1143,6 @@ async function refreshPhotoPreview(){
     img.removeAttribute('src');
     delBtn.style.display='none';
 }
-
 async function handlePhotoSelected(event){
     const file=event.target.files[0];
     event.target.value='';
@@ -1137,11 +1154,22 @@ async function handlePhotoSelected(event){
         showNotification('⏳ Menyimpan foto...',1500);
         const oldId=f.properties?.photoId;
         const newId='photo_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
-        await savePhotoToDB({id:newId,blob:file,created:new Date().toISOString()});
-        f.properties=f.properties||{};
-        f.properties.photoId=newId;
+        const mode=await getPhotoStorageMode();
+        const folderHandle=(mode==='folder')?await getPhotoFolderHandle():null;
+        const canUseFolder=folderHandle&&await verifyFolderPermission(folderHandle);
+        if(canUseFolder){
+            const ext=(file.name&&file.name.includes('.'))?file.name.split('.').pop():'jpg';
+            const filename=newId+'.'+ext;
+            await savePhotoToFolder(folderHandle,file,filename);
+            f.properties=f.properties||{};
+            f.properties.photoId='folder:'+filename;
+        }else{
+            await savePhotoToDB({id:newId,blob:file,created:new Date().toISOString()});
+            f.properties=f.properties||{};
+            f.properties.photoId=newId;
+        }
         await saveMapToDB(am);
-        if(oldId)await deletePhotoFromDB(oldId).catch(()=>{});
+        if(oldId&&!oldId.startsWith('folder:'))await deletePhotoFromDB(oldId).catch(()=>{});
         await refreshPhotoPreview();
         renderPointsView();
         showNotification('✅ Foto tersimpan');
@@ -1149,7 +1177,6 @@ async function handlePhotoSelected(event){
         alert('Gagal menyimpan foto: '+err.message);
     }
 }
-
 async function removePointPhoto(){
     if(editingPointIndex===null)return;
     if(!confirm('Hapus foto ini?'))return;
@@ -1250,8 +1277,10 @@ else showNotification('⚠️ Format tidak didukung: '+md.type);
 }
 function deactivateMap(mapId){if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);const pl=activeLayers[mapId].pointsLayer;
 if(pl)map.removeLayer(pl);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];const md=mapCollection.find(m=>m.id===mapId);if(md)md.isActive=false;if(selectedNotebookId===mapId)selectedNotebookId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();if(activeMapId===mapId)activeMapId=null;showNotification('🗑️ Peta dinonaktifkan');}}
-async function deleteMap(mapId){const md=mapCollection.find(m=>m.id===mapId);if(!md)return;if(!confirm('Hapus "'+md.name+'"?'))return;try{if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];}await deleteMapFromDB(mapId);mapCollection=mapCollection.filter(m=>m.id!==mapId);if(activeMapId===mapId)activeMapId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();showNotification('🗑️ "'+md.name+'" dihapus');}catch(err){alert('Gagal menghapus: '+err.message);}}
-
+async function deleteMap(mapId){const md=mapCollection.find(m=>m.id===mapId);if(!md)return;if(!confirm('Hapus "'+md.name+'"?'))return;try{if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);const pl=activeLayers[mapId].pointsLayer;if(pl)map.removeLayer(pl);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];}
+if(md.geojson?.features)for(const ft of md.geojson.features)await deletePhotoQuiet(ft.properties?.photoId);
+await deleteMapFromDB(mapId);mapCollection=mapCollection.filter(m=>m.id!==mapId);if(activeMapId===mapId)activeMapId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();showNotification('🗑️ "'+md.name+'" dihapus');}catch(err){alert('Gagal menghapus: '+err.message);}
+}
 function updateActiveLayersUI(){const c=document.getElementById('active-layers');let h='';Object.keys(activeLayers).forEach(id=>{const it=activeLayers[id];h+='<div class="file-item"><div class="file-info"><svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg><span class="file-name">'+it.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="remove-btn" onclick="deactivateMap(\''+id+'\')">Hapus</button></div>';});c.innerHTML=h;}
 
 function kmlColorToLeaflet(kc){if(!kc||kc.trim().length!==8)return{color:'#3388ff',opacity:1};const h=kc.trim();const a=parseInt(h.substring(0,2),16)/255;return{color:'#'+h.substring(6,8)+h.substring(4,6)+h.substring(2,4),opacity:isNaN(a)?1:a};}
@@ -1425,9 +1454,11 @@ saveMapToDB(am).then(()=>{waypointCount++;renderPointsView();renderLibraryConten
 refreshActivePointsLayer();
 }
 function flyToPoint(i){const am=getActiveMap();if(!am)return;const f=am.geojson?.features[i];if(!f)return;map.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],17);}
-async function deletePoint(i){const am=getActiveMap();if(!am)return;if(!confirm('Hapus titik ini?'))return;am.geojson.features.splice(i,1);await saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();showNotification('🗑️ Titik dihapus');}
-async function clearAllPoints(){const am=getActiveMap();if(!am)return;const c=am.geojson?.features?.length||0;if(!c){alert('Tidak ada titik.');return;}if(!confirm('Hapus semua '+c+' titik?'))return;am.geojson.features=[];await saveMapToDB(am);renderPointsView();renderLibraryContent();showNotification('🗑️ Semua titik dihapus');}
-
+async function deletePoint(i){const am=getActiveMap();if(!am)return;if(!confirm('Hapus titik ini?'))return;const photoId=am.geojson.features[i]?.properties?.photoId;am.geojson.features.splice(i,1);await saveMapToDB(am);await deletePhotoQuiet(photoId);renderPointsView();renderLibraryContent();refreshActivePointsLayer();showNotification('🗑️ Titik dihapus');}
+async function clearAllPoints(){const am=getActiveMap();if(!am)return;const c=am.geojson?.features?.length||0;if(!c){alert('Tidak ada titik.');return;}if(!confirm('Hapus semua '+c+' titik?'))return;
+for(const ft of am.geojson.features){await deletePhotoQuiet(ft.properties?.photoId);}
+am.geojson.features=[];await saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();showNotification('🗑️ Semua titik dihapus');
+}
 function exportPoints(format){
 const am=getActiveMap();if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
 const f=am.geojson?.features||[];if(!f.length){alert('Tidak ada titik.');return;}
@@ -1457,6 +1488,60 @@ function renderLibraryBasemaps(){const c=document.getElementById('library-conten
 function addWaypointAtReticle(){const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'Dari crosshair',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
 
 function closeSettings(){document.getElementById('settings-modal').classList.remove('active');}
+async function savePhotoStorageMode(mode){
+    try{const db=await openDB();db.transaction('config','readwrite').objectStore('config').put(mode,'photoStorageMode');}catch(e){console.warn(e);}
+}
+async function getPhotoStorageMode(){
+    try{const db=await openDB();return new Promise(r=>{const req=db.transaction('config','readonly').objectStore('config').get('photoStorageMode');req.onsuccess=()=>r(req.result||'auto');req.onerror=()=>r('auto');});}catch(e){return 'auto';}
+}
+async function savePhotoFolderHandle(h){
+    try{const db=await openDB();db.transaction('config','readwrite').objectStore('config').put(h,'photoFolderHandle');}catch(e){console.warn(e);}
+}
+async function getPhotoFolderHandle(){
+    try{const db=await openDB();return new Promise(r=>{const req=db.transaction('config','readonly').objectStore('config').get('photoFolderHandle');req.onsuccess=()=>r(req.result||null);req.onerror=()=>r(null);});}catch(e){return null;}
+}
+async function verifyFolderPermission(handle){
+    if(!handle)return false;
+    const opts={mode:'readwrite'};
+    if((await handle.queryPermission(opts))==='granted')return true;
+    if((await handle.requestPermission(opts))==='granted')return true;
+    return false;
+}
+async function savePhotoToFolder(handle,file,filename){
+    const fileHandle=await handle.getFileHandle(filename,{create:true});
+    const writable=await fileHandle.createWritable();
+    await writable.write(file);
+    await writable.close();
+}
+async function selectPhotoFolder(){
+    if(!isFolderStorageSupported()){alert('Fitur ini tidak didukung di perangkat/browser kamu.');return;}
+    try{
+        const handle=await window.showDirectoryPicker();
+        await savePhotoFolderHandle(handle);
+        document.getElementById('photo-folder-path-text').innerText=handle.name;
+        showNotification('📁 Folder foto disimpan: '+handle.name);
+    }catch(err){console.warn(err);}
+}
+function isFolderStorageSupported(){
+    return 'showDirectoryPicker' in window;
+}
+async function applyPhotoStorageModeUI(){
+    const supported=isFolderStorageSupported();
+    const folderLabel=document.getElementById('photo-mode-folder-label');
+    const pickerBox=document.getElementById('photo-folder-picker-box');
+    if(!supported){
+        folderLabel.style.display='none';
+    }
+    let mode=await getPhotoStorageMode();
+    if(mode==='folder'&&!supported){
+        mode='auto';
+        await savePhotoStorageMode('auto');
+    }
+    document.getElementById(mode==='folder'?'photo-mode-folder':'photo-mode-auto').checked=true;
+    pickerBox.style.display=(mode==='folder')?'flex':'none';
+    const savedHandle=await getPhotoFolderHandle();
+    document.getElementById('photo-folder-path-text').innerText=savedHandle?savedHandle.name:'Belum dipilih';
+}
 async function selectDefaultKMZFolder(){if('showDirectoryPicker' in window){try{defaultDirHandle=await window.showDirectoryPicker();await saveHandleToIDB(defaultDirHandle);document.getElementById('folder-path-text').innerText=defaultDirHandle.name;await scanFilesFromHandle(defaultDirHandle);renderKMZLibrary();alert("Folder disimpan!");}catch(err){console.warn(err);}}else document.getElementById('folder-fallback-input').click();}
 function handleFallbackFolderSelect(event){const files=Array.from(event.target.files).filter(f=>f.name.toLowerCase().endsWith('.kmz')||f.name.toLowerCase().endsWith('.kml'));scannedKmzFiles=files;defaultDirHandle={name:'Folder (sesi ini)'};document.getElementById('folder-path-text').innerText=defaultDirHandle.name;renderKMZLibrary();if(!files.length)alert('Tidak ada .kmz/.kml.');}
 async function saveHandleToIDB(h){try{const db=await openDB();db.transaction('config','readwrite').objectStore('config').put(h,'defaultKMZFolder');}catch(e){}}
@@ -1530,6 +1615,7 @@ function openAppSettings() {
     const modal = document.getElementById('settings-modal');
     if (modal) {
         modal.classList.add('active');
+        applyPhotoStorageModeUI();
     } else {
         alert("Modal pengaturan tidak ditemukan.");
     }
