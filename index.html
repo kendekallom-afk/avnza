@@ -170,6 +170,8 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .point-item .point-actions .btn-delete-point { color: #f44336; }
 .point-item .point-actions .btn-delete-point:hover { background: #ffebee; }
 .empty-points { color: #999; text-align: center; padding: 30px 0; font-size: 14px; }
+.point-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0; margin-right: 10px; background: #e0e0e0; }
+.point-thumb-empty { display: flex; align-items: center; justify-content: center; font-size: 16px; color: #aaa; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 3000; }
 .modal-overlay.active { display: flex; }
 .modal-content { background: #f4f4f4; width: 90%; max-width: 420px; border-radius: 6px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 14px; }
@@ -341,6 +343,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 <div id="points-view" class="view">
 <div style="padding:12px 16px; background:#e2e2e2; border-bottom:2px solid #a0a0a0; flex-shrink:0;">
 <h2 class="section-title" style="margin-bottom:4px;">📝 Kelola Titik</h2>
+<select id="notebook-select" onchange="switchNotebook(this.value)" style="width:100%;padding:8px;border-radius:4px;border:1px solid #aaa;font-size:13px;margin-bottom:4px;"></select>
 <div style="font-size:12px; color:#666;" id="points-map-name">Pilih peta terlebih dahulu</div>
 </div>
 <div style="padding:12px 16px; flex-shrink:0;">
@@ -369,20 +372,55 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 </div>
 </div>
 </div>
-<div class="modal-overlay" id="geopdf-select-modal">
-    <div class="modal-content" style="max-width:400px;">
-        <div class="modal-header">
-            <span>Pilih Georeferensi</span>
-            <button class="modal-close" onclick="cancelGeoSelection()">&times;</button>
+<div class="modal-overlay" id="point-edit-modal">
+    <div class="modal-content">
+        <div class="modal-header"><span>✏️ Detail Titik</span><button class="modal-close" onclick="closePointEdit()">&times;</button></div>
+        <div class="setting-group">
+            <span class="setting-label">Nama:</span>
+            <input type="text" id="pe-name" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
         </div>
-        <div id="geo-select-list"></div>
+        <div class="setting-group">
+            <span class="setting-label">Tanggal &amp; Waktu:</span>
+            <div class="setting-value-box"><span id="pe-time">-</span></div>
+        </div>
+        <div class="setting-group">
+            <span class="setting-label">Deskripsi:</span>
+            <textarea id="pe-note" rows="3" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;resize:vertical;"></textarea>
+        </div>
+        <div class="setting-group">
+            <span class="setting-label">Location:</span>
+            <div class="setting-value-box"><span id="pe-coord" style="font-family:monospace;">-</span></div>
+        </div>
+        <div class="setting-group">
+            <span class="setting-label">Foto:</span>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <img id="pe-photo-preview" style="display:none;width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ccc;background:#eee;flex-shrink:0;">
+                <div style="display:flex;flex-direction:column;gap:6px;flex:1;">
+                    <div style="display:flex;gap:6px;">
+                        <button type="button" class="add-btn" style="flex:1;" onclick="triggerPhotoCapture()">📷 Kamera</button>
+                        <button type="button" class="add-btn" style="flex:1;" onclick="triggerPhotoGallery()">🖼️ Galeri</button>
+                    </div>
+                    <button type="button" class="remove-btn" id="pe-photo-delete-btn" style="display:none;" onclick="removePointPhoto()">🗑️ Hapus Foto</button>
+                </div>
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="add-btn" style="background:#9e9e9e;" onclick="closePointEdit()">Batal</button>
+            <button class="on-btn" onclick="savePointEdit()">OK</button>
+        </div>
     </div>
 </div>
+<input type="file" id="photo-camera-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoSelected(event)">
+<input type="file" id="photo-gallery-input" accept="image/*" style="display:none" onchange="handlePhotoSelected(event)">
 <input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 let map, userLocationMarker=null, currentHeading=0, currentView='layers', waypointCount=1, latestCoords=null, activeMapId=null;
 let gdalReady=false, gdal=null, activeLayers={}, scannedKmzFiles=[], defaultDirHandle=null, mapCollection=[], webpOpacity=1;
+let selectedNotebookId = null;
+let editingPointIndex = null;
+let pePhotoObjectUrl = null;
+let pointThumbUrls = [];
 const BASEMAP_PROVIDERS = {
 'google_sat':{name:'Google Satellite',url:'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',icon:'icon-globe',maxNativeZoom:20},
 'google_map':{name:'Google Map',url:'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',icon:'icon-map',maxNativeZoom:20},
@@ -390,11 +428,14 @@ const BASEMAP_PROVIDERS = {
 'google_terrain':{name:'Google Terrain',url:'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',icon:'icon-mountain',maxNativeZoom:16},
 'osm':{name:'OpenStreetMap (OSM)',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',icon:'icon-globe',maxNativeZoom:19}
 };
-const DB_NAME='AvenzaNavDB', STORE_NAME='maps';
-function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,3);req.onupgradeneeded=(e)=>{const db=e.target.result;if(!db.objectStoreNames.contains(STORE_NAME))db.createObjectStore(STORE_NAME,{keyPath:'id'});if(!db.objectStoreNames.contains('config'))db.createObjectStore('config');};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+const DB_NAME='AvenzaNavDB', STORE_NAME='maps', PHOTO_STORE='photos';
+function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,4);req.onupgradeneeded=(e)=>{const db=e.target.result;if(!db.objectStoreNames.contains(STORE_NAME))db.createObjectStore(STORE_NAME,{keyPath:'id'});if(!db.objectStoreNames.contains('config'))db.createObjectStore('config');if(!db.objectStoreNames.contains(PHOTO_STORE))db.createObjectStore(PHOTO_STORE,{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function saveMapToDB(mapData){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE_NAME,'readwrite');tx.objectStore(STORE_NAME).put(mapData);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
 async function getAllMapsFromDB(){const db=await openDB();return new Promise((resolve,reject)=>{const req=db.transaction(STORE_NAME,'readonly').objectStore(STORE_NAME).getAll();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function deleteMapFromDB(id){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE_NAME,'readwrite');tx.objectStore(STORE_NAME).delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+async function savePhotoToDB(photoData){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(PHOTO_STORE,'readwrite');tx.objectStore(PHOTO_STORE).put(photoData);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+async function getPhotoFromDB(id){const db=await openDB();return new Promise((resolve,reject)=>{const req=db.transaction(PHOTO_STORE,'readonly').objectStore(PHOTO_STORE).get(id);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+async function deletePhotoFromDB(id){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(PHOTO_STORE,'readwrite');tx.objectStore(PHOTO_STORE).delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
 
 function initMap(){
 map=L.map('map',{zoomControl:false,maxZoom:22,rotate:true,touchRotate:true}).setView([-2.66491,118.85193],15);
@@ -950,7 +991,194 @@ layer.on('load',()=>console.log('✅ WebP dirender:',mapData.name));
 layer.on('error',()=>{console.error('❌ WebP gagal:',mapData.name);showNotification('❌ WebP gagal dirender.',4000);});
 return{layer,bounds:ib};
 }
+function createPointsLayer(md) {
+    const pointsLayer = L.layerGroup();
 
+    const features = md.geojson?.features || [];
+
+    features.forEach((ft, index) => {
+        if (!ft.geometry || ft.geometry.type !== 'Point') return;
+
+        const [lng, lat] = ft.geometry.coordinates;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        const name = ft.properties?.name || 'Titik ' + (index + 1);
+        const note = ft.properties?.note || '';
+
+             const marker = L.marker([lat, lng])
+            .bindPopup(
+                '<div style="cursor:pointer;text-align:center;padding:4px 10px;" onclick="openPointEdit(' + index + ')"><b>' + name + '</b></div>',
+                { closeButton: true }
+            );
+
+        pointsLayer.addLayer(marker);
+    });
+
+    return pointsLayer;
+}
+function refreshActivePointsLayer(){
+    const am=getActiveMap();
+    if (!am) return;
+    const entry = activeLayers[am.id];
+    if (!entry) return;
+
+    // Hapus gambar titik lama (jika ada)
+    if (entry.pointsLayer) {
+        map.removeLayer(entry.pointsLayer);
+    }
+
+    // Gambar ulang titik dari buku catatan peta
+    entry.pointsLayer = createPointsLayer(am);
+    entry.pointsLayer.addTo(map);
+}
+function getActiveMap(){
+    // 1. Kalau user pernah memilih manual via dropdown, pakai pilihan itu
+    if(selectedNotebookId){
+        const m=mapCollection.find(x=>x.id===selectedNotebookId);
+        if(m&&m.isActive)return m;
+    }
+    // 2. Aturan default: webp dulu, lalu kmz/kml, lalu lainnya
+    const actives=mapCollection.filter(x=>x.isActive);
+    if(!actives.length)return null;
+    return actives.find(x=>x.type==='webp_json')||actives.find(x=>x.type==='kmz'||x.type==='kml')||actives[0];
+}
+function switchNotebook(mapId){
+    selectedNotebookId=mapId||null;
+    renderPointsView();
+    refreshActivePointsLayer();
+}
+async function movePoint(i){
+    const am=getActiveMap();if(!am)return;
+    const f=am.geojson?.features[i];if(!f)return;
+
+    // Cari peta lain yang sedang terbuka
+    const others=mapCollection.filter(m=>m.isActive&&m.id!==am.id);
+    if(!others.length){alert('Tidak ada peta lain yang terbuka. ON-kan dulu peta tujuannya.');return;}
+
+    // Tampilkan pilihan
+    const namaTitik=f.properties?.name||('Titik '+(i+1));
+    const menu=others.map((m,j)=>(j+1)+'. '+m.name.replace(/\.[^/.]+$/,'')).join('\n');
+    const p=prompt('Pindahkan "'+namaTitik+'" ke peta:\n\n'+menu+'\n\nKetik nomornya:','1');
+    if(p===null)return;
+    const idx=parseInt(p)-1;
+    if(isNaN(idx)||idx<0||idx>=others.length){alert('Nomor tidak valid.');return;}
+
+    // Pindahkan: tulis ke buku baru, hapus dari buku lama
+    const target=others[idx];
+    if(!target.geojson)target.geojson={type:'FeatureCollection',features:[]};
+    target.geojson.features.push(f);
+    am.geojson.features.splice(i,1);
+    await saveMapToDB(am);
+    await saveMapToDB(target);
+
+    renderPointsView();renderLibraryContent();refreshActivePointsLayer();
+    showNotification('📤 "'+namaTitik+'" dipindah ke '+target.name.replace(/\.[^/.]+$/,''));
+}
+function formatTanggal(d){
+    const p=n=>String(n).padStart(2,'0');
+    return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+
+function openPointEdit(i){
+    const am=getActiveMap();if(!am)return;
+    const f=am.geojson?.features[i];if(!f)return;
+    editingPointIndex=i;
+    document.getElementById('pe-name').value=f.properties?.name||'';
+    document.getElementById('pe-note').value=f.properties?.note||'';
+    const ts=f.properties?.timestamp?new Date(f.properties.timestamp):null;
+    document.getElementById('pe-time').textContent=ts?formatTanggal(ts):'-';
+    const co=f.geometry.coordinates;
+    document.getElementById('pe-coord').textContent=co[1].toFixed(5)+', '+co[0].toFixed(5);
+    document.getElementById('point-edit-modal').classList.add('active');
+    map.closePopup();
+    refreshPhotoPreview();
+}
+
+function closePointEdit(){
+    document.getElementById('point-edit-modal').classList.remove('active');
+    editingPointIndex=null;
+    if(pePhotoObjectUrl){URL.revokeObjectURL(pePhotoObjectUrl);pePhotoObjectUrl=null;}
+}
+
+function triggerPhotoCapture(){document.getElementById('photo-camera-input').click();}
+function triggerPhotoGallery(){document.getElementById('photo-gallery-input').click();}
+
+async function refreshPhotoPreview(){
+    const img=document.getElementById('pe-photo-preview');
+    const delBtn=document.getElementById('pe-photo-delete-btn');
+    if(pePhotoObjectUrl){URL.revokeObjectURL(pePhotoObjectUrl);pePhotoObjectUrl=null;}
+    const am=getActiveMap();
+    const f=(am&&editingPointIndex!==null)?am.geojson?.features[editingPointIndex]:null;
+    if(f&&f.properties?.photoId){
+        try{
+            const rec=await getPhotoFromDB(f.properties.photoId);
+            if(rec&&rec.blob){
+                pePhotoObjectUrl=URL.createObjectURL(rec.blob);
+                img.src=pePhotoObjectUrl;
+                img.style.display='block';
+                delBtn.style.display='block';
+                return;
+            }
+        }catch(e){console.warn('Gagal memuat foto:',e);}
+    }
+    img.style.display='none';
+    img.removeAttribute('src');
+    delBtn.style.display='none';
+}
+
+async function handlePhotoSelected(event){
+    const file=event.target.files[0];
+    event.target.value='';
+    if(!file)return;
+    if(editingPointIndex===null)return;
+    const am=getActiveMap();if(!am)return;
+    const f=am.geojson?.features[editingPointIndex];if(!f)return;
+    try{
+        showNotification('⏳ Menyimpan foto...',1500);
+        const oldId=f.properties?.photoId;
+        const newId='photo_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
+        await savePhotoToDB({id:newId,blob:file,created:new Date().toISOString()});
+        f.properties=f.properties||{};
+        f.properties.photoId=newId;
+        await saveMapToDB(am);
+        if(oldId)await deletePhotoFromDB(oldId).catch(()=>{});
+        await refreshPhotoPreview();
+        renderPointsView();
+        showNotification('✅ Foto tersimpan');
+    }catch(err){
+        alert('Gagal menyimpan foto: '+err.message);
+    }
+}
+
+async function removePointPhoto(){
+    if(editingPointIndex===null)return;
+    if(!confirm('Hapus foto ini?'))return;
+    const am=getActiveMap();if(!am)return;
+    const f=am.geojson?.features[editingPointIndex];if(!f)return;
+    const oldId=f.properties?.photoId;
+    try{
+        if(oldId)await deletePhotoFromDB(oldId).catch(()=>{});
+        delete f.properties.photoId;
+        await saveMapToDB(am);
+        await refreshPhotoPreview();
+        renderPointsView();
+        showNotification('🗑️ Foto dihapus');
+    }catch(err){
+        alert('Gagal menghapus foto: '+err.message);
+    }
+}
+
+async function savePointEdit(){
+    const am=getActiveMap();if(!am||editingPointIndex===null)return;
+    const f=am.geojson?.features[editingPointIndex];if(!f)return;
+    f.properties=f.properties||{};
+    f.properties.name=document.getElementById('pe-name').value.trim()||f.properties.name||('Titik '+(editingPointIndex+1));
+    f.properties.note=document.getElementById('pe-note').value;
+    await saveMapToDB(am);
+    closePointEdit();
+    renderPointsView();renderLibraryContent();refreshActivePointsLayer();
+    showNotification('✅ Perubahan disimpan');
+}
 function renderLibraryContent(){
 const c=document.getElementById('library-content');
 c.innerHTML='<div class="upload-btn-wrapper">'
@@ -994,7 +1222,7 @@ lc.innerHTML=h;
 
 function activateMap(mapId){
 const md=mapCollection.find(m=>m.id===mapId);if(!md)return;
-if(activeLayers[mapId])deactivateMap(mapId);
+if(activeLayers[mapId])deactivateMap(mapId);selectedNotebookId=mapId;
 try{
 if(md.type==='kmz'||md.type==='kml'){
 const reader=new FileReader();
@@ -1006,20 +1234,22 @@ const fg=parseKMLToLeaflet(kmlText);if(!fg.getLayers().length){alert('Tidak ada 
 fg.addTo(map);const b=fg.getBounds();if(b.isValid())map.fitBounds(b,{padding:[20,20]});
 activeLayers[mapId]={name:md.name,layer:fg};md.isActive=true;
 updateActiveLayersUI();renderLibraryContent();renderPointsView();activeMapId=mapId;
+refreshActivePointsLayer();
 showNotification('✅ '+md.name+' diaktifkan');
 }catch(err){alert('Gagal: '+err.message);}};
 reader.readAsArrayBuffer(new Blob([md.fileData]));
 }else if(md.type==='webp_json'){
 try{const result=createWebPImageLayer(md);if(typeof result.layer.setOpacity==='function')result.layer.setOpacity(webpOpacity);
 result.layer.addTo(map);activeLayers[mapId]={name:md.name,layer:result.layer,type:'webp_json'};md.isActive=true;
-updateActiveLayersUI();renderLibraryContent();renderPointsView();activeMapId=mapId;
+updateActiveLayersUI();renderLibraryContent();renderPointsView();activeMapId=mapId;refreshActivePointsLayer();
 setTimeout(()=>{map.invalidateSize();map.fitBounds(result.bounds,{padding:[20,20],maxZoom:Number(md.maxZoom||22)});updateReticleCoordinates();},50);
 showNotification('✅ '+md.name+' ditampilkan di peta',3000);
 }catch(err){alert('Gagal: '+err.message);}}
 else showNotification('⚠️ Format tidak didukung: '+md.type);
 }catch(err){alert('Gagal mengaktifkan: '+err.message);}
 }
-function deactivateMap(mapId){if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];const md=mapCollection.find(m=>m.id===mapId);if(md)md.isActive=false;updateActiveLayersUI();renderLibraryContent();renderPointsView();if(activeMapId===mapId)activeMapId=null;showNotification('🗑️ Peta dinonaktifkan');}}
+function deactivateMap(mapId){if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);const pl=activeLayers[mapId].pointsLayer;
+if(pl)map.removeLayer(pl);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];const md=mapCollection.find(m=>m.id===mapId);if(md)md.isActive=false;if(selectedNotebookId===mapId)selectedNotebookId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();if(activeMapId===mapId)activeMapId=null;showNotification('🗑️ Peta dinonaktifkan');}}
 async function deleteMap(mapId){const md=mapCollection.find(m=>m.id===mapId);if(!md)return;if(!confirm('Hapus "'+md.name+'"?'))return;try{if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];}await deleteMapFromDB(mapId);mapCollection=mapCollection.filter(m=>m.id!==mapId);if(activeMapId===mapId)activeMapId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();showNotification('🗑️ "'+md.name+'" dihapus');}catch(err){alert('Gagal menghapus: '+err.message);}}
 
 function updateActiveLayersUI(){const c=document.getElementById('active-layers');let h='';Object.keys(activeLayers).forEach(id=>{const it=activeLayers[id];h+='<div class="file-item"><div class="file-info"><svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg><span class="file-name">'+it.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="remove-btn" onclick="deactivateMap(\''+id+'\')">Hapus</button></div>';});c.innerHTML=h;}
@@ -1155,29 +1385,51 @@ function setBasemap(key){const p=BASEMAP_PROVIDERS[key];if(!p)return;if(activeLa
 
 function renderPointsView(){
 const c=document.getElementById('points-list-container');const mn=document.getElementById('points-map-name');
-const am=mapCollection.find(m=>m.isActive===true);
-if(!am){mn.textContent='Pilih peta terlebih dahulu';c.innerHTML='<div class="empty-points">📭 Tidak ada peta aktif.</div>';return;}
-mn.textContent='📄 '+am.name.replace(/\.[^/.]+$/,'')+' ('+(am.geojson?.features?.length||0)+' titik)';
+const am=getActiveMap();
+if(!am){document.getElementById('notebook-select').innerHTML='<option>-</option>';mn.textContent='Pilih peta terlebih dahulu';c.innerHTML='<div class="empty-points">📭 Tidak ada peta aktif.</div>';return;}
+const actives=mapCollection.filter(m=>m.isActive);
+const sel=document.getElementById('notebook-select');
+sel.innerHTML=actives.map(m=>'<option value="'+m.id+'"'+(m.id===am.id?' selected':'')+'>'+m.name.replace(/\.[^/.]+$/,'')+' ('+(m.geojson?.features?.length||0)+' titik)</option>').join('');
+mn.textContent='📄 Prioritas: '+am.name.replace(/\.[^/.]+$/,'');
 const f=am.geojson?.features||[];
 if(!f.length){c.innerHTML='<div class="empty-points">📭 Belum ada titik.</div>';return;}
-let h='';f.forEach((ft,i)=>{const co=ft.geometry.coordinates;const nm=ft.properties?.name||'Titik '+(i+1);const nt=ft.properties?.note||'';
-h+='<div class="point-item"><div class="point-info"><span class="point-name">'+nm+'</span><span class="point-coords">'+co[1].toFixed(6)+', '+co[0].toFixed(6)+(nt?' • '+nt:'')+'</span></div><div class="point-actions"><button onclick="flyToPoint('+i+')" title="Lokasi">📍</button><button class="btn-delete-point" onclick="deletePoint('+i+')" title="Hapus">✕</button></div></div>';});
+let h='';f.forEach((ft,i)=>{const co=ft.geometry.coordinates;const nm=ft.properties?.name||'Titik '+(i+1);const nt=ft.properties?.note||'';const pid=ft.properties?.photoId;
+const thumb=pid?'<img class="point-thumb" data-photo-id="'+pid+'" alt="foto">':'<div class="point-thumb point-thumb-empty">📍</div>';
+h+='<div class="point-item">'+thumb+'<div class="point-info"><span class="point-name">'+nm+'</span><span class="point-coords">'+co[1].toFixed(6)+', '+co[0].toFixed(6)+(nt?' • '+nt:'')+'</span></div><div class="point-actions"><button onclick="openPointEdit('+i+')" title="Edit / Foto">✏️</button><button onclick="flyToPoint('+i+')" title="Lokasi">📍</button><button onclick="movePoint('+i+')" title="Pindah ke peta lain">📤</button><button class="btn-delete-point" onclick="deletePoint('+i+')" title="Hapus">✕</button></div></div>';});
 c.innerHTML=h;
+loadPointThumbnails();
+}
+
+async function loadPointThumbnails(){
+    pointThumbUrls.forEach(u=>URL.revokeObjectURL(u));
+    pointThumbUrls=[];
+    const imgs=document.querySelectorAll('.point-thumb[data-photo-id]');
+    for(const img of imgs){
+        const id=img.getAttribute('data-photo-id');
+        try{
+            const rec=await getPhotoFromDB(id);
+            if(rec&&rec.blob){
+                const url=URL.createObjectURL(rec.blob);
+                pointThumbUrls.push(url);
+                img.src=url;
+            }
+        }catch(e){console.warn('Gagal memuat thumbnail:',e);}
+    }
 }
 function addPointFromCrosshair(){
-const am=mapCollection.find(m=>m.isActive===true);if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
+const am=getActiveMap();if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
 const c=map.getCenter();const name=prompt('Nama titik:','Waypoint '+waypointCount);if(!name)return;const note=prompt('Catatan (opsional):','');
 if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};
 am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name,note:note||'',timestamp:new Date().toISOString()}});
 saveMapToDB(am).then(()=>{waypointCount++;renderPointsView();renderLibraryContent();showNotification('✅ Titik "'+name+'" ditambahkan');});
-L.marker([c.lat,c.lng]).addTo(map).bindPopup('<b>'+name+'</b><br>'+c.lat.toFixed(5)+', '+c.lng.toFixed(5)+(note?'<br>'+note:'')).openPopup();
+refreshActivePointsLayer();
 }
-function flyToPoint(i){const am=mapCollection.find(m=>m.isActive===true);if(!am)return;const f=am.geojson?.features[i];if(!f)return;map.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],17);}
-async function deletePoint(i){const am=mapCollection.find(m=>m.isActive===true);if(!am)return;if(!confirm('Hapus titik ini?'))return;am.geojson.features.splice(i,1);await saveMapToDB(am);renderPointsView();renderLibraryContent();showNotification('🗑️ Titik dihapus');}
-async function clearAllPoints(){const am=mapCollection.find(m=>m.isActive===true);if(!am)return;const c=am.geojson?.features?.length||0;if(!c){alert('Tidak ada titik.');return;}if(!confirm('Hapus semua '+c+' titik?'))return;am.geojson.features=[];await saveMapToDB(am);renderPointsView();renderLibraryContent();showNotification('🗑️ Semua titik dihapus');}
+function flyToPoint(i){const am=getActiveMap();if(!am)return;const f=am.geojson?.features[i];if(!f)return;map.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],17);}
+async function deletePoint(i){const am=getActiveMap();if(!am)return;if(!confirm('Hapus titik ini?'))return;am.geojson.features.splice(i,1);await saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();showNotification('🗑️ Titik dihapus');}
+async function clearAllPoints(){const am=getActiveMap();if(!am)return;const c=am.geojson?.features?.length||0;if(!c){alert('Tidak ada titik.');return;}if(!confirm('Hapus semua '+c+' titik?'))return;am.geojson.features=[];await saveMapToDB(am);renderPointsView();renderLibraryContent();showNotification('🗑️ Semua titik dihapus');}
 
 function exportPoints(format){
-const am=mapCollection.find(m=>m.isActive===true);if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
+const am=getActiveMap();if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
 const f=am.geojson?.features||[];if(!f.length){alert('Tidak ada titik.');return;}
 let content='',filename=am.name.replace(/\.[^/.]+$/,'')+'_points',mimeType='';
 switch(format){
@@ -1196,13 +1448,13 @@ const mv=document.getElementById('map-view'),lv=document.getElementById('layers-
 const nu=document.getElementById('nav-icon-use');const mc=document.querySelectorAll('.map-only-control');
 if(currentView==='map'){mv.classList.remove('active');lv.classList.add('active');pv.classList.remove('active');nu.setAttribute('href','#icon-map');mc.forEach(el=>el.style.visibility='hidden');currentView='layers';}
 else if(currentView==='layers'){lv.classList.remove('active');pv.classList.add('active');mv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='hidden');currentView='points';renderPointsView();}
-else{pv.classList.remove('active');mv.classList.add('active');lv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='visible');currentView='map';setTimeout(()=>{map.invalidateSize();const am=mapCollection.find(m=>m.isActive===true);if(am&&activeLayers[am.id]&&activeLayers[am.id].type==='webp_json'){const l=activeLayers[am.id].layer;if(l&&l.getBounds&&l.getBounds().isValid())map.fitBounds(l.getBounds(),{padding:[20,20]});}},100);}
+else{pv.classList.remove('active');mv.classList.add('active');lv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='visible');currentView='map';setTimeout(()=>{map.invalidateSize();const am=getActiveMap();if(am&&activeLayers[am.id]&&activeLayers[am.id].type==='webp_json'){const l=activeLayers[am.id].layer;if(l&&l.getBounds&&l.getBounds().isValid())map.fitBounds(l.getBounds(),{padding:[20,20]});}},100);}
 }
 
 function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));event.currentTarget.classList.add('active');if(tabName==='basemap')renderLibraryBasemaps();else if(tabName==='kmz')renderLibraryContent();else if(tabName==='maps'){document.getElementById('library-content').innerHTML='<div style="font-size:13px;color:#555;margin-bottom:10px;">📄 File PDF referensi</div><div style="margin-top:12px;padding:12px;background:#fff3cd;border-radius:4px;font-size:13px;color:#856404;">⚠️ Gunakan Upload GeoPDF untuk peta interaktif.</div>';}}
 function renderLibraryBasemaps(){const c=document.getElementById('library-content');let h='';Object.keys(BASEMAP_PROVIDERS).forEach(k=>{const it=BASEMAP_PROVIDERS[k];h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#'+it.icon+'"></use></svg><span class="file-name">'+it.name+'</span></div><button class="add-btn" onclick="setBasemap(\''+k+'\')">+ Aktifkan</button></div>';});c.innerHTML=h;}
 
-function addWaypointAtReticle(){const c=map.getCenter();L.marker([c.lat,c.lng]).addTo(map).bindPopup('<b>Waypoint '+waypointCount+'</b><br>Lat: '+c.lat.toFixed(5)+'<br>Lng: '+c.lng.toFixed(5)).openPopup();waypointCount++;const am=mapCollection.find(m=>m.isActive===true);if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'Dari crosshair',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();}}
+function addWaypointAtReticle(){const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'Dari crosshair',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
 
 function closeSettings(){document.getElementById('settings-modal').classList.remove('active');}
 async function selectDefaultKMZFolder(){if('showDirectoryPicker' in window){try{defaultDirHandle=await window.showDirectoryPicker();await saveHandleToIDB(defaultDirHandle);document.getElementById('folder-path-text').innerText=defaultDirHandle.name;await scanFilesFromHandle(defaultDirHandle);renderKMZLibrary();alert("Folder disimpan!");}catch(err){console.warn(err);}}else document.getElementById('folder-fallback-input').click();}
