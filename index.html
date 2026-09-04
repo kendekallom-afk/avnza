@@ -1641,5 +1641,99 @@ function openAppSettings() {
     if (popup) popup.style.display = 'none';
 }
 </script>
+<script>
+// --- KODE PENYESUAIAN ARAH KOMPAS DAN ROTASI PETA ---
+
+let currentDeviceHeading = 0; // Menyimpan arah orientasi HP
+
+// Fungsi untuk menghitung arah kerucut kompas
+function updateHeading(deviceHeading) {
+    currentDeviceHeading = deviceHeading;
+    
+    // Cek apakah peta sedang diputar
+    let mapBearing = 0;
+    if (typeof map !== 'undefined' && typeof map.getBearing === 'function') {
+        mapBearing = map.getBearing() || 0;
+    }
+    
+    // Hitung arah relatif: Arah HP dikurangi Rotasi Peta
+    const relativeHeading = (deviceHeading - mapBearing + 360) % 360;
+
+    // Putar elemen kerucut kompas di layar
+    const headingEl = document.getElementById('user-heading');
+    if (headingEl) {
+        headingEl.style.transform = `rotate(${relativeHeading}deg)`;
+    }
+}
+
+// Sensor untuk membaca arah kompas HP
+window.addEventListener('deviceorientation', function(event) {
+    let heading = null;
+
+    if (event.webkitCompassHeading) {
+        // Untuk HP iPhone / iOS
+        heading = event.webkitCompassHeading;
+    } else if (event.alpha !== null) {
+        // Untuk HP Android
+        heading = 360 - event.alpha;
+    }
+
+    if (heading !== null) {
+        updateHeading(heading);
+    }
+}, true);
+// === PAKET LENGKAP KOMPAS & ROTASI PETA ===
+
+let currentDeviceHeading = 0; // Menyimpan arah orientasi HP
+
+// 1. Fungsi untuk menghitung & memutar kerucut kompas
+function updateHeading(deviceHeading) {
+    currentDeviceHeading = deviceHeading;
+    
+    // Cek apakah peta Leaflet sedang diputar
+    let mapBearing = 0;
+    if (typeof map !== 'undefined' && typeof map.getBearing === 'function') {
+        mapBearing = map.getBearing() || 0;
+    }
+    
+    // Hitung arah relatif: Arah HP dikurangi Rotasi Peta
+    const relativeHeading = (deviceHeading - mapBearing + 360) % 360;
+
+    // Putar elemen kerucut kompas di layar
+    const headingEl = document.getElementById('user-heading');
+    if (headingEl) {
+        headingEl.style.transform = `rotate(${relativeHeading}deg)`;
+    }
+}
+
+// 2. Sensor untuk membaca arah kompas dari HP
+window.addEventListener('deviceorientation', function(event) {
+    let heading = null;
+
+    if (event.webkitCompassHeading) {
+        // Untuk iPhone / iOS
+        heading = event.webkitCompassHeading;
+    } else if (event.alpha !== null) {
+        // Untuk Android
+        heading = 360 - event.alpha;
+    }
+
+    if (heading !== null) {
+        updateHeading(heading);
+    }
+}, true);
+
+// 3. Otomatis update kompas saat peta di-rotate dengan 2 jari
+document.addEventListener('DOMContentLoaded', function() {
+    // Menunggu sampai peta selesai dimuat sepenuhnya
+    setTimeout(function() {
+        if (typeof map !== 'undefined') {
+            map.on('rotate drag zoom', function() {
+                updateHeading(currentDeviceHeading);
+            });
+        }
+    }, 1000);
+});
+</script>
 </body>
 </html>
