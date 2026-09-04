@@ -457,6 +457,10 @@ async function deletePhotoQuiet(photoId){if(!photoId)return;try{await deletePhot
 
 function initMap(){
 map=L.map('map',{zoomControl:false,maxZoom:22,rotate:true,touchRotate:true}).setView([-2.66491,118.85193],15);
+// Tambahkan listener untuk mendeteksi saat peta diputar
+map.on('rotate', function() {
+    updateHeadingPointer();
+});
 map.on('move',updateReticleCoordinates);
 updateReticleCoordinates();
 setBasemap('osm');
@@ -482,6 +486,8 @@ function centerToGPS(){
 if(!navigator.geolocation){alert("Geolocation tidak didukung.");return;}
 const z=map.getZoom();
 if(map.setBearing)map.setBearing(0);
+// Update panah kompas setelah mereset peta
+updateHeadingPointer();
 const w=document.getElementById('user-heading-wrapper');if(w)w.style.transform='rotate(0deg)';
 if(latestCoords){map.setView([latestCoords.lat,latestCoords.lng],z);updateUserMarker(latestCoords.lat,latestCoords.lng);}
 else{navigator.geolocation.getCurrentPosition(pos=>{latestCoords={lat:pos.coords.latitude,lng:pos.coords.longitude};map.setView([latestCoords.lat,latestCoords.lng],z);updateUserMarker(latestCoords.lat,latestCoords.lng);},err=>{let m="Gagal mendapatkan lokasi.";if(err.code===1)m="Izin lokasi ditolak.";else if(err.code===2)m="Sinyal GPS tidak tersedia.";else if(err.code===3)m="Timeout.";alert(m);},{enableHighAccuracy:true,timeout:10000,maximumAge:0});}
@@ -490,7 +496,33 @@ function updateUserMarker(lat,lng){
 if(userLocationMarker){userLocationMarker.setLatLng([lat,lng]);}
 else{const icon=L.divIcon({className:'custom-user-icon',html:`<div class="user-location-container"><div class="user-heading-wrapper" id="user-heading-wrapper"><div class="user-heading-cone"></div><div class="heading-pointer-dot"></div></div><div class="user-pulse"></div><div class="user-dot"></div></div>`,iconSize:[60,60],iconAnchor:[30,30]});userLocationMarker=L.marker([lat,lng],{icon}).addTo(map);}
 }
-function handleOrientation(e){let a=e.alpha,h=null;if(e.webkitCompassHeading)h=e.webkitCompassHeading;else if(a!==null)h=360-a;if(h!==null){currentHeading=h;const w=document.getElementById('user-heading-wrapper');if(w)w.style.transform='rotate('+h+'deg)';}}
+// Fungsi untuk memperbarui arah panah kompas
+function updateHeadingPointer() {
+    var wrapper = document.getElementById('user-heading-wrapper');
+    if (!wrapper) return; // Jika elemen tidak ada, berhenti
+    
+    // Dapatkan rotasi peta saat ini (dalam derajat)
+    var mapBearing = 0;
+    if (map && typeof map.getBearing === 'function') {
+        mapBearing = map.getBearing();
+    }
+    
+    // Hitung arah panah = arah sensor - rotasi peta
+    var relativeHeading = (currentHeading || 0) - mapBearing;
+    
+    // Terapkan rotasi ke panah kompas
+    wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
+}
+function handleOrientation(e){
+    let a=e.alpha,h=null;
+    if(e.webkitCompassHeading)h=e.webkitCompassHeading;
+    else if(a!==null)h=360-a;
+    if(h!==null){
+        currentHeading=h;
+        // Panggil fungsi baru untuk update heading
+        updateHeadingPointer();
+    }
+}
 function initOrientationWatcher(){if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}).catch(console.error);}else if('ondeviceorientationabsolute' in window)window.addEventListener('deviceorientationabsolute',handleOrientation,true);else if('ondeviceorientation' in window)window.addEventListener('deviceorientation',handleOrientation,true);}
 function initGPSWatcher(){
 const sE=document.getElementById('gps-status'),aE=document.getElementById('gps-accuracy');
