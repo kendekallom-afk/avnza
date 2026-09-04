@@ -1118,8 +1118,21 @@ function closePointEdit(){
     if(pePhotoObjectUrl){URL.revokeObjectURL(pePhotoObjectUrl);pePhotoObjectUrl=null;}
 }
 
-function triggerPhotoCapture(){document.getElementById('photo-camera-input').click();}
-function triggerPhotoGallery(){document.getElementById('photo-gallery-input').click();}
+async function ensureFolderPermissionOnTap(){
+    const mode=await getPhotoStorageMode();
+    if(mode!=='folder')return;
+    const folderHandle=await getPhotoFolderHandle();
+    if(!folderHandle)return;
+    await verifyFolderPermission(folderHandle);
+}
+async function triggerPhotoCapture(){
+    await ensureFolderPermissionOnTap();
+    document.getElementById('photo-camera-input').click();
+}
+async function triggerPhotoGallery(){
+    await ensureFolderPermissionOnTap();
+    document.getElementById('photo-gallery-input').click();
+}
 
 async function refreshPhotoPreview(){
     const img=document.getElementById('pe-photo-preview');
@@ -1156,7 +1169,7 @@ async function handlePhotoSelected(event){
         const newId='photo_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
         const mode=await getPhotoStorageMode();
         const folderHandle=(mode==='folder')?await getPhotoFolderHandle():null;
-        const canUseFolder=folderHandle&&await verifyFolderPermission(folderHandle);
+        const canUseFolder=folderHandle&&await hasFolderPermission(folderHandle);
         if(canUseFolder){
             const ext=(file.name&&file.name.includes('.'))?file.name.split('.').pop():'jpg';
             const filename=newId+'.'+ext;
@@ -1499,6 +1512,10 @@ async function savePhotoFolderHandle(h){
 }
 async function getPhotoFolderHandle(){
     try{const db=await openDB();return new Promise(r=>{const req=db.transaction('config','readonly').objectStore('config').get('photoFolderHandle');req.onsuccess=()=>r(req.result||null);req.onerror=()=>r(null);});}catch(e){return null;}
+}
+async function hasFolderPermission(handle){
+    if(!handle)return false;
+    try{return (await handle.queryPermission({mode:'readwrite'}))==='granted';}catch(e){return false;}
 }
 async function verifyFolderPermission(handle){
     if(!handle)return false;
