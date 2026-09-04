@@ -1642,52 +1642,41 @@ function openAppSettings() {
 }
 </script>
 <script>
-// === PERBAIKAN KOMPAS RELATIF TERHADAP ROTASI PETA ===
+// === INTEGRASI KOMPAS DENGAN LEAFLET-ROTATE ===
 
-let currentDeviceHeading = 0;
+let currentDeviceHeading = 0; // Arah kompas HP (0 - 360 derajat)
 
-// Fungsi untuk mencari objek peta Leaflet secara otomatis
-function getLeafletMap() {
-    if (typeof map !== 'undefined') return map;
-    if (typeof mymap !== 'undefined') return mymap;
-    if (typeof peta !== 'undefined') return peta;
-    // Cari variabel peta yang tersimpan di jendela global
-    for (let key in window) {
-        if (window[key] && window[key] instanceof L.Map) {
-            return window[key];
-        }
-    }
-    return null;
-}
-
-// Fungsi utama update arah kerucut
+// Fungsi untuk memperbarui rotasi kerucut kompas secara relatif
 function updateHeading(deviceHeading) {
+    if (deviceHeading === null || deviceHeading === undefined) return;
     currentDeviceHeading = deviceHeading;
     
-    const activeMap = getLeafletMap();
+    // Ambil nilai rotasi peta dari plugin leaflet-rotate (dalam derajat)
     let mapBearing = 0;
-
-    // Mengambil sudut rotasi peta jika plugin rotasi aktif
-    if (activeMap && typeof activeMap.getBearing === 'function') {
-        mapBearing = activeMap.getBearing() || 0;
+    if (typeof map !== 'undefined' && map && typeof map.getBearing === 'function') {
+        mapBearing = map.getBearing() || 0;
     }
-
-    // Hitung Arah Relatif = (Arah HP - Rotasi Peta)
+    
+    // Hitung arah relatif: Arah Kompas HP dikurangi Arah Rotasi Peta
     const relativeHeading = (deviceHeading - mapBearing + 360) % 360;
 
+    // Putar elemen kerucut/segitiga merah
     const headingEl = document.getElementById('user-heading');
     if (headingEl) {
         headingEl.style.transform = `rotate(${relativeHeading}deg)`;
     }
 }
 
-// Sensor Kompas HP
+// 1. Membaca Sensor Kompas HP / Device Orientation
 window.addEventListener('deviceorientation', function(event) {
     let heading = null;
+
     if (event.webkitCompassHeading) {
-        heading = event.webkitCompassHeading; // iOS
+        // Untuk iOS (iPhone/iPad)
+        heading = event.webkitCompassHeading;
     } else if (event.alpha !== null) {
-        heading = 360 - event.alpha; // Android
+        // Untuk Android
+        heading = 360 - event.alpha;
     }
 
     if (heading !== null) {
@@ -1695,17 +1684,19 @@ window.addEventListener('deviceorientation', function(event) {
     }
 }, true);
 
-// Menghubungkan ke Peta setelah halaman selesai dimuat
-window.addEventListener('load', function() {
+// 2. Hubungkan ke Event Rotasi Peta (leaflet-rotate)
+window.addEventListener('DOMContentLoaded', function() {
+    // Tunggu sebentar sampai variabel 'map' diinisialisasi
     setTimeout(function() {
-        const activeMap = getLeafletMap();
-        if (activeMap) {
-            // Dengarkan setiap gerakan/rotasi/zoom peta
-            activeMap.on('rotate rotateend move zoom drag', function() {
+        if (typeof map !== 'undefined' && map) {
+            
+            // Setiap kali peta diputar dengan 2 jari atau digeser
+            map.on('rotate rotateend move zoom', function() {
                 updateHeading(currentDeviceHeading);
             });
+            
         }
-    }, 1500);
+    }, 500);
 });
 </script>
 </body>
