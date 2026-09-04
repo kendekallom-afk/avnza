@@ -1642,80 +1642,52 @@ function openAppSettings() {
 }
 </script>
 <script>
-// --- KODE PENYESUAIAN ARAH KOMPAS DAN ROTASI PETA ---
+// === PERBAIKAN KOMPAS RELATIF TERHADAP ROTASI PETA ===
 
-let currentDeviceHeading = 0; // Menyimpan arah orientasi HP
+let currentDeviceHeading = 0;
 
-// Fungsi untuk menghitung arah kerucut kompas
+// Fungsi untuk mencari objek peta Leaflet secara otomatis
+function getLeafletMap() {
+    if (typeof map !== 'undefined') return map;
+    if (typeof mymap !== 'undefined') return mymap;
+    if (typeof peta !== 'undefined') return peta;
+    // Cari variabel peta yang tersimpan di jendela global
+    for (let key in window) {
+        if (window[key] && window[key] instanceof L.Map) {
+            return window[key];
+        }
+    }
+    return null;
+}
+
+// Fungsi utama update arah kerucut
 function updateHeading(deviceHeading) {
     currentDeviceHeading = deviceHeading;
     
-    // Cek apakah peta sedang diputar
+    const activeMap = getLeafletMap();
     let mapBearing = 0;
-    if (typeof map !== 'undefined' && typeof map.getBearing === 'function') {
-        mapBearing = map.getBearing() || 0;
+
+    // Mengambil sudut rotasi peta jika plugin rotasi aktif
+    if (activeMap && typeof activeMap.getBearing === 'function') {
+        mapBearing = activeMap.getBearing() || 0;
     }
-    
-    // Hitung arah relatif: Arah HP dikurangi Rotasi Peta
+
+    // Hitung Arah Relatif = (Arah HP - Rotasi Peta)
     const relativeHeading = (deviceHeading - mapBearing + 360) % 360;
 
-    // Putar elemen kerucut kompas di layar
     const headingEl = document.getElementById('user-heading');
     if (headingEl) {
         headingEl.style.transform = `rotate(${relativeHeading}deg)`;
     }
 }
 
-// Sensor untuk membaca arah kompas HP
+// Sensor Kompas HP
 window.addEventListener('deviceorientation', function(event) {
     let heading = null;
-
     if (event.webkitCompassHeading) {
-        // Untuk HP iPhone / iOS
-        heading = event.webkitCompassHeading;
+        heading = event.webkitCompassHeading; // iOS
     } else if (event.alpha !== null) {
-        // Untuk HP Android
-        heading = 360 - event.alpha;
-    }
-
-    if (heading !== null) {
-        updateHeading(heading);
-    }
-}, true);
-// === PAKET LENGKAP KOMPAS & ROTASI PETA ===
-
-let currentDeviceHeading = 0; // Menyimpan arah orientasi HP
-
-// 1. Fungsi untuk menghitung & memutar kerucut kompas
-function updateHeading(deviceHeading) {
-    currentDeviceHeading = deviceHeading;
-    
-    // Cek apakah peta Leaflet sedang diputar
-    let mapBearing = 0;
-    if (typeof map !== 'undefined' && typeof map.getBearing === 'function') {
-        mapBearing = map.getBearing() || 0;
-    }
-    
-    // Hitung arah relatif: Arah HP dikurangi Rotasi Peta
-    const relativeHeading = (deviceHeading - mapBearing + 360) % 360;
-
-    // Putar elemen kerucut kompas di layar
-    const headingEl = document.getElementById('user-heading');
-    if (headingEl) {
-        headingEl.style.transform = `rotate(${relativeHeading}deg)`;
-    }
-}
-
-// 2. Sensor untuk membaca arah kompas dari HP
-window.addEventListener('deviceorientation', function(event) {
-    let heading = null;
-
-    if (event.webkitCompassHeading) {
-        // Untuk iPhone / iOS
-        heading = event.webkitCompassHeading;
-    } else if (event.alpha !== null) {
-        // Untuk Android
-        heading = 360 - event.alpha;
+        heading = 360 - event.alpha; // Android
     }
 
     if (heading !== null) {
@@ -1723,16 +1695,17 @@ window.addEventListener('deviceorientation', function(event) {
     }
 }, true);
 
-// 3. Otomatis update kompas saat peta di-rotate dengan 2 jari
-document.addEventListener('DOMContentLoaded', function() {
-    // Menunggu sampai peta selesai dimuat sepenuhnya
+// Menghubungkan ke Peta setelah halaman selesai dimuat
+window.addEventListener('load', function() {
     setTimeout(function() {
-        if (typeof map !== 'undefined') {
-            map.on('rotate drag zoom', function() {
+        const activeMap = getLeafletMap();
+        if (activeMap) {
+            // Dengarkan setiap gerakan/rotasi/zoom peta
+            activeMap.on('rotate rotateend move zoom drag', function() {
                 updateHeading(currentDeviceHeading);
             });
         }
-    }, 1000);
+    }, 1500);
 });
 </script>
 </body>
