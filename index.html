@@ -540,7 +540,7 @@ function applyHeadingRotation(){
     const w=document.getElementById('user-heading-wrapper');
     if(!w)return;
     const bearing=(typeof map.getBearing==='function')?map.getBearing():0;
-    const relative=((currentHeading-bearing)%360+360)%360;
+    const relative=((currentHeading+bearing)%360+360)%360;
     w.style.transform='rotate('+relative+'deg)';
 }
 function handleOrientation(e){let a=e.alpha,h=null;if(e.webkitCompassHeading)h=e.webkitCompassHeading;else if(a!==null)h=360-a;if(h!==null){currentHeading=h;applyHeadingRotation();}}
