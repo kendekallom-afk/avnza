@@ -2203,7 +2203,28 @@ function toggleOpacityPanel(){
     const e = document.getElementById('opacity-control');
     if (e) e.classList.toggle('collapsed');
 }
-
+function toggleFullScreen(){
+    const el = document.documentElement;
+    const btn = document.getElementById('btn-fullscreen');
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+    if (!isFs) {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+        if (req) {
+            req.call(el).then(function(){
+                if (btn) btn.textContent = '[×]';
+                setTimeout(function(){ if (map) map.invalidateSize(); }, 200);
+            }).catch(function(){});
+        }
+    } else {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+        if (exit) {
+            exit.call(document).then(function(){
+                if (btn) btn.textContent = '[ ]';
+                setTimeout(function(){ if (map) map.invalidateSize(); }, 200);
+            }).catch(function(){});
+        }
+    }
+}
 function setWebPOpacity(pct){
     const v = Math.max(0, Math.min(100, Number(pct)));
     webpOpacity = v / 100;
