@@ -536,17 +536,16 @@ function updateHeadingPointer() {
     // Terapkan rotasi ke panah kompas
     wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
 }
-function handleOrientation(e){
-    let a=e.alpha,h=null;
-    if(e.webkitCompassHeading)h=e.webkitCompassHeading;
-    else if(a!==null)h=360-a;
-    if(h!==null){
-        currentHeading=h;
-        // Panggil fungsi baru untuk update heading
-        updateHeadingPointer();
-    }
+function applyHeadingRotation(){
+    const w=document.getElementById('user-heading-wrapper');
+    if(!w)return;
+    const bearing=(typeof map.getBearing==='function')?map.getBearing():0;
+    const relative=((currentHeading-bearing)%360+360)%360;
+    w.style.transform='rotate('+relative+'deg)';
 }
+function handleOrientation(e){let a=e.alpha,h=null;if(e.webkitCompassHeading)h=e.webkitCompassHeading;else if(a!==null)h=360-a;if(h!==null){currentHeading=h;applyHeadingRotation();}}
 function initOrientationWatcher(){if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}).catch(console.error);}else if('ondeviceorientationabsolute' in window)window.addEventListener('deviceorientationabsolute',handleOrientation,true);else if('ondeviceorientation' in window)window.addEventListener('deviceorientation',handleOrientation,true);}
+setInterval(applyHeadingRotation,150);
 function initGPSWatcher(){
 const sE=document.getElementById('gps-status'),aE=document.getElementById('gps-accuracy');
 if('geolocation' in navigator){navigator.geolocation.watchPosition(pos=>{const lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Math.round(pos.coords.accuracy);latestCoords={lat,lng};updateUserMarker(lat,lng);aE.textContent='± '+acc+' m';if(acc<=10){sE.textContent='Sinyal Kuat';sE.className='value status-strong';}else if(acc<=30){sE.textContent='Sinyal Sedang';sE.className='value status-medium';}else{sE.textContent='Sinyal Lemah';sE.className='value status-weak';}},err=>{aE.textContent='-';sE.textContent=err.code===1?'Izin Ditolak':err.code===2?'GPS Tdk Terdeteksi':'Mencari Sinyal...';sE.className='value status-no-signal';},{enableHighAccuracy:true,timeout:15000,maximumAge:0});}
