@@ -405,9 +405,12 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
             <textarea id="pe-note" rows="3" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;resize:vertical;"></textarea>
         </div>
         <div class="setting-group">
-            <span class="setting-label">Location:</span>
-            <div class="setting-value-box"><span id="pe-coord" style="font-family:monospace;">-</span></div>
-        </div>
+			<span class="setting-label">Location:</span>
+				<div class="setting-value-box">
+					<span id="pe-coord" style="font-family:monospace;">-</span>
+					<button type="button" class="modal-close" style="font-size:16px;" onclick="openCoordEditPopup()">✏️</button>
+			</div>
+		</div>
         <div class="setting-group">
             <span class="setting-label">Foto:</span>
             <div style="display:flex;align-items:center;gap:10px;">
@@ -431,6 +434,23 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 <input type="file" id="photo-gallery-input" accept="image/*" style="display:none" onchange="handlePhotoSelected(event)">
 <div class="modal-overlay" id="photo-lightbox" onclick="closePhotoLightbox()">
     <img id="photo-lightbox-img" style="max-width:92%;max-height:88vh;object-fit:contain;border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,0.5);">
+</div>
+<div class="modal-overlay" id="coord-edit-modal" style="z-index:3100;">
+    <div class="modal-content" style="max-width:320px;">
+        <div class="modal-header"><span>📍 Ubah Koordinat</span><button class="modal-close" onclick="closeCoordEditPopup()">&times;</button></div>
+        <div class="setting-group">
+            <span class="setting-label">Latitude:</span>
+            <input type="number" id="coord-edit-lat" step="any" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+        </div>
+        <div class="setting-group">
+            <span class="setting-label">Longitude:</span>
+            <input type="number" id="coord-edit-lng" step="any" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="add-btn" style="background:#9e9e9e;" onclick="closeCoordEditPopup()">Batal</button>
+            <button class="on-btn" onclick="saveCoordEdit()">OK</button>
+        </div>
+    </div>
 </div>
 <input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -1152,7 +1172,35 @@ function closePointEdit(){
     editingPointIndex=null;
     if(pePhotoObjectUrl){URL.revokeObjectURL(pePhotoObjectUrl);pePhotoObjectUrl=null;}
 }
-
+function openCoordEditPopup(){
+    const am=getActiveMap();
+    const f=(am&&editingPointIndex!==null)?am.geojson?.features[editingPointIndex]:null;
+    if(!f)return;
+    const co=f.geometry.coordinates;
+    document.getElementById('coord-edit-lat').value=co[1];
+    document.getElementById('coord-edit-lng').value=co[0];
+    document.getElementById('coord-edit-modal').classList.add('active');
+}
+function closeCoordEditPopup(){
+    document.getElementById('coord-edit-modal').classList.remove('active');
+}
+async function saveCoordEdit(){
+    const am=getActiveMap();if(!am||editingPointIndex===null)return;
+    const f=am.geojson?.features[editingPointIndex];if(!f)return;
+    const lat=parseFloat(document.getElementById('coord-edit-lat').value);
+    const lng=parseFloat(document.getElementById('coord-edit-lng').value);
+    if(isNaN(lat)||isNaN(lng)||lat<-90||lat>90||lng<-180||lng>180){
+        alert('Koordinat tidak valid. Latitude harus -90 s/d 90, Longitude -180 s/d 180.');
+        return;
+    }
+    f.geometry.coordinates=[lng,lat];
+    await saveMapToDB(am);
+    document.getElementById('pe-coord').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
+    closeCoordEditPopup();
+    renderPointsView();renderLibraryContent();refreshActivePointsLayer();
+    map.flyTo([lat,lng],map.getZoom());
+    showNotification('✅ Koordinat diperbarui');
+}
 async function ensureFolderPermissionOnTap(){
     const mode=await getPhotoStorageMode();
     if(mode!=='folder')return;
