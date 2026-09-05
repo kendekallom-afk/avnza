@@ -331,78 +331,103 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     color: #ffffff;
-    padding: 6px 16px;
+    padding: 8px 16px;
     border-radius: 10px;
     display: none;
+    flex-direction: column;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    align-items: center;
-    gap: 12px;
-    flex-wrap: nowrap;
-    min-height: 36px;
+    gap: 8px;
     max-width: 95%;
     pointer-events: auto;
     white-space: nowrap;
 ">
-    <!-- Info Jarak -->
-    <div id="measure-dist-row" style="display:none; align-items:center; gap:4px; font-size:13px;">
-        <span>📏</span>
-        <span style="font-weight:bold; color:#a78bfa;" id="measure-dist-val">0 m</span>
+    <!-- BARIS ATAS: Jarak, Luas, Clear, Tutup Mode -->
+    <div style="display:flex; align-items:center; gap:12px; justify-content:center;">
+        <div id="measure-dist-row" style="display:none; align-items:center; gap:4px; font-size:13px;">
+            <span>📏</span>
+            <span style="font-weight:bold; color:#a78bfa;" id="measure-dist-val">0 m</span>
+        </div>
+        <div id="measure-area-row" style="display:none; align-items:center; gap:4px; font-size:13px; border-left:1px solid rgba(255,255,255,0.2); padding-left:10px;">
+            <span>▭</span>
+            <span style="font-weight:bold; color:#a78bfa;" id="measure-area-val">0 m²</span>
+        </div>
+        <button id="measure-clear-btn" style="
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: none;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        " onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+            Clear
+        </button>
+        <button id="measure-close-btn" style="
+            background: none;
+            border: none;
+            color: #ff6b6b;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            flex-shrink: 0;
+            line-height: 1;
+        " onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">✕</button>
     </div>
-    
-    <!-- Info Luas -->
-    <div id="measure-area-row" style="display:none; align-items:center; gap:4px; font-size:13px; border-left:1px solid rgba(255,255,255,0.2); padding-left:10px;">
-        <span>▭</span>
-        <span style="font-weight:bold; color:#a78bfa;" id="measure-area-val">0 m²</span>
+
+    <!-- BARIS BAWAH: Tambah Titik (+), Undo (−), Tutup Garis/Poligon (=) -->
+    <div style="display:flex; align-items:center; gap:22px; justify-content:center;">
+        <button id="measure-add-btn" style="
+            background: rgba(167,139,250,0.9);
+            border: none;
+            color: #fff;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 25px;
+            font-weight: bold;
+            flex-shrink: 0;
+        ">+</button>
+        <button id="measure-undo-btn" style="
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: #fff;
+            width: 36px;
+            height: 36px;
+			border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: none;
+            flex-shrink: 0;
+			justify-content: center;
+            align-items: center;
+            line-height: 1;
+        ">−</button>
+        <button id="measure-finish-btn" style="
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: #fff;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: none;
+            flex-shrink: 0;
+			justify-content: center;
+            align-items: center;
+            line-height: 1;
+        ">=</button>
     </div>
-    
-    <!-- Tombol Undo (hapus titik terakhir) -->
-    <button id="measure-undo-btn" style="
-        background: rgba(255,255,255,0.15);
-        border: none;
-        color: #fff;
-        padding: 3px 10px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
-        display: none;
-        flex-shrink: 0;
-        transition: background 0.2s;
-    " onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-        ↩ Undo
-    </button>
-    
-    <!-- Tombol Clear (hapus semua) -->
-    <button id="measure-clear-btn" style="
-        background: rgba(255,255,255,0.15);
-        border: none;
-        color: #fff;
-        padding: 3px 10px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
-        display: none;
-        flex-shrink: 0;
-        transition: background 0.2s;
-    " onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-        Clear
-    </button>
-    
-    <!-- Tombol X (Close) - KHUSUS TUTUP MODE -->
-    <button id="measure-close-btn" style="
-        background: none;
-        border: none;
-        color: #ff6b6b;
-        font-size: 18px;
-        cursor: pointer;
-        padding: 3px 10px;
-		border-radius: 4px;
-        font-weight: bold;
-        flex-shrink: 0;
-        line-height: 1;
-        margin-left: 4px;
-    " onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">✕</button>
 </div>
 <div class="crosshair"><div class="crosshair-center"></div></div>
 <div id="gps-overlay" class="gps-overlay map-only-control" style="visibility:hidden;">
@@ -563,6 +588,7 @@ let measurePolyline = null;      // Garis yang digambar
 let measurePolygon = null;       // Poligon (jika >= 3 titik)
 let measureDist = 0;             // Total jarak (meter)
 let measureArea = 0;             // Luas (meter persegi)
+let measureClosed = false;
 function closeWrenchPopup() {
     const popup = document.getElementById('tools-popup');
     if (popup) {
@@ -585,20 +611,17 @@ function toggleMeasure() {
         // Reset data sebelumnya
         clearMeasure();
         
-        const hint = document.getElementById('measure-hint');
-        const distRow = document.getElementById('measure-dist-row');
+                const distRow = document.getElementById('measure-dist-row');
         const areaRow = document.getElementById('measure-area-row');
         const undoBtn = document.getElementById('measure-undo-btn');
         const clearBtn = document.getElementById('measure-clear-btn');
+        const finishBtn = document.getElementById('measure-finish-btn');
         
-        if (hint) {
-            hint.style.display = 'inline';
-            hint.textContent = '👆 Klik peta';
-        }
         if (distRow) distRow.style.display = 'none';
         if (areaRow) areaRow.style.display = 'none';
         if (undoBtn) undoBtn.style.display = 'none';
         if (clearBtn) clearBtn.style.display = 'none';
+        if (finishBtn) finishBtn.style.display = 'none';
         
         // ========== TAMBAHKAN OVERLAY TRANSPARAN ==========
         // Buat overlay transparan untuk menangkap semua klik
@@ -615,11 +638,10 @@ function toggleMeasure() {
                 }
             ).addTo(map);
             
-            // Saat overlay diklik, jalankan fungsi measure
+            // Overlay ini sekarang hanya menahan klik supaya tidak "tembus" ke marker di bawahnya.
+            // Menambah titik measure sekarang lewat tombol "+", bukan tap di peta.
             measureOverlay.on('click', function(e) {
-                if (measureActive) {
-                    onMapClickForMeasure(e);
-                }
+                if (e.originalEvent) e.originalEvent.stopPropagation();
             });
         }
         // ================================================
@@ -646,68 +668,14 @@ function toggleMeasure() {
         }
     }
 }
-// Fungsi undo: hapus titik terakhir
-// Fungsi undo: hapus titik terakhir
 function undoLastPoint() {
-    // CEK: apakah ada titik?
-    if (measurePoints.length === 0) {
-        console.log('⚠️ Tidak ada titik untuk di-undo');
-        return;
-    }
-    
-    console.log('🔙 Undo dipanggil, jumlah titik:', measurePoints.length);
-    
-    // Hapus marker terakhir
+    if (measurePoints.length === 0) return;
+    measureClosed = false;
     const lastMarker = measureMarkers.pop();
-    if (lastMarker) {
-        map.removeLayer(lastMarker);
-        console.log('✅ Marker terakhir dihapus');
-    }
-    
-    // Hapus titik terakhir dari array
+    if (lastMarker) map.removeLayer(lastMarker);
     measurePoints.pop();
-    console.log('✅ Titik terakhir dihapus, sisa:', measurePoints.length);
-    
-    // Update polyline
-    if (measurePoints.length === 0) {
-        if (measurePolyline) {
-            map.removeLayer(measurePolyline);
-            measurePolyline = null;
-        }
-        if (measurePolygon) {
-            map.removeLayer(measurePolygon);
-            measurePolygon = null;
-        }
-    } else {
-        const latlngs = measurePoints.map(p => [p.lat, p.lng]);
-        if (measurePolyline) {
-            measurePolyline.setLatLngs(latlngs);
-        }
-        
-        if (measurePoints.length >= 3) {
-            if (measurePolygon) {
-                measurePolygon.setLatLngs(latlngs);
-            } else {
-                measurePolygon = L.polygon(latlngs, {
-                    color: '#a78bfa',
-                    weight: 1.5,
-                    dashArray: '6 4',
-                    fillColor: '#7c3aed',
-                    fillOpacity: 0.15,
-                    pane: 'measurePane'
-                }).addTo(map);
-            }
-        } else {
-            if (measurePolygon) {
-                map.removeLayer(measurePolygon);
-                measurePolygon = null;
-            }
-        }
-    }
-    
-    // Update tampilan
+    redrawMeasureShape();
     updateMeasureDisplay();
-    console.log('✅ Tampilan diperbarui');
 }
 // Fungsi untuk menghapus semua titik dan reset
 function clearMeasure() {
@@ -728,6 +696,7 @@ function clearMeasure() {
     measurePoints = [];
     measureDist = 0;
     measureArea = 0;
+	measureClosed = false;
     
     // OVERLAY TETAP ADA - JANGAN DIHAPUS DI SINI
 }
@@ -749,17 +718,13 @@ function closeMeasure() {
             map.getContainer().style.cursor = '';
         }
         
-        // Reset tampilan hint
-        const hint = document.getElementById('measure-hint');
-        if (hint) {
-            hint.style.display = 'inline';
-            hint.textContent = '👆 Klik peta';
-        }
-        // Sembunyikan tombol undo & clear
+                // Sembunyikan tombol undo, clear & tutup garis
         const undoBtn = document.getElementById('measure-undo-btn');
         const clearBtn = document.getElementById('measure-clear-btn');
+        const finishBtn = document.getElementById('measure-finish-btn');
         if (undoBtn) undoBtn.style.display = 'none';
         if (clearBtn) clearBtn.style.display = 'none';
+        if (finishBtn) finishBtn.style.display = 'none';
         // Sembunyikan baris jarak & luas
         const distRow = document.getElementById('measure-dist-row');
         const areaRow = document.getElementById('measure-area-row');
@@ -806,29 +771,26 @@ function calcArea(points) {
 
 // Fungsi untuk memperbarui tampilan hasil
 function updateMeasureDisplay() {
-    const hint = document.getElementById('measure-hint');
     const distRow = document.getElementById('measure-dist-row');
     const areaRow = document.getElementById('measure-area-row');
     const distVal = document.getElementById('measure-dist-val');
     const areaVal = document.getElementById('measure-area-val');
     const undoBtn = document.getElementById('measure-undo-btn');
     const clearBtn = document.getElementById('measure-clear-btn');
+    const finishBtn = document.getElementById('measure-finish-btn');
     
     if (measurePoints.length === 0) {
-        if (hint) {
-            hint.style.display = 'inline';
-            hint.textContent = '👆 Klik peta';
-        }
         if (distRow) distRow.style.display = 'none';
         if (areaRow) areaRow.style.display = 'none';
         if (undoBtn) undoBtn.style.display = 'none';
         if (clearBtn) clearBtn.style.display = 'none';
+        if (finishBtn) finishBtn.style.display = 'none';
         return;
     }
     
-    if (hint) hint.style.display = 'none';
     if (undoBtn) undoBtn.style.display = 'inline-flex';
     if (clearBtn) clearBtn.style.display = 'inline-flex';
+    if (finishBtn) finishBtn.style.display = 'inline-flex';
     
     // Hitung jarak total
     let totalDist = 0;
@@ -836,6 +798,11 @@ function updateMeasureDisplay() {
         const p1 = measurePoints[i-1];
         const p2 = measurePoints[i];
         totalDist += map.distance([p1.lat, p1.lng], [p2.lat, p2.lng]);
+    }
+    if (measureClosed && measurePoints.length >= 3) {
+        const first = measurePoints[0];
+        const last = measurePoints[measurePoints.length - 1];
+        totalDist += map.distance([last.lat, last.lng], [first.lat, first.lng]);
     }
     measureDist = totalDist;
     if (distVal) distVal.textContent = formatDist(totalDist);
@@ -862,51 +829,30 @@ function updateMeasureDisplay() {
     }
 }
 
-// Fungsi yang dipanggil saat user klik peta (hanya jika measure aktif)
-// Fungsi yang dipanggil saat user klik peta (hanya jika measure aktif)
-function onMapClickForMeasure(e) {
-    // Cek apakah mode measure aktif
-    if (!measureActive) return;
-    
-    // Cegah event merambat ke layer lain
-    if (e.originalEvent) {
-        e.originalEvent.stopPropagation();
-        e.originalEvent.preventDefault();
-    }
-    
-    // ✅ HANYA SATU DEKLARASI
-    const latlng = e.latlng;
-    const point = { lat: latlng.lat, lng: latlng.lng };
-    
-    // Tambahkan titik ke array
-    measurePoints.push(point);
-    
-    // Buat marker lingkaran kecil (pake pane khusus)
-    const marker = L.circleMarker([point.lat, point.lng], {
-        radius: 5,
-        fillColor: '#a78bfa',
-        color: '#fff',
-        weight: 2,
-        fillOpacity: 1,
-        pane: 'measurePane'
-    }).addTo(map);
-    measureMarkers.push(marker);
-    
-    // Update polyline (pake pane khusus)
+// Menggambar ulang garis & poligon measure berdasarkan titik-titik saat ini
+function redrawMeasureShape() {
     const latlngs = measurePoints.map(p => [p.lat, p.lng]);
+    // Kalau statusnya "ditutup", tambahkan titik awal di akhir supaya garis melingkar balik
+    const lineLatlngs = (measureClosed && latlngs.length >= 2) ? latlngs.concat([latlngs[0]]) : latlngs;
+
+    if (latlngs.length === 0) {
+        if (measurePolyline) { map.removeLayer(measurePolyline); measurePolyline = null; }
+        if (measurePolygon) { map.removeLayer(measurePolygon); measurePolygon = null; }
+        return;
+    }
+
     if (measurePolyline) {
-        measurePolyline.setLatLngs(latlngs);
+        measurePolyline.setLatLngs(lineLatlngs);
     } else {
-        measurePolyline = L.polyline(latlngs, {
+        measurePolyline = L.polyline(lineLatlngs, {
             color: '#a78bfa',
             weight: 3,
             dashArray: '6 4',
             pane: 'measurePane'
         }).addTo(map);
     }
-    
-    // Jika titik >= 3, buat/update polygon (pake pane khusus)
-    if (measurePoints.length >= 3) {
+
+    if (latlngs.length >= 3) {
         if (measurePolygon) {
             measurePolygon.setLatLngs(latlngs);
         } else {
@@ -919,9 +865,43 @@ function onMapClickForMeasure(e) {
                 pane: 'measurePane'
             }).addTo(map);
         }
+    } else {
+        if (measurePolygon) { map.removeLayer(measurePolygon); measurePolygon = null; }
     }
-    
-    // Update tampilan hasil
+}
+
+// Menambah titik measure dari posisi crosshair (tengah layar), dipanggil oleh tombol "+"
+function addMeasurePointFromCrosshair() {
+    if (!measureActive) return;
+    measureClosed = false;
+    const center = map.getCenter();
+    const point = { lat: center.lat, lng: center.lng };
+
+    measurePoints.push(point);
+
+    const marker = L.circleMarker([point.lat, point.lng], {
+        radius: 5,
+        fillColor: '#a78bfa',
+        color: '#fff',
+        weight: 2,
+        fillOpacity: 1,
+        pane: 'measurePane'
+    }).addTo(map);
+    measureMarkers.push(marker);
+
+    redrawMeasureShape();
+    updateMeasureDisplay();
+}
+
+// Menutup garis/poligon yang sedang dibuat, dipanggil oleh tombol "="
+function closeMeasureShape() {
+    if (!measureActive) return;
+    if (measurePoints.length < 3) {
+        showNotification('⚠️ Minimal 3 titik untuk menutup garis/poligon');
+        return;
+    }
+    measureClosed = true;
+    redrawMeasureShape();
     updateMeasureDisplay();
 }
 
@@ -950,7 +930,6 @@ map.on('rotate', function() {
     updateHeadingPointer();
 });
 map.on('move',updateReticleCoordinates);
-map.on('click', onMapClickForMeasure);
 updateReticleCoordinates();
 setBasemap('osm');
 loadAllMapsFromDB();
@@ -2086,7 +2065,18 @@ function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(
 function renderLibraryBasemaps(){const c=document.getElementById('library-content');let h='';Object.keys(BASEMAP_PROVIDERS).forEach(k=>{const it=BASEMAP_PROVIDERS[k];h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#'+it.icon+'"></use></svg><span class="file-name">'+it.name+'</span></div><button class="add-btn" onclick="setBasemap(\''+k+'\')">+ Aktifkan</button></div>';});c.innerHTML=h;}
 
 function addWaypointAtReticle(){const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'Dari crosshair',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
-
+function openAppSettings() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) {
+        modal.classList.add('active');
+        applyPhotoStorageModeUI();
+        if(!modalBackStatePushed){history.pushState({modal:'settings'},'');modalBackStatePushed=true;}
+    } else {
+        alert("Modal pengaturan tidak ditemukan.");
+    }
+    const popup = document.getElementById('tools-popup');
+    if (popup) popup.style.display = 'none';
+}
 function closeSettings(fromBackButton){
     document.getElementById('settings-modal').classList.remove('active');
     if(!fromBackButton&&modalBackStatePushed){modalBackStatePushed=false;history.back();}
@@ -2294,13 +2284,6 @@ if (undoBtn) {
         undoLastPoint();
     }, { passive: false });
 
-    // Backup untuk browser lama yang belum support pointer events
-    newUndoBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        e.preventDefault();
-        undoLastPoint();
-    });
-
     console.log('✅ Tombol Undo siap');
 	} else {
         console.warn('⚠️ Tombol Undo tidak ditemukan');
@@ -2358,7 +2341,33 @@ if (undoBtn) {
     } else {
         console.warn('⚠️ Tombol Close tidak ditemukan');
     }
+        // --- 6. TOMBOL TAMBAH TITIK (+) DARI CROSSHAIR ---
+    const addBtn = document.getElementById('measure-add-btn');
+    if (addBtn) {
+        const newAddBtn = addBtn.cloneNode(true);
+        addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+        
+        newAddBtn.addEventListener('pointerdown', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            addMeasurePointFromCrosshair();
+        }, { passive: false });
+        console.log('✅ Tombol Tambah Titik (+) siap');
+    }
     
+    // --- 7. TOMBOL TUTUP GARIS/POLIGON (=) ---
+    const finishBtn = document.getElementById('measure-finish-btn');
+    if (finishBtn) {
+        const newFinishBtn = finishBtn.cloneNode(true);
+        finishBtn.parentNode.replaceChild(newFinishBtn, finishBtn);
+        
+        newFinishBtn.addEventListener('pointerdown', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            closeMeasureShape();
+        }, { passive: false });
+        console.log('✅ Tombol Tutup Garis/Poligon (=) siap');
+    }
     console.log('✅ Semua event listener telah dipasang!');
 });
 
