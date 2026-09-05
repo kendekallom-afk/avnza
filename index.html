@@ -411,7 +411,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
         <div class="setting-group">
             <span class="setting-label">Foto:</span>
             <div style="display:flex;align-items:center;gap:10px;">
-                <img id="pe-photo-preview" style="display:none;width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ccc;background:#eee;flex-shrink:0;">
+                <img id="pe-photo-preview" style="display:none;width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ccc;background:#eee;flex-shrink:0;cursor:pointer;" onclick="openPhotoLightboxForCurrentPoint()">
                 <div style="display:flex;flex-direction:column;gap:6px;flex:1;">
                     <div style="display:flex;gap:6px;">
                         <button type="button" class="add-btn" style="flex:1;" onclick="triggerPhotoCapture()">📷 Kamera</button>
@@ -429,6 +429,9 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 </div>
 <input type="file" id="photo-camera-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoSelected(event)">
 <input type="file" id="photo-gallery-input" accept="image/*" style="display:none" onchange="handlePhotoSelected(event)">
+<div class="modal-overlay" id="photo-lightbox" onclick="closePhotoLightbox()">
+    <img id="photo-lightbox-img" style="max-width:92%;max-height:88vh;object-fit:contain;border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,0.5);">
+</div>
 <input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
@@ -457,6 +460,10 @@ async function deletePhotoQuiet(photoId){if(!photoId)return;try{await deletePhot
 
 function initMap(){
 map=L.map('map',{zoomControl:false,maxZoom:22,rotate:true,touchRotate:true}).setView([-2.66491,118.85193],15);
+// Tambahkan listener untuk mendeteksi saat peta diputar
+map.on('rotate', function() {
+    updateHeadingPointer();
+});
 map.on('move',updateReticleCoordinates);
 updateReticleCoordinates();
 setBasemap('osm');
@@ -482,6 +489,8 @@ function centerToGPS(){
 if(!navigator.geolocation){alert("Geolocation tidak didukung.");return;}
 const z=map.getZoom();
 if(map.setBearing)map.setBearing(0);
+// Update panah kompas setelah mereset peta
+updateHeadingPointer();
 const w=document.getElementById('user-heading-wrapper');if(w)w.style.transform='rotate(0deg)';
 if(latestCoords){map.setView([latestCoords.lat,latestCoords.lng],z);updateUserMarker(latestCoords.lat,latestCoords.lng);}
 else{navigator.geolocation.getCurrentPosition(pos=>{latestCoords={lat:pos.coords.latitude,lng:pos.coords.longitude};map.setView([latestCoords.lat,latestCoords.lng],z);updateUserMarker(latestCoords.lat,latestCoords.lng);},err=>{let m="Gagal mendapatkan lokasi.";if(err.code===1)m="Izin lokasi ditolak.";else if(err.code===2)m="Sinyal GPS tidak tersedia.";else if(err.code===3)m="Timeout.";alert(m);},{enableHighAccuracy:true,timeout:10000,maximumAge:0});}
@@ -490,7 +499,33 @@ function updateUserMarker(lat,lng){
 if(userLocationMarker){userLocationMarker.setLatLng([lat,lng]);}
 else{const icon=L.divIcon({className:'custom-user-icon',html:`<div class="user-location-container"><div class="user-heading-wrapper" id="user-heading-wrapper"><div class="user-heading-cone"></div><div class="heading-pointer-dot"></div></div><div class="user-pulse"></div><div class="user-dot"></div></div>`,iconSize:[60,60],iconAnchor:[30,30]});userLocationMarker=L.marker([lat,lng],{icon}).addTo(map);}
 }
-function handleOrientation(e){let a=e.alpha,h=null;if(e.webkitCompassHeading)h=e.webkitCompassHeading;else if(a!==null)h=360-a;if(h!==null){currentHeading=h;const w=document.getElementById('user-heading-wrapper');if(w)w.style.transform='rotate('+h+'deg)';}}
+// Fungsi untuk memperbarui arah panah kompas
+function updateHeadingPointer() {
+    var wrapper = document.getElementById('user-heading-wrapper');
+    if (!wrapper) return; // Jika elemen tidak ada, berhenti
+    
+    // Dapatkan rotasi peta saat ini (dalam derajat)
+    var mapBearing = 0;
+    if (map && typeof map.getBearing === 'function') {
+        mapBearing = map.getBearing();
+    }
+    
+    // Hitung arah panah = arah sensor - rotasi peta
+    var relativeHeading = (currentHeading || 0) - mapBearing;
+    
+    // Terapkan rotasi ke panah kompas
+    wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
+}
+function handleOrientation(e){
+    let a=e.alpha,h=null;
+    if(e.webkitCompassHeading)h=e.webkitCompassHeading;
+    else if(a!==null)h=360-a;
+    if(h!==null){
+        currentHeading=h;
+        // Panggil fungsi baru untuk update heading
+        updateHeadingPointer();
+    }
+}
 function initOrientationWatcher(){if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}).catch(console.error);}else if('ondeviceorientationabsolute' in window)window.addEventListener('deviceorientationabsolute',handleOrientation,true);else if('ondeviceorientation' in window)window.addEventListener('deviceorientation',handleOrientation,true);}
 function initGPSWatcher(){
 const sE=document.getElementById('gps-status'),aE=document.getElementById('gps-accuracy');
@@ -1140,17 +1175,22 @@ async function refreshPhotoPreview(){
     if(pePhotoObjectUrl){URL.revokeObjectURL(pePhotoObjectUrl);pePhotoObjectUrl=null;}
     const am=getActiveMap();
     const f=(am&&editingPointIndex!==null)?am.geojson?.features[editingPointIndex]:null;
-    if(f&&f.properties?.photoId){
-        try{
-            const rec=await getPhotoFromDB(f.properties.photoId);
-            if(rec&&rec.blob){
-                pePhotoObjectUrl=URL.createObjectURL(rec.blob);
-                img.src=pePhotoObjectUrl;
-                img.style.display='block';
-                delBtn.style.display='block';
-                return;
-            }
-        }catch(e){console.warn('Gagal memuat foto:',e);}
+    const photoId=f?.properties?.photoId;
+    if(photoId){
+        const result=await getPhotoBlobUrl(photoId);
+        if(result==='NEED_PERMISSION'){
+            img.style.display='none';
+            delBtn.style.display='block';
+            showNotification('🔒 Tap tombol Kamera/Galeri sekali untuk izinkan akses folder lagi',4000);
+            return;
+        }
+        if(result){
+            pePhotoObjectUrl=result;
+            img.src=result;
+            img.style.display='block';
+            delBtn.style.display='block';
+            return;
+        }
     }
     img.style.display='none';
     img.removeAttribute('src');
@@ -1197,7 +1237,15 @@ async function removePointPhoto(){
     const f=am.geojson?.features[editingPointIndex];if(!f)return;
     const oldId=f.properties?.photoId;
     try{
-        if(oldId)await deletePhotoFromDB(oldId).catch(()=>{});
+        if(oldId&&oldId.startsWith('folder:')){
+            const filename=oldId.substring(7);
+            const folderHandle=await getPhotoFolderHandle();
+            if(folderHandle&&await hasFolderPermission(folderHandle)){
+                await folderHandle.removeEntry(filename).catch(()=>{});
+            }
+        }else if(oldId){
+            await deletePhotoFromDB(oldId).catch(()=>{});
+        }
         delete f.properties.photoId;
         await saveMapToDB(am);
         await refreshPhotoPreview();
@@ -1436,7 +1484,7 @@ mn.textContent='📄 Prioritas: '+am.name.replace(/\.[^/.]+$/,'');
 const f=am.geojson?.features||[];
 if(!f.length){c.innerHTML='<div class="empty-points">📭 Belum ada titik.</div>';return;}
 let h='';f.forEach((ft,i)=>{const co=ft.geometry.coordinates;const nm=ft.properties?.name||'Titik '+(i+1);const nt=ft.properties?.note||'';const pid=ft.properties?.photoId;
-const thumb=pid?'<img class="point-thumb" data-photo-id="'+pid+'" alt="foto">':'<div class="point-thumb point-thumb-empty">📍</div>';
+const thumb=pid?'<img class="point-thumb" data-photo-id="'+pid+'" alt="foto" style="cursor:pointer;" onclick="openPhotoLightbox(\''+pid+'\')">':'<div class="point-thumb point-thumb-empty">📍</div>';
 h+='<div class="point-item">'+thumb+'<div class="point-info"><span class="point-name">'+nm+'</span><span class="point-coords">'+co[1].toFixed(6)+', '+co[0].toFixed(6)+(nt?' • '+nt:'')+'</span></div><div class="point-actions"><button onclick="openPointEdit('+i+')" title="Edit / Foto">✏️</button><button onclick="flyToPoint('+i+')" title="Lokasi">📍</button><button onclick="movePoint('+i+')" title="Pindah ke peta lain">📤</button><button class="btn-delete-point" onclick="deletePoint('+i+')" title="Hapus">✕</button></div></div>';});
 c.innerHTML=h;
 loadPointThumbnails();
@@ -1448,14 +1496,11 @@ async function loadPointThumbnails(){
     const imgs=document.querySelectorAll('.point-thumb[data-photo-id]');
     for(const img of imgs){
         const id=img.getAttribute('data-photo-id');
-        try{
-            const rec=await getPhotoFromDB(id);
-            if(rec&&rec.blob){
-                const url=URL.createObjectURL(rec.blob);
-                pointThumbUrls.push(url);
-                img.src=url;
-            }
-        }catch(e){console.warn('Gagal memuat thumbnail:',e);}
+        const url=await getPhotoBlobUrl(id);
+        if(url&&url!=='NEED_PERMISSION'){
+            pointThumbUrls.push(url);
+            img.src=url;
+        }
     }
 }
 function addPointFromCrosshair(){
@@ -1516,6 +1561,51 @@ async function getPhotoFolderHandle(){
 async function hasFolderPermission(handle){
     if(!handle)return false;
     try{return (await handle.queryPermission({mode:'readwrite'}))==='granted';}catch(e){return false;}
+}
+async function getPhotoBlobUrl(photoId){
+    if(!photoId)return null;
+    if(photoId.startsWith('folder:')){
+        const filename=photoId.substring(7);
+        const folderHandle=await getPhotoFolderHandle();
+        if(!folderHandle)return null;
+        const ok=await hasFolderPermission(folderHandle);
+        if(!ok)return 'NEED_PERMISSION';
+        try{
+            const fileHandle=await folderHandle.getFileHandle(filename);
+            const file=await fileHandle.getFile();
+            return URL.createObjectURL(file);
+        }catch(e){console.warn('Gagal baca foto dari folder:',e);return null;}
+    }else{
+        try{
+            const rec=await getPhotoFromDB(photoId);
+            return (rec&&rec.blob)?URL.createObjectURL(rec.blob):null;
+        }catch(e){return null;}
+    }
+}
+let lightboxObjectUrl=null;
+async function openPhotoLightbox(photoId){
+    if(!photoId)return;
+    const result=await getPhotoBlobUrl(photoId);
+    if(result==='NEED_PERMISSION'){
+        showNotification('🔒 Tap tombol Kamera/Galeri sekali untuk izinkan akses folder lagi',4000);
+        return;
+    }
+    if(!result){
+        showNotification('⚠️ Foto tidak ditemukan');
+        return;
+    }
+    lightboxObjectUrl=result;
+    document.getElementById('photo-lightbox-img').src=result;
+    document.getElementById('photo-lightbox').classList.add('active');
+}
+function closePhotoLightbox(){
+    document.getElementById('photo-lightbox').classList.remove('active');
+    if(lightboxObjectUrl){URL.revokeObjectURL(lightboxObjectUrl);lightboxObjectUrl=null;}
+}
+function openPhotoLightboxForCurrentPoint(){
+    const am=getActiveMap();
+    const f=(am&&editingPointIndex!==null)?am.geojson?.features[editingPointIndex]:null;
+    openPhotoLightbox(f?.properties?.photoId);
 }
 async function verifyFolderPermission(handle){
     if(!handle)return false;
@@ -1640,6 +1730,65 @@ function openAppSettings() {
     const popup = document.getElementById('tools-popup');
     if (popup) popup.style.display = 'none';
 }
+</script>
+<script>
+// === FIX KOMPAS DENGAN LEAFLET-ROTATE ===
+
+let currentDeviceHeading = 0; // Arah HP dari sensor
+
+function updateHeading(deviceHeading) {
+    if (deviceHeading === null || deviceHeading === undefined) return;
+    currentDeviceHeading = deviceHeading;
+    
+    let mapBearing = 0;
+    
+    // Membaca sudut peta dari leaflet-rotate
+    if (typeof map !== 'undefined' && map) {
+        if (typeof map.getBearing === 'function') {
+            mapBearing = map.getBearing() || 0;
+        } else if (map._bearing) {
+            mapBearing = map._bearing || 0;
+        }
+    }
+    
+    // Hitung penyesuaian sudut kompas terhadap rotasi peta
+    // Menggunakan penambahan ( + mapBearing ) untuk menyelaraskan rotasi kanvas peta
+    const relativeHeading = (deviceHeading + mapBearing + 360) % 360;
+
+    const headingEl = document.getElementById('user-heading');
+    if (headingEl) {
+        headingEl.style.transform = `rotate(${relativeHeading}deg)`;
+    }
+}
+
+// 1. Membaca Sensor Kompas HP
+function handleOrientation(event) {
+    let heading = null;
+    if (event.webkitCompassHeading) {
+        heading = event.webkitCompassHeading; // iOS
+    } else if (event.alpha !== null) {
+        heading = 360 - event.alpha; // Android
+    }
+
+    if (heading !== null) {
+        updateHeading(heading);
+    }
+}
+
+window.addEventListener('deviceorientation', handleOrientation, true);
+window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+
+// 2. Hubungkan langsung dengan event leaflet-rotate
+setInterval(function() {
+    if (typeof map !== 'undefined' && map && !map._compassBound) {
+        map._compassBound = true;
+        
+        // Listener event bawaan leaflet-rotate
+        map.on('rotate compass rotateend zoom move', function() {
+            updateHeading(currentDeviceHeading);
+        });
+    }
+}, 500);
 </script>
 </body>
 </html>
