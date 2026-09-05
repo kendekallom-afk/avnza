@@ -509,14 +509,13 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 </div>
 <div class="modal-overlay" id="point-edit-modal" onclick="if(event.target===this)closePointEdit()">
     <div class="modal-content">
-        <div class="modal-header"><span>✏️ Detail Titik <button type="button" onclick="deletePointFromEditModal()" style="background:none;border:none;color:#e53935;font-size:16px;cursor:pointer;margin-left:6px;" title="Hapus Titik">✕</button></span><button class="modal-close" onclick="closePointEdit()">&times;</button></div>
+        <div class="modal-header"><span>✏️ Detail Titik <button type="button" onclick="deletePointFromEditModal()" style="background:none;border:none;color:#e53935;font-size:20px;font-weight:bold;cursor:pointer;margin-left:16px;" title="Hapus Titik">✕</button></span><button class="modal-close" onclick="closePointEdit()">&times;</button></div>
         <div class="setting-group">
             <span class="setting-label">Nama:</span>
             <input type="text" id="pe-name" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
         </div>
         <div class="setting-group">
-            <span class="setting-label">Tanggal &amp; Waktu:</span>
-            <div class="setting-value-box"><span id="pe-time">-</span></div>
+            <span class="setting-label">Tanggal &amp; Waktu: <span id="pe-time">-</span></span>            
         </div>
         <div class="setting-group">
             <span class="setting-label">Deskripsi:</span>
@@ -904,7 +903,13 @@ function closeMeasureShape() {
     redrawMeasureShape();
     updateMeasureDisplay();
 }
-
+const waypointIcon = L.divIcon({
+    className: 'waypoint-pin-icon',
+    html: '<svg viewBox="0 0 24 24" width="32" height="32" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.45));"><path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7z" fill="#e53935" stroke="#ffffff" stroke-width="1"/><circle cx="12" cy="9" r="2.3" fill="#ffffff"/></svg>',
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -30]
+});
 const BASEMAP_PROVIDERS = {
 'google_sat':{name:'Google Satellite',url:'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',icon:'icon-globe',maxNativeZoom:20},
 'google_map':{name:'Google Map',url:'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',icon:'icon-map',maxNativeZoom:20},
@@ -1531,7 +1536,7 @@ function createPointsLayer(md) {
         const name = ft.properties?.name || 'Titik ' + (index + 1);
         const note = ft.properties?.note || '';
 
-             const marker = L.marker([lat, lng])
+             const marker = L.marker([lat, lng], { icon: waypointIcon })
             .bindPopup(
                 '<div style="cursor:pointer;text-align:center;padding:4px 10px;" onclick="openPointEdit(' + index + ')"><b>' + name + '</b></div>',
                 { closeButton: true }
@@ -2064,7 +2069,7 @@ function restoreLastView(view){
 function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));event.currentTarget.classList.add('active');if(tabName==='basemap')renderLibraryBasemaps();else if(tabName==='kmz')renderLibraryContent();else if(tabName==='maps'){document.getElementById('library-content').innerHTML='<div style="font-size:13px;color:#555;margin-bottom:10px;">📄 File PDF referensi</div><div style="margin-top:12px;padding:12px;background:#fff3cd;border-radius:4px;font-size:13px;color:#856404;">⚠️ Gunakan Upload GeoPDF untuk peta interaktif.</div>';}}
 function renderLibraryBasemaps(){const c=document.getElementById('library-content');let h='';Object.keys(BASEMAP_PROVIDERS).forEach(k=>{const it=BASEMAP_PROVIDERS[k];h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#'+it.icon+'"></use></svg><span class="file-name">'+it.name+'</span></div><button class="add-btn" onclick="setBasemap(\''+k+'\')">+ Aktifkan</button></div>';});c.innerHTML=h;}
 
-function addWaypointAtReticle(){const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'Dari crosshair',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
+function addWaypointAtReticle(){const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
 function openAppSettings() {
     const modal = document.getElementById('settings-modal');
     if (modal) {
