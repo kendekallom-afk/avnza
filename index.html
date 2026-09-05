@@ -503,7 +503,16 @@ showNotification('✅ Mesin GIS siap',1800);
 }catch(err){console.warn('GDAL init gagal:',err);gdalReady=false;gdal=null;}
 }
 
-async function loadAllMapsFromDB(){try{mapCollection=await getAllMapsFromDB();renderLibraryContent();renderPointsView();}catch(e){console.warn(e);mapCollection=[];}}
+async function loadAllMapsFromDB(){
+    try{
+        mapCollection=await getAllMapsFromDB();
+        renderLibraryContent();renderPointsView();
+        const actives=mapCollection.filter(m=>m.isActive);
+        actives.forEach(m=>activateMap(m.id));
+        const lastView=await getLastView();
+        setTimeout(()=>restoreLastView(lastView),300);
+    }catch(e){console.warn(e);mapCollection=[];}
+}
 
 function centerToGPS(){
 if(!navigator.geolocation){alert("Geolocation tidak didukung.");return;}
@@ -1367,7 +1376,7 @@ if(md.type==='kmz'){const zip=await JSZip.loadAsync(md.fileData);const kf=Object
 else kmlText=new TextDecoder().decode(md.fileData);
 const fg=parseKMLToLeaflet(kmlText);if(!fg.getLayers().length){alert('Tidak ada fitur valid.');return;}
 fg.addTo(map);const b=fg.getBounds();if(b.isValid())map.fitBounds(b,{padding:[20,20]});
-activeLayers[mapId]={name:md.name,layer:fg};md.isActive=true;
+activeLayers[mapId]={name:md.name,layer:fg};md.isActive=true;saveMapToDB(md);
 updateActiveLayersUI();renderLibraryContent();renderPointsView();activeMapId=mapId;
 refreshActivePointsLayer();
 showNotification('✅ '+md.name+' diaktifkan');
@@ -1375,7 +1384,7 @@ showNotification('✅ '+md.name+' diaktifkan');
 reader.readAsArrayBuffer(new Blob([md.fileData]));
 }else if(md.type==='webp_json'){
 try{const result=createWebPImageLayer(md);if(typeof result.layer.setOpacity==='function')result.layer.setOpacity(webpOpacity);
-result.layer.addTo(map);activeLayers[mapId]={name:md.name,layer:result.layer,type:'webp_json'};md.isActive=true;
+result.layer.addTo(map);activeLayers[mapId]={name:md.name,layer:result.layer,type:'webp_json'};md.isActive=true;saveMapToDB(md);
 updateActiveLayersUI();renderLibraryContent();renderPointsView();activeMapId=mapId;refreshActivePointsLayer();
 setTimeout(()=>{map.invalidateSize();map.fitBounds(result.bounds,{padding:[20,20],maxZoom:Number(md.maxZoom||22)});updateReticleCoordinates();},50);
 showNotification('✅ '+md.name+' ditampilkan di peta',3000);
@@ -1384,7 +1393,7 @@ else showNotification('⚠️ Format tidak didukung: '+md.type);
 }catch(err){alert('Gagal mengaktifkan: '+err.message);}
 }
 function deactivateMap(mapId){if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);const pl=activeLayers[mapId].pointsLayer;
-if(pl)map.removeLayer(pl);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];const md=mapCollection.find(m=>m.id===mapId);if(md)md.isActive=false;if(selectedNotebookId===mapId)selectedNotebookId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();if(activeMapId===mapId)activeMapId=null;showNotification('🗑️ Peta dinonaktifkan');}}
+if(pl)map.removeLayer(pl);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];const md=mapCollection.find(m=>m.id===mapId);if(md){md.isActive=false;saveMapToDB(md);}if(selectedNotebookId===mapId)selectedNotebookId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();if(activeMapId===mapId)activeMapId=null;showNotification('🗑️ Peta dinonaktifkan');}}
 async function deleteMap(mapId){const md=mapCollection.find(m=>m.id===mapId);if(!md)return;if(!confirm('Hapus "'+md.name+'"?'))return;try{if(activeLayers[mapId]){const l=activeLayers[mapId].layer;map.removeLayer(l);const pl=activeLayers[mapId].pointsLayer;if(pl)map.removeLayer(pl);if(l&&l._webpObjectUrl)URL.revokeObjectURL(l._webpObjectUrl);delete activeLayers[mapId];}
 if(md.geojson?.features)for(const ft of md.geojson.features)await deletePhotoQuiet(ft.properties?.photoId);
 await deleteMapFromDB(mapId);mapCollection=mapCollection.filter(m=>m.id!==mapId);if(activeMapId===mapId)activeMapId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();showNotification('🗑️ "'+md.name+'" dihapus');}catch(err){alert('Gagal menghapus: '+err.message);}
@@ -1585,8 +1594,21 @@ const nu=document.getElementById('nav-icon-use');const mc=document.querySelector
 if(currentView==='map'){mv.classList.remove('active');lv.classList.add('active');pv.classList.remove('active');nu.setAttribute('href','#icon-map');mc.forEach(el=>el.style.visibility='hidden');currentView='layers';}
 else if(currentView==='layers'){lv.classList.remove('active');pv.classList.add('active');mv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='hidden');currentView='points';renderPointsView();}
 else{pv.classList.remove('active');mv.classList.add('active');lv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='visible');currentView='map';setTimeout(()=>{map.invalidateSize();const am=getActiveMap();if(am&&activeLayers[am.id]&&activeLayers[am.id].type==='webp_json'){const l=activeLayers[am.id].layer;if(l&&l.getBounds&&l.getBounds().isValid())map.fitBounds(l.getBounds(),{padding:[20,20]});}},100);}
+saveCurrentView(currentView);
 }
-
+function restoreLastView(view){
+    const mv=document.getElementById('map-view'),lv=document.getElementById('layers-view'),pv=document.getElementById('points-view');
+    const nu=document.getElementById('nav-icon-use');const mc=document.querySelectorAll('.map-only-control');
+    mv.classList.remove('active');lv.classList.remove('active');pv.classList.remove('active');
+    if(view==='map'){
+        mv.classList.add('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='visible');currentView='map';
+        setTimeout(()=>{map.invalidateSize();const am=getActiveMap();if(am&&activeLayers[am.id]&&activeLayers[am.id].type==='webp_json'){const l=activeLayers[am.id].layer;if(l&&l.getBounds&&l.getBounds().isValid())map.fitBounds(l.getBounds(),{padding:[20,20]});}},400);
+    }else if(view==='points'){
+        pv.classList.add('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='hidden');currentView='points';renderPointsView();
+    }else{
+        lv.classList.add('active');nu.setAttribute('href','#icon-map');mc.forEach(el=>el.style.visibility='hidden');currentView='layers';
+    }
+}
 function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));event.currentTarget.classList.add('active');if(tabName==='basemap')renderLibraryBasemaps();else if(tabName==='kmz')renderLibraryContent();else if(tabName==='maps'){document.getElementById('library-content').innerHTML='<div style="font-size:13px;color:#555;margin-bottom:10px;">📄 File PDF referensi</div><div style="margin-top:12px;padding:12px;background:#fff3cd;border-radius:4px;font-size:13px;color:#856404;">⚠️ Gunakan Upload GeoPDF untuk peta interaktif.</div>';}}
 function renderLibraryBasemaps(){const c=document.getElementById('library-content');let h='';Object.keys(BASEMAP_PROVIDERS).forEach(k=>{const it=BASEMAP_PROVIDERS[k];h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#'+it.icon+'"></use></svg><span class="file-name">'+it.name+'</span></div><button class="add-btn" onclick="setBasemap(\''+k+'\')">+ Aktifkan</button></div>';});c.innerHTML=h;}
 
@@ -1598,6 +1620,12 @@ async function savePhotoStorageMode(mode){
 }
 async function getPhotoStorageMode(){
     try{const db=await openDB();return new Promise(r=>{const req=db.transaction('config','readonly').objectStore('config').get('photoStorageMode');req.onsuccess=()=>r(req.result||'auto');req.onerror=()=>r('auto');});}catch(e){return 'auto';}
+}
+async function saveCurrentView(view){
+    try{const db=await openDB();db.transaction('config','readwrite').objectStore('config').put(view,'lastView');}catch(e){console.warn(e);}
+}
+async function getLastView(){
+    try{const db=await openDB();return new Promise(r=>{const req=db.transaction('config','readonly').objectStore('config').get('lastView');req.onsuccess=()=>r(req.result||'layers');req.onerror=()=>r('layers');});}catch(e){return 'layers';}
 }
 async function savePhotoFolderHandle(h){
     try{const db=await openDB();db.transaction('config','readwrite').objectStore('config').put(h,'photoFolderHandle');}catch(e){console.warn(e);}
