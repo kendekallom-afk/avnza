@@ -359,7 +359,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 <div class="empty-points">📭 Belum ada titik. Tambahkan titik dari peta atau klik "Tambah"</div>
 </div>
 </div>
-<div class="modal-overlay" id="settings-modal">
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
 <div class="modal-content">
 <div class="modal-header"><span>Pengaturan Aplikasi</span><button class="modal-close" onclick="closeSettings()">&times;</button></div>
 <div class="setting-group">
@@ -389,9 +389,9 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 </div>
 </div>
 </div>
-<div class="modal-overlay" id="point-edit-modal">
+<div class="modal-overlay" id="point-edit-modal" onclick="if(event.target===this)closePointEdit()">
     <div class="modal-content">
-        <div class="modal-header"><span>✏️ Detail Titik</span><button class="modal-close" onclick="closePointEdit()">&times;</button></div>
+        <div class="modal-header"><span>✏️ Detail Titik <button type="button" onclick="deletePointFromEditModal()" style="background:none;border:none;color:#e53935;font-size:16px;cursor:pointer;margin-left:6px;" title="Hapus Titik">✕</button></span><button class="modal-close" onclick="closePointEdit()">&times;</button></div>
         <div class="setting-group">
             <span class="setting-label">Nama:</span>
             <input type="text" id="pe-name" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
@@ -460,6 +460,7 @@ let gdalReady=false, gdal=null, activeLayers={}, scannedKmzFiles=[], defaultDirH
 let selectedNotebookId = null;
 let editingPointIndex = null;
 let pePhotoObjectUrl = null;
+let modalBackStatePushed = false;
 let pointThumbUrls = [];
 const BASEMAP_PROVIDERS = {
 'google_sat':{name:'Google Satellite',url:'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',icon:'icon-globe',maxNativeZoom:20},
@@ -1171,14 +1172,21 @@ function openPointEdit(i){
     const co=f.geometry.coordinates;
     document.getElementById('pe-coord').textContent=co[1].toFixed(5)+', '+co[0].toFixed(5);
     document.getElementById('point-edit-modal').classList.add('active');
+if(!modalBackStatePushed){history.pushState({modal:'point-edit'},'');modalBackStatePushed=true;}
     map.closePopup();
     refreshPhotoPreview();
 }
 
-function closePointEdit(){
+function closePointEdit(fromBackButton){
     document.getElementById('point-edit-modal').classList.remove('active');
     editingPointIndex=null;
     if(pePhotoObjectUrl){URL.revokeObjectURL(pePhotoObjectUrl);pePhotoObjectUrl=null;}
+    if(!fromBackButton&&modalBackStatePushed){modalBackStatePushed=false;history.back();}
+}
+async function deletePointFromEditModal(){
+    if(editingPointIndex===null)return;
+    const ok=await deletePoint(editingPointIndex);
+    if(ok)closePointEdit();
 }
 function openCoordEditPopup(){
     const am=getActiveMap();
@@ -1568,7 +1576,7 @@ saveMapToDB(am).then(()=>{waypointCount++;renderPointsView();renderLibraryConten
 refreshActivePointsLayer();
 }
 function flyToPoint(i){const am=getActiveMap();if(!am)return;const f=am.geojson?.features[i];if(!f)return;map.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],17);}
-async function deletePoint(i){const am=getActiveMap();if(!am)return;if(!confirm('Hapus titik ini?'))return;const photoId=am.geojson.features[i]?.properties?.photoId;am.geojson.features.splice(i,1);await saveMapToDB(am);await deletePhotoQuiet(photoId);renderPointsView();renderLibraryContent();refreshActivePointsLayer();showNotification('🗑️ Titik dihapus');}
+async function deletePoint(i){const am=getActiveMap();if(!am)return false;if(!confirm('Hapus titik ini?'))return false;const photoId=am.geojson.features[i]?.properties?.photoId;am.geojson.features.splice(i,1);await saveMapToDB(am);await deletePhotoQuiet(photoId);renderPointsView();renderLibraryContent();refreshActivePointsLayer();showNotification('🗑️ Titik dihapus');return true;}
 async function clearAllPoints(){const am=getActiveMap();if(!am)return;const c=am.geojson?.features?.length||0;if(!c){alert('Tidak ada titik.');return;}if(!confirm('Hapus semua '+c+' titik?'))return;
 for(const ft of am.geojson.features){await deletePhotoQuiet(ft.properties?.photoId);}
 am.geojson.features=[];await saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();showNotification('🗑️ Semua titik dihapus');
@@ -1614,7 +1622,10 @@ function renderLibraryBasemaps(){const c=document.getElementById('library-conten
 
 function addWaypointAtReticle(){const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'Dari crosshair',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
 
-function closeSettings(){document.getElementById('settings-modal').classList.remove('active');}
+function closeSettings(fromBackButton){
+    document.getElementById('settings-modal').classList.remove('active');
+    if(!fromBackButton&&modalBackStatePushed){modalBackStatePushed=false;history.back();}
+}
 async function savePhotoStorageMode(mode){
     try{const db=await openDB();db.transaction('config','readwrite').objectStore('config').put(mode,'photoStorageMode');}catch(e){console.warn(e);}
 }
@@ -1752,9 +1763,6 @@ function setWebPOpacity(pct){
     });
 }
 
-window.onload = initMap;
-</script>
-<script>
 // ==========================================
 // LOGIKA POPUP MENU TOOLS (WRENCH)
 // ==========================================
@@ -1797,7 +1805,8 @@ function openAppSettings() {
     const modal = document.getElementById('settings-modal');
     if (modal) {
         modal.classList.add('active');
-        applyPhotoStorageModeUI();
+		applyPhotoStorageModeUI();
+		if(!modalBackStatePushed){history.pushState({modal:'settings'},'');modalBackStatePushed=true;}
     } else {
         alert("Modal pengaturan tidak ditemukan.");
     }
@@ -1805,6 +1814,15 @@ function openAppSettings() {
     const popup = document.getElementById('tools-popup');
     if (popup) popup.style.display = 'none';
 }
+
+window.onload = initMap;
+window.addEventListener('popstate', function(){
+    modalBackStatePushed=false;
+    const pointOpen=document.getElementById('point-edit-modal').classList.contains('active');
+    const settingsOpen=document.getElementById('settings-modal').classList.contains('active');
+    if(pointOpen)closePointEdit(true);
+    else if(settingsOpen)closeSettings(true);
+});
 </script>
 </body>
 </html>
