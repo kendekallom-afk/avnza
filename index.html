@@ -448,6 +448,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
     </div>
 </div>
 <div class="crosshair"><div class="crosshair-center"></div></div>
+<div id="measure-debug" style="position:absolute;bottom:110px;left:8px;right:8px;background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;font-size:10px;padding:6px 8px;border-radius:6px;z-index:2000;white-space:pre-wrap;display:none;"></div>
 <div id="gps-overlay" class="gps-overlay map-only-control" style="visibility:hidden;">
 <div class="gps-item"><span class="label">Sinyal GPS:</span><span id="gps-status" class="value status-no-signal">Memeriksa...</span></div>
 <div class="gps-item"><span class="label">Akurasi GPS:</span><span id="gps-accuracy" class="value">-</span></div>
@@ -908,7 +909,21 @@ function addMeasurePointFromCrosshair() {
     if (!measureActive) return;
     map.stop();
     measureClosed = false;
-    const center = getCrosshairLatLng() || map.getCenter();
+
+    const bearing = (typeof map.getBearing === 'function') ? map.getBearing() : 0;
+    const centerViaLeaflet = map.getCenter();
+    const centerViaCrosshair = getCrosshairLatLng();
+    const center = centerViaCrosshair || centerViaLeaflet;
+
+    const dbg = document.getElementById('measure-debug');
+    if (dbg) {
+        dbg.style.display = 'block';
+        dbg.textContent =
+            'Bearing: ' + bearing.toFixed(2) + '\n' +
+            'getCenter(): ' + centerViaLeaflet.lat.toFixed(6) + ', ' + centerViaLeaflet.lng.toFixed(6) + '\n' +
+            'crosshair : ' + (centerViaCrosshair ? centerViaCrosshair.lat.toFixed(6)+', '+centerViaCrosshair.lng.toFixed(6) : 'GAGAL') + '\n' +
+            'dipakai   : ' + center.lat.toFixed(6) + ', ' + center.lng.toFixed(6);
+    }
     const point = { lat: center.lat, lng: center.lng };
 
     measurePoints.push(point);
