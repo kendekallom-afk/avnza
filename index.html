@@ -53,7 +53,6 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
     position: absolute;
     width: 12px;
     height: 12px;
-    margin: 0;
     background: #a78bfa;
     border: 2px solid #fff;
     border-radius: 50%;
@@ -461,7 +460,6 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
     </div>
 </div>
 <div class="crosshair"><div class="crosshair-center"></div></div>
-<div id="measure-debug" style="position:absolute;bottom:110px;left:8px;right:8px;background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;font-size:10px;padding:6px 8px;border-radius:6px;z-index:2000;white-space:pre-wrap;display:none;"></div>
 <div id="gps-overlay" class="gps-overlay map-only-control" style="visibility:hidden;">
 <div class="gps-item"><span class="label">Sinyal GPS:</span><span id="gps-status" class="value status-no-signal">Memeriksa...</span></div>
 <div class="gps-item"><span class="label">Akurasi GPS:</span><span id="gps-accuracy" class="value">-</span></div>
@@ -704,38 +702,25 @@ function undoLastPoint() {
     measureClosed = false;
     const lastMarker = measureMarkers.pop();
     if (lastMarker) {
-        if (lastMarker.remove) lastMarker.remove(); // DOM element
-        else if (map) map.removeLayer(lastMarker); // Leaflet layer (lama)
+        if (lastMarker.remove) lastMarker.remove();
+        else if (map) map.removeLayer(lastMarker);
     }
     measurePoints.pop();
     redrawMeasureShape();
     updateMeasureDisplay();
 }
-// Fungsi untuk menghapus semua titik dan reset
 function clearMeasure() {
-    // Hapus marker (DOM atau Leaflet)
     measureMarkers.forEach(m => {
         if (m && m.remove) m.remove();
         else if (m && map) map.removeLayer(m);
     });
     measureMarkers = [];
-    
-    // Hapus polyline & polygon
-    if (measurePolyline) { 
-        map.removeLayer(measurePolyline); 
-        measurePolyline = null; 
-    }
-    if (measurePolygon) { 
-        map.removeLayer(measurePolygon); 
-        measurePolygon = null; 
-    }
-    
+    if (measurePolyline) { map.removeLayer(measurePolyline); measurePolyline = null; }
+    if (measurePolygon) { map.removeLayer(measurePolygon); measurePolygon = null; }
     measurePoints = [];
     measureDist = 0;
     measureArea = 0;
-	measureClosed = false;
-    
-    // OVERLAY TETAP ADA - JANGAN DIHAPUS DI SINI
+    measureClosed = false;
 }
 function updateMeasureDotPositions() {
     if (!map || !measurePoints.length) return;
@@ -877,22 +862,12 @@ function updateMeasureDisplay() {
 }
 function getCrosshairLatLng(){
     try{
-        if(!map) return null;
-        return map.getCenter();
+        if (!map) return null;
+        const size = map.getSize();
+        return map.containerPointToLatLng([size.x / 2, size.y / 2]);
     }catch(e){
-        console.warn('getCrosshairLatLng gagal:', e);
         return null;
     }
-}
-function ensureCrosshairInMap(){
-    try{
-        const ch = document.querySelector('.crosshair');
-        if(!ch || !map) return;
-        const container = map.getContainer();
-        if(ch.parentElement !== container){
-            container.appendChild(ch);
-        }
-    }catch(e){}
 }
 // Menggambar ulang garis & poligon measure berdasarkan titik-titik saat ini
 function redrawMeasureShape() {
@@ -912,7 +887,8 @@ function redrawMeasureShape() {
         measurePolyline = L.polyline(lineLatlngs, {
             color: '#a78bfa',
             weight: 3,
-            dashArray: '6 4'
+            dashArray: '6 4',
+            pane: 'measurePane'
         }).addTo(map);
     }
 
@@ -925,7 +901,8 @@ function redrawMeasureShape() {
                 weight: 1.5,
                 dashArray: '6 4',
                 fillColor: '#7c3aed',
-                fillOpacity: 0.15
+                fillOpacity: 0.15,
+                pane: 'measurePane'
             }).addTo(map);
         }
     } else {
@@ -933,39 +910,24 @@ function redrawMeasureShape() {
     }
 }
 
-// Menambah titik measure dari posisi crosshair (tengah layar), dipanggil oleh tombol "+"
-// Titik ungu digambar sebagai DOM di container peta (bukan L.circleMarker),
-// supaya tidak bergeser oleh transform leaflet-rotate / pane.
+// Menambah titik measure dari posisi crosshair (tombol "+")
 function addMeasurePointFromCrosshair() {
     if (!measureActive || !map) return;
     map.stop();
     measureClosed = false;
 
-    // Ambil pusat PIXEL container peta = pusat crosshair
     const size = map.getSize();
     const px = size.x / 2;
     const py = size.y / 2;
     const center = map.containerPointToLatLng([px, py]);
-    const point = { lat: center.lat, lng: center.lng };
-    measurePoints.push(point);
+    measurePoints.push({ lat: center.lat, lng: center.lng });
 
-    // Dot DOM tepat di pixel pusat (sama dengan crosshair)
     const el = document.createElement('div');
     el.className = 'measure-dot';
     el.style.left = px + 'px';
     el.style.top = py + 'px';
     map.getContainer().appendChild(el);
     measureMarkers.push(el);
-
-    const dbg = document.getElementById('measure-debug');
-    if (dbg) {
-        const llPt = map.latLngToContainerPoint(center);
-        dbg.style.display = 'block';
-        dbg.textContent =
-            'pixel center: ' + px.toFixed(1) + ', ' + py.toFixed(1) + '\n' +
-            'latLng->pixel: ' + llPt.x.toFixed(1) + ', ' + llPt.y.toFixed(1) + '\n' +
-            'dipakai: ' + center.lat.toFixed(6) + ', ' + center.lng.toFixed(6);
-    }
 
     redrawMeasureShape();
     updateMeasureDisplay();
@@ -1009,7 +971,6 @@ async function deletePhotoQuiet(photoId){if(!photoId)return;try{await deletePhot
 function initMap(){
 map=L.map('map',{zoomControl:false,maxZoom:22,rotate:true,touchRotate:true}).setView([-2.66491,118.85193],15); map.createPane('measurePane');
     map.getPane('measurePane').style.zIndex = 700;
-ensureCrosshairInMap();
 map.on('rotate', function() {
     updateHeadingPointer();
     updateMeasureDotPositions();
@@ -1018,10 +979,7 @@ map.on('move', function(){
     updateReticleCoordinates();
     updateMeasureDotPositions();
 });
-map.on('zoom zoomend moveend', function(){
-    updateMeasureDotPositions();
-    ensureCrosshairInMap();
-});
+map.on('zoom zoomend', updateMeasureDotPositions);
 updateReticleCoordinates();
 setBasemap('osm');
 loadAllMapsFromDB();
@@ -1030,8 +988,8 @@ initOrientationWatcher();
 initGDAL();
 }
 function updateReticleCoordinates(){
-    if(!map) return;
-    const c = (typeof getCrosshairLatLng === 'function' && getCrosshairLatLng()) || map.getCenter();
+    if (!map) return;
+    const c = getCrosshairLatLng() || map.getCenter();
     document.getElementById('lat').innerText = c.lat.toFixed(5);
     document.getElementById('lng').innerText = c.lng.toFixed(5);
 }
@@ -2359,9 +2317,7 @@ function setWebPOpacity(pct){
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🔧 Memasang semua event listener...');
-    
-    // --- 1. LOGIKA POPUP MENU TOOLS (WRENCH) ---
+    // --- 1. Popup menu Tools (Wrench) ---
     const btnTools = document.getElementById('btn-tools');
     const toolsPopup = document.getElementById('tools-popup');
 
@@ -2370,7 +2326,6 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
             const isHidden = toolsPopup.style.display === 'none' || toolsPopup.style.display === '';
             toolsPopup.style.display = isHidden ? 'block' : 'none';
-            console.log('🔄 Tombol Wrench diklik, popup:', isHidden ? 'Muncul' : 'Sembunyi');
         });
 
         document.addEventListener('click', function(e) {
@@ -2380,131 +2335,87 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-    } else {
-        console.warn('⚠️ Tombol Wrench atau popup tidak ditemukan!');
     }
     
-    // --- 2. TOMBOL MEASURE DI MENU WRENCH ---
+    // --- 2. Tombol Measure di menu Wrench ---
     const popupItems = document.querySelectorAll('#tools-popup .popup-item');
     popupItems.forEach(function(item) {
         const text = item.textContent.trim();
         if (text === 'Measure Distance or Area' || text.includes('Measure')) {
             item.removeAttribute('onclick');
-            
             const newItem = item.cloneNode(true);
             item.parentNode.replaceChild(newItem, item);
-            
             newItem.addEventListener('click', function(e) {
                 e.stopPropagation();
                 e.preventDefault();
-                console.log('🖱️ Menu Measure diklik');
                 toggleMeasure();
                 closeWrenchPopup();
             });
-            console.log('✅ Tombol Measure di Wrench siap');
         }
     });
     
-    // --- 3. TOMBOL UNDO (hapus titik terakhir) ---
-const undoBtn = document.getElementById('measure-undo-btn');
-if (undoBtn) {
-    const newUndoBtn = undoBtn.cloneNode(true);
-    undoBtn.parentNode.replaceChild(newUndoBtn, undoBtn);
-
-    // Gunakan pointerdown supaya langsung bereaksi di mobile & desktop
-    // (menghindari kasus harus 2× klik/tap)
-    newUndoBtn.addEventListener('pointerdown', function(e) {
-        e.stopPropagation();
-        e.preventDefault();
-        console.log('🖱️ Tombol Undo diklik (SEKALI)');
-        undoLastPoint();
-    }, { passive: false });
-
-    console.log('✅ Tombol Undo siap');
-	} else {
-        console.warn('⚠️ Tombol Undo tidak ditemukan');
+    // --- 3. Undo ---
+    const undoBtn = document.getElementById('measure-undo-btn');
+    if (undoBtn) {
+        const newUndoBtn = undoBtn.cloneNode(true);
+        undoBtn.parentNode.replaceChild(newUndoBtn, undoBtn);
+        newUndoBtn.addEventListener('pointerdown', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            undoLastPoint();
+        }, { passive: false });
     }
     
-    // --- 4. TOMBOL CLEAR (hapus semua titik) ---
+    // --- 4. Clear ---
     const clearBtn = document.getElementById('measure-clear-btn');
     if (clearBtn) {
         const newClearBtn = clearBtn.cloneNode(true);
         clearBtn.parentNode.replaceChild(newClearBtn, clearBtn);
-        
         newClearBtn.addEventListener('pointerdown', function(e) {
             e.stopPropagation();
             e.preventDefault();
-            console.log('🖱️ Tombol Clear diklik');
-            
             if (measureActive) {
                 clearMeasure();
                 updateMeasureDisplay();
-                
-                const hint = document.getElementById('measure-hint');
-                const undoBtn2 = document.getElementById('measure-undo-btn');
-                const clearBtn2 = document.getElementById('measure-clear-btn');
-                const distRow = document.getElementById('measure-dist-row');
-                const areaRow = document.getElementById('measure-area-row');
-                
-                if (hint) {
-                    hint.style.display = 'inline';
-                    hint.textContent = '👆 Klik peta';
-                }
-                if (undoBtn2) undoBtn2.style.display = 'none';
-                if (clearBtn2) clearBtn2.style.display = 'none';
-                if (distRow) distRow.style.display = 'none';
-                if (areaRow) areaRow.style.display = 'none';
             }
         });
-        console.log('✅ Tombol Clear siap');
-    } else {
-        console.warn('⚠️ Tombol Clear tidak ditemukan');
     }
     
-    // --- 5. TOMBOL CLOSE (X) - tutup mode measure ---
+    // --- 5. Close (X) ---
     const closeBtn = document.getElementById('measure-close-btn');
     if (closeBtn) {
         const newCloseBtn = closeBtn.cloneNode(true);
         closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
-        
         newCloseBtn.addEventListener('pointerdown', function(e) {
             e.stopPropagation();
             e.preventDefault();
-            console.log('🖱️ Tombol Close (X) diklik');
             closeMeasure();
         });
-        console.log('✅ Tombol Close siap');
-    } else {
-        console.warn('⚠️ Tombol Close tidak ditemukan');
     }
-        // --- 6. TOMBOL TAMBAH TITIK (+) DARI CROSSHAIR ---
+
+    // --- 6. Tambah titik (+) ---
     const addBtn = document.getElementById('measure-add-btn');
     if (addBtn) {
         const newAddBtn = addBtn.cloneNode(true);
         addBtn.parentNode.replaceChild(newAddBtn, addBtn);
-        
         newAddBtn.addEventListener('pointerdown', function(e) {
             e.stopPropagation();
             e.preventDefault();
             addMeasurePointFromCrosshair();
         }, { passive: false });
-        console.log('✅ Tombol Tambah Titik (+) siap');
     }
     
-    // --- 7. TOMBOL TUTUP GARIS/POLIGON (=) ---
+    // --- 7. Tutup garis/poligon (=) ---
     const finishBtn = document.getElementById('measure-finish-btn');
     if (finishBtn) {
         const newFinishBtn = finishBtn.cloneNode(true);
         finishBtn.parentNode.replaceChild(newFinishBtn, finishBtn);
-        
         newFinishBtn.addEventListener('pointerdown', function(e) {
             e.stopPropagation();
             e.preventDefault();
             closeMeasureShape();
         }, { passive: false });
-        console.log('✅ Tombol Tutup Garis/Poligon (=) siap');
     }
-    console.log('✅ Semua event listener telah dipasang!');
 });
 
 // ==========================================
