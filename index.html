@@ -37,6 +37,13 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 #measure-box * {
     pointer-events: auto; /* tapi tombol di dalamnya tetap bisa diklik */
 }
+/* Mencegah pergeseran saat peta digeser/rotasi akibat efek transisi bawaan leaflet-rotate */
+.leaflet-rotate-pane {
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transition: none !important;
+}
 .crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 60px; height: 60px; border: 2px solid #333333; border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 500; }
 .crosshair::before, .crosshair::after { content: ""; position: absolute; background-color: #333333; }
 .crosshair::before { width: 2px; height: 76px; }
