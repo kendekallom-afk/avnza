@@ -314,38 +314,63 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 </defs>
 </svg>
 <div class="top-bar"></div>
-<div class="toolbar">
-<button class="tool-btn map-only-control" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS" style="visibility:hidden;"><svg class="icon"><use href="#icon-crosshair"></use></svg></button>
-<button class="tool-btn map-only-control" id="btn-pin" onclick="addWaypointAtReticle()" title="Tambah Titik" style="visibility:hidden;"><svg class="icon"><use href="#icon-pin"></use></svg></button>
-<div class="coords-display map-only-control" style="visibility:hidden;"><div id="lat">0.00000</div><div id="lng">0.00000</div></div>
-<button class="tool-btn" id="btn-toggle-view" onclick="toggleView()" title="Beralih Tampilan"><svg class="icon" id="nav-icon"><use id="nav-icon-use" href="#icon-map"></use></svg></button>
-<!-- Container Relative untuk posisi popup -->
-<div style="position: relative; display: inline-block;">
-    <!-- Tombol Wrench (Tools) -->
-    <button class="tool-btn" id="btn-tools" title="Menu Alat">
-        <svg class="icon"><use href="#icon-wrench"></use></svg>
+<div class="toolbar"style="display:flex; align-items:center; justify-content:space-between; padding:0 10px;">>
+    <!-- 1. Pusatkan GPS (hanya di Map) -->
+    <button class="tool-btn" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS" style="display:none;">
+        <svg class="icon"><use href="#icon-crosshair"></use></svg>
     </button>
-
-    <!-- Popup Menu (Awalnya tersembunyi) -->
-    <div id="tools-popup" class="tools-popup" style="display: none;">
-        <div class="popup-item" onclick="alert('Fitur Cari Koordinat')">
-            Find By Coordinates
-        </div>
-        <div class="popup-item" onclick="alert('Fitur Rekam GPS')">
-            Record GPS Tracks
-        </div>
-        <div class="popup-item" onclick="toggleMeasure(); closeWrenchPopup();">
-			Measure Distance or Area
-		</div>
-        <div class="popup-item" onclick="openSettings()">
-            Map Features
-        </div>
-		<!-- Item Baru: Settings -->
-			<div class="popup-item" onclick="openAppSettings()">
-        Settings
-		</div>
+    
+    <!-- 2. Tambah Titik (hanya di Map) -->
+    <button class="tool-btn" id="btn-pin" onclick="addWaypointAtReticle()" title="Tambah Titik" style="display:none;">
+        <svg class="icon"><use href="#icon-pin"></use></svg>
+    </button>
+    
+    <!-- 3. Display Koordinat (hanya di Map) -->
+    <div id="coords-display" style="color:#ffffff;text-align:center;font-size:11px;font-weight:500;line-height:1.3;font-family:monospace;display:none;padding:0 4px;flex-direction:column;align-items:center;justify-content:center;">
+        <div id="lat">0.000000</div>
+        <div id="lng">0.000000</div>
     </div>
-</div>
+    
+    <!-- 4. Kelola Titik (Map dan Layers View) -->
+    <button class="tool-btn" id="btn-manage-points" onclick="goToPointsView()" title="Kelola Titik" style="display:none;">
+        <svg class="icon"><use href="#icon-kelola-titik"></use></svg>
+    </button>
+    
+    <!-- 5. Tampilan Layers (Map dan Points View) -->
+    <button class="tool-btn" id="btn-goto-layers" onclick="goToLayersView()" title="Tampilan Layers" style="display:none;">
+        <svg class="icon"><use href="#icon-layers"></use></svg>
+    </button>
+    
+    <!-- 6. Tampilan Peta (Layers dan Points View) -->
+    <button class="tool-btn" id="btn-goto-map" onclick="goToMapView()" title="Tampilan Peta" style="display:none;">
+        <svg class="icon"><use href="#icon-map"></use></svg>
+    </button>
+    
+    <!-- 7. Menu Alat / Tools (hanya di Map View) -->
+    <div id="tools-wrapper" style="position: relative; display: inline-block; display:none;">
+        <button class="tool-btn" id="btn-tools" title="Menu Alat">
+            <svg class="icon"><use href="#icon-wrench"></use></svg>
+        </button>
+        
+        <!-- Popup Tools -->
+        <div id="tools-popup" class="tools-popup" style="display: none;">
+            <div class="popup-item" onclick="alert('Fitur Cari Koordinat')">
+                Find By Coordinates
+            </div>
+            <div class="popup-item" onclick="alert('Fitur Rekam GPS')">
+                Record GPS Tracks
+            </div>
+            <div class="popup-item" onclick="toggleMeasure(); closeWrenchPopup();">
+                Measure Distance or Area
+            </div>
+            <div class="popup-item" onclick="openSettings()">
+                Map Features
+            </div>
+            <div class="popup-item" onclick="openAppSettings()">
+                Settings
+            </div>
+        </div>
+    </div>
 </div>
 <div id="map-view" class="view">
 <div id="map"></div>
@@ -992,8 +1017,8 @@ initGDAL();
 function updateReticleCoordinates(){
     if (!map) return;
     const c = (typeof getCrosshairLatLng === 'function' && getCrosshairLatLng()) || map.getCenter();
-    document.getElementById('lat').innerText = c.lat.toFixed(5);
-    document.getElementById('lng').innerText = c.lng.toFixed(5);
+    document.getElementById('lat').innerText = c.lat.toFixed(6);
+    document.getElementById('lng').innerText = c.lng.toFixed(6);
 }
 
 async function initGDAL(){
@@ -2097,25 +2122,226 @@ showNotification('✅ '+filename+' diexport ('+f.length+' titik)');
 
 function showNotification(msg,dur=3000){const e=document.querySelector('.custom-notification');if(e)e.remove();const n=document.createElement('div');n.className='custom-notification';n.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:white;padding:10px 20px;border-radius:8px;font-size:13px;z-index:99999;max-width:90%;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.3);backdrop-filter:blur(10px);transition:opacity 0.3s;';n.textContent=msg;document.body.appendChild(n);setTimeout(()=>{n.style.opacity='0';setTimeout(()=>n.remove(),300);},dur);}
 
-function toggleView(){
-const mv=document.getElementById('map-view'),lv=document.getElementById('layers-view'),pv=document.getElementById('points-view');
-const nu=document.getElementById('nav-icon-use');const mc=document.querySelectorAll('.map-only-control');
-if(currentView==='map'){mv.classList.remove('active');lv.classList.add('active');pv.classList.remove('active');nu.setAttribute('href','#icon-map');mc.forEach(el=>el.style.visibility='hidden');currentView='layers';}
-else if(currentView==='layers'){lv.classList.remove('active');pv.classList.add('active');mv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='hidden');currentView='points';renderPointsView();}
-else{pv.classList.remove('active');mv.classList.add('active');lv.classList.remove('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='visible');currentView='map';setTimeout(()=>{map.invalidateSize();const am=getActiveMap();if(am&&activeLayers[am.id]&&activeLayers[am.id].type==='webp_json'){const l=activeLayers[am.id].layer;if(l&&l.getBounds&&l.getBounds().isValid())map.fitBounds(l.getBounds(),{padding:[20,20]});}},100);}
-saveCurrentView(currentView);
+
+// Pindah ke Layers View (HANYA SATU)
+function goToLayersView() {
+    const mv = document.getElementById('map-view');
+    const lv = document.getElementById('layers-view');
+    const pv = document.getElementById('points-view');
+    
+    // Sembunyikan semua view
+    mv.classList.remove('active');
+    lv.classList.remove('active');
+    pv.classList.remove('active');
+    
+    // Tampilkan Layers View
+    lv.classList.add('active');
+    currentView = 'layers';
+    
+    // Sembunyikan SEMUA tombol terlebih dahulu
+    document.getElementById('btn-location').style.display = 'none';
+    document.getElementById('btn-pin').style.display = 'none';
+    document.getElementById('coords-display').style.display = 'none';
+    document.getElementById('btn-manage-points').style.display = 'none';
+    document.getElementById('btn-goto-layers').style.display = 'none';
+    document.getElementById('btn-goto-map').style.display = 'none';
+    document.getElementById('tools-wrapper').style.display = 'none';
+    
+    // ===== SEMBUNYIKAN GPS OVERLAY, FULLSCREEN, DAN OPACITY =====
+    document.getElementById('gps-overlay').style.visibility = 'hidden';
+    document.getElementById('btn-fullscreen').style.visibility = 'hidden';
+    document.getElementById('opacity-control').style.visibility = 'hidden';
+    
+    // Tampilkan tombol untuk Layers View: Tampilan Peta + Kelola Titik
+    document.getElementById('btn-goto-map').style.display = 'inline-flex';
+    document.getElementById('btn-manage-points').style.display = 'inline-flex';
+    
+    saveCurrentView(currentView);
 }
-function restoreLastView(view){
-    const mv=document.getElementById('map-view'),lv=document.getElementById('layers-view'),pv=document.getElementById('points-view');
-    const nu=document.getElementById('nav-icon-use');const mc=document.querySelectorAll('.map-only-control');
-    mv.classList.remove('active');lv.classList.remove('active');pv.classList.remove('active');
-    if(view==='map'){
-        mv.classList.add('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='visible');currentView='map';
-        setTimeout(()=>{map.invalidateSize();const am=getActiveMap();if(am&&activeLayers[am.id]&&activeLayers[am.id].type==='webp_json'){const l=activeLayers[am.id].layer;if(l&&l.getBounds&&l.getBounds().isValid())map.fitBounds(l.getBounds(),{padding:[20,20]});}},400);
-    }else if(view==='points'){
-        pv.classList.add('active');nu.setAttribute('href','#icon-layers');mc.forEach(el=>el.style.visibility='hidden');currentView='points';renderPointsView();
-    }else{
-        lv.classList.add('active');nu.setAttribute('href','#icon-map');mc.forEach(el=>el.style.visibility='hidden');currentView='layers';
+// Pindah ke Points View
+function goToPointsView() {
+    const mv = document.getElementById('map-view');
+    const lv = document.getElementById('layers-view');
+    const pv = document.getElementById('points-view');
+    
+    // Sembunyikan semua view
+    mv.classList.remove('active');
+    lv.classList.remove('active');
+    pv.classList.remove('active');
+    
+    // Tampilkan Points View
+    pv.classList.add('active');
+    currentView = 'points';
+    
+    // Sembunyikan SEMUA tombol terlebih dahulu
+    document.getElementById('btn-location').style.display = 'none';
+    document.getElementById('btn-pin').style.display = 'none';
+    document.getElementById('coords-display').style.display = 'none';
+    document.getElementById('btn-manage-points').style.display = 'none';
+    document.getElementById('btn-goto-layers').style.display = 'none';
+    document.getElementById('btn-goto-map').style.display = 'none';
+    document.getElementById('tools-wrapper').style.display = 'none';
+    
+    // ===== SEMBUNYIKAN GPS OVERLAY, FULLSCREEN, DAN OPACITY =====
+    document.getElementById('gps-overlay').style.visibility = 'hidden';
+    document.getElementById('btn-fullscreen').style.visibility = 'hidden';
+    document.getElementById('opacity-control').style.visibility = 'hidden';
+    
+    // Tampilkan tombol untuk Points View: Tampilan Peta + Tampilan Layers
+    document.getElementById('btn-goto-map').style.display = 'inline-flex';
+    document.getElementById('btn-goto-layers').style.display = 'inline-flex';
+    
+    renderPointsView();
+    saveCurrentView(currentView);
+}
+// Pindah ke Map View
+function goToMapView() {
+    const mv = document.getElementById('map-view');
+    const lv = document.getElementById('layers-view');
+    const pv = document.getElementById('points-view');
+    
+    // Sembunyikan semua view
+    mv.classList.remove('active');
+    lv.classList.remove('active');
+    pv.classList.remove('active');
+    
+    // Tampilkan Map View
+    mv.classList.add('active');
+    currentView = 'map';
+    
+    // Tampilkan tombol Map View di toolbar
+    document.getElementById('btn-location').style.display = 'inline-flex';
+    document.getElementById('btn-pin').style.display = 'inline-flex';
+    document.getElementById('coords-display').style.display = 'inline-flex';
+    document.getElementById('btn-manage-points').style.display = 'inline-flex';
+    document.getElementById('btn-goto-layers').style.display = 'inline-flex';
+    document.getElementById('tools-wrapper').style.display = 'inline-flex';
+    
+    // Sembunyikan tombol Tampilan Peta
+    document.getElementById('btn-goto-map').style.display = 'none';
+    
+    // ===== TAMPILKAN GPS OVERLAY, FULLSCREEN, DAN OPACITY =====
+    document.getElementById('gps-overlay').style.visibility = 'visible';
+    document.getElementById('btn-fullscreen').style.visibility = 'visible';
+    document.getElementById('opacity-control').style.visibility = 'visible';
+    
+    setTimeout(() => {
+        map.invalidateSize();
+        const am = getActiveMap();
+        if (am && activeLayers[am.id] && activeLayers[am.id].type === 'webp_json') {
+            const l = activeLayers[am.id].layer;
+            if (l && l.getBounds && l.getBounds().isValid()) {
+                map.fitBounds(l.getBounds(), { padding: [20, 20] });
+            }
+        }
+    }, 100);
+    
+    saveCurrentView(currentView);
+}
+
+// Pindah ke Points View
+function goToPointsView() {
+    const mv = document.getElementById('map-view');
+    const lv = document.getElementById('layers-view');
+    const pv = document.getElementById('points-view');
+    
+    // Sembunyikan semua view
+    mv.classList.remove('active');
+    lv.classList.remove('active');
+    pv.classList.remove('active');
+    
+    // Tampilkan Points View
+    pv.classList.add('active');
+    currentView = 'points';
+    
+    // Sembunyikan SEMUA tombol terlebih dahulu
+    document.getElementById('btn-location').style.display = 'none';
+    document.getElementById('btn-pin').style.display = 'none';
+    document.getElementById('coords-display').style.display = 'none';
+    document.getElementById('btn-manage-points').style.display = 'none';
+    document.getElementById('btn-goto-layers').style.display = 'none';
+    document.getElementById('btn-goto-map').style.display = 'none';
+    document.getElementById('tools-wrapper').style.display = 'none';
+    
+    // Tampilkan tombol untuk Points View: Tampilan Peta + Tampilan Layers
+    document.getElementById('btn-goto-map').style.display = 'inline-flex';
+    document.getElementById('btn-goto-layers').style.display = 'inline-flex';
+    
+    renderPointsView();
+    saveCurrentView(currentView);
+}
+
+// Fungsi switchToPointsView
+function switchToPointsView() {
+    if (currentView !== 'points') {
+        goToPointsView();
+    }
+}
+
+// Hapus toggleView()
+function toggleView() {
+    goToLayersView();
+}
+
+function restoreLastView(view) {
+    const mv = document.getElementById('map-view');
+    const lv = document.getElementById('layers-view');
+    const pv = document.getElementById('points-view');
+    
+    mv.classList.remove('active');
+    lv.classList.remove('active');
+    pv.classList.remove('active');
+    
+    // Sembunyikan SEMUA tombol
+    document.getElementById('btn-location').style.display = 'none';
+    document.getElementById('btn-pin').style.display = 'none';
+    document.getElementById('coords-display').style.display = 'none';
+    document.getElementById('btn-manage-points').style.display = 'none';
+    document.getElementById('btn-goto-layers').style.display = 'none';
+    document.getElementById('btn-goto-map').style.display = 'none';
+    document.getElementById('tools-wrapper').style.display = 'none';
+    
+    // Sembunyikan GPS, Fullscreen, Opacity
+    document.getElementById('gps-overlay').style.visibility = 'hidden';
+    document.getElementById('btn-fullscreen').style.visibility = 'hidden';
+    document.getElementById('opacity-control').style.visibility = 'hidden';
+    
+    if (view === 'map') {
+        mv.classList.add('active');
+        document.getElementById('btn-location').style.display = 'inline-flex';
+        document.getElementById('btn-pin').style.display = 'inline-flex';
+        document.getElementById('coords-display').style.display = 'inline-flex';
+        document.getElementById('btn-manage-points').style.display = 'inline-flex';
+        document.getElementById('btn-goto-layers').style.display = 'inline-flex';
+        document.getElementById('tools-wrapper').style.display = 'inline-flex';
+        
+        // Tampilkan GPS, Fullscreen, Opacity
+        document.getElementById('gps-overlay').style.visibility = 'visible';
+        document.getElementById('btn-fullscreen').style.visibility = 'visible';
+        document.getElementById('opacity-control').style.visibility = 'visible';
+        
+        currentView = 'map';
+        setTimeout(() => {
+            map.invalidateSize();
+            const am = getActiveMap();
+            if (am && activeLayers[am.id] && activeLayers[am.id].type === 'webp_json') {
+                const l = activeLayers[am.id].layer;
+                if (l && l.getBounds && l.getBounds().isValid()) {
+                    map.fitBounds(l.getBounds(), { padding: [20, 20] });
+                }
+            }
+        }, 400);
+    } else if (view === 'points') {
+        pv.classList.add('active');
+        document.getElementById('btn-goto-map').style.display = 'inline-flex';
+        document.getElementById('btn-goto-layers').style.display = 'inline-flex';
+        currentView = 'points';
+        renderPointsView();
+    } else { // layers (default)
+        lv.classList.add('active');
+        document.getElementById('btn-goto-map').style.display = 'inline-flex';
+        document.getElementById('btn-manage-points').style.display = 'inline-flex';
+        currentView = 'layers';
     }
 }
 function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));event.currentTarget.classList.add('active');if(tabName==='basemap')renderLibraryBasemaps();else if(tabName==='kmz')renderLibraryContent();else if(tabName==='maps'){document.getElementById('library-content').innerHTML='<div style="font-size:13px;color:#555;margin-bottom:10px;">📄 File PDF referensi</div><div style="margin-top:12px;padding:12px;background:#fff3cd;border-radius:4px;font-size:13px;color:#856404;">⚠️ Gunakan Upload GeoPDF untuk peta interaktif.</div>';}}
@@ -2479,6 +2705,7 @@ function closeWrenchPopup() {
 }
 
 window.onload = initMap;
+
 window.addEventListener('popstate', function(){
     modalBackStatePushed=false;
     const pointOpen=document.getElementById('point-edit-modal').classList.contains('active');
