@@ -838,7 +838,23 @@ function updateMeasureDisplay() {
         if (areaRow) areaRow.style.display = 'none';
     }
 }
-
+function getCrosshairLatLng(){
+    try{
+        const crosshairEl = document.querySelector('.crosshair');
+        const mapContainer = map.getContainer();
+        if(!crosshairEl || !mapContainer) return null;
+        const chRect = crosshairEl.getBoundingClientRect();
+        const mapRect = mapContainer.getBoundingClientRect();
+        const chCenterX = chRect.left + chRect.width/2;
+        const chCenterY = chRect.top + chRect.height/2;
+        const containerX = chCenterX - mapRect.left;
+        const containerY = chCenterY - mapRect.top;
+        return map.containerPointToLatLng([containerX, containerY]);
+    }catch(e){
+        console.warn('getCrosshairLatLng gagal:', e);
+        return null;
+    }
+}
 // Menggambar ulang garis & poligon measure berdasarkan titik-titik saat ini
 function redrawMeasureShape() {
     const latlngs = measurePoints.map(p => [p.lat, p.lng]);
@@ -884,10 +900,8 @@ function redrawMeasureShape() {
 function addMeasurePointFromCrosshair() {
     if (!measureActive) return;
     map.stop();
-    requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
     measureClosed = false;
-    const center = map.getCenter();
+    const center = getCrosshairLatLng() || map.getCenter();
     const point = { lat: center.lat, lng: center.lng };
 
     measurePoints.push(point);
@@ -903,9 +917,7 @@ function addMeasurePointFromCrosshair() {
     measureMarkers.push(marker);
 
         redrawMeasureShape();
-    updateMeasureDisplay();
-    });
-    });
+    updateMeasureDisplay();    
 }
 
 // Menutup garis/poligon yang sedang dibuat, dipanggil oleh tombol "="
@@ -2087,11 +2099,8 @@ function renderLibraryBasemaps(){const c=document.getElementById('library-conten
 
 function addWaypointAtReticle(){
     map.stop();
-    requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
-    const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}
-    });
-    });
+    const c=getCrosshairLatLng() || map.getCenter();
+    waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}
 }
 function openAppSettings() {
     const modal = document.getElementById('settings-modal');
