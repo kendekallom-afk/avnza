@@ -883,6 +883,7 @@ function redrawMeasureShape() {
 // Menambah titik measure dari posisi crosshair (tengah layar), dipanggil oleh tombol "+"
 function addMeasurePointFromCrosshair() {
     if (!measureActive) return;
+	map.stop();
     measureClosed = false;
     const center = getCrosshairLatLng() || map.getCenter();
     const point = { lat: center.lat, lng: center.lng };
@@ -2103,7 +2104,7 @@ function restoreLastView(view){
 function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));event.currentTarget.classList.add('active');if(tabName==='basemap')renderLibraryBasemaps();else if(tabName==='kmz')renderLibraryContent();else if(tabName==='maps'){document.getElementById('library-content').innerHTML='<div style="font-size:13px;color:#555;margin-bottom:10px;">📄 File PDF referensi</div><div style="margin-top:12px;padding:12px;background:#fff3cd;border-radius:4px;font-size:13px;color:#856404;">⚠️ Gunakan Upload GeoPDF untuk peta interaktif.</div>';}}
 function renderLibraryBasemaps(){const c=document.getElementById('library-content');let h='';Object.keys(BASEMAP_PROVIDERS).forEach(k=>{const it=BASEMAP_PROVIDERS[k];h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#'+it.icon+'"></use></svg><span class="file-name">'+it.name+'</span></div><button class="add-btn" onclick="setBasemap(\''+k+'\')">+ Aktifkan</button></div>';});c.innerHTML=h;}
 
-function addWaypointAtReticle(){const c=getCrosshairLatLng()||map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
+function addWaypointAtReticle(){map.stop();const c=getCrosshairLatLng()||map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
 function openAppSettings() {
     const modal = document.getElementById('settings-modal');
     if (modal) {
