@@ -26,8 +26,8 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .coords-display { color: #ffffff; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.2; font-family: monospace; }
 .view { display: none; flex: 1; position: relative; overflow: hidden; height: calc(100vh - 106px); }
 .view.active { display: flex; flex-direction: column; }
-#map-view { position: relative; width: 100%; height: 100%; background-color: #cccccc; overflow: hidden; }
-#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; z-index: 1; background: #e2e2e2; }
+#map-view { position: relative; width: 100%; height: 100%; background-color: #cccccc; }
+#map { width: 100%; height: 100%; z-index: 1; background: #e2e2e2; }
 /* Efek transisi untuk measure box */
 #measure-box {
     transition: opacity 0.25s ease, transform 0.25s ease;
@@ -885,7 +885,7 @@ function addMeasurePointFromCrosshair() {
     if (!measureActive) return;
 	map.stop();
     measureClosed = false;
-    const center = getCrosshairLatLng() || map.getCenter();
+    const center = map.getCenter();
     const point = { lat: center.lat, lng: center.lng };
 
     measurePoints.push(point);
@@ -954,30 +954,7 @@ initGPSWatcher();
 initOrientationWatcher();
 initGDAL();
 }
-// Koordinat tepat di pusat visual crosshair (perbaikan offset 1–2 m di Chrome HP)
-function getCrosshairLatLng() {
-    if (!map) return null;
-    try { map.invalidateSize({ animate: false, pan: false }); } catch (e) {}
-    const crosshair = document.querySelector('.crosshair');
-    const mapEl = map.getContainer();
-    if (crosshair && mapEl) {
-        const cRect = crosshair.getBoundingClientRect();
-        const mRect = mapEl.getBoundingClientRect();
-        const x = (cRect.left + cRect.width / 2) - mRect.left;
-        const y = (cRect.top + cRect.height / 2) - mRect.top;
-        const size = map.getSize();
-        const px = Math.max(0, Math.min(size.x, x));
-        const py = Math.max(0, Math.min(size.y, y));
-        return map.containerPointToLatLng([px, py]);
-    }
-    const size = map.getSize();
-    return map.containerPointToLatLng([size.x / 2, size.y / 2]);
-}
-function updateReticleCoordinates(){
-    const c = getCrosshairLatLng() || map.getCenter();
-    document.getElementById('lat').innerText = c.lat.toFixed(5);
-    document.getElementById('lng').innerText = c.lng.toFixed(5);
-}
+function updateReticleCoordinates(){const c=map.getCenter();document.getElementById('lat').innerText=c.lat.toFixed(5);document.getElementById('lng').innerText=c.lng.toFixed(5);}
 
 async function initGDAL(){
 try{
@@ -2053,7 +2030,7 @@ async function loadPointThumbnails(){
 }
 function addPointFromCrosshair(){
 const am=getActiveMap();if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
-const c=getCrosshairLatLng()||map.getCenter();const name=prompt('Nama titik:','Waypoint '+waypointCount);if(!name)return;const note=prompt('Catatan (opsional):','');
+const c=map.getCenter();const name=prompt('Nama titik:','Waypoint '+waypointCount);if(!name)return;const note=prompt('Catatan (opsional):','');
 if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};
 am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name,note:note||'',timestamp:new Date().toISOString()}});
 saveMapToDB(am).then(()=>{waypointCount++;renderPointsView();renderLibraryContent();showNotification('✅ Titik "'+name+'" ditambahkan');});
@@ -2104,7 +2081,7 @@ function restoreLastView(view){
 function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));event.currentTarget.classList.add('active');if(tabName==='basemap')renderLibraryBasemaps();else if(tabName==='kmz')renderLibraryContent();else if(tabName==='maps'){document.getElementById('library-content').innerHTML='<div style="font-size:13px;color:#555;margin-bottom:10px;">📄 File PDF referensi</div><div style="margin-top:12px;padding:12px;background:#fff3cd;border-radius:4px;font-size:13px;color:#856404;">⚠️ Gunakan Upload GeoPDF untuk peta interaktif.</div>';}}
 function renderLibraryBasemaps(){const c=document.getElementById('library-content');let h='';Object.keys(BASEMAP_PROVIDERS).forEach(k=>{const it=BASEMAP_PROVIDERS[k];h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#'+it.icon+'"></use></svg><span class="file-name">'+it.name+'</span></div><button class="add-btn" onclick="setBasemap(\''+k+'\')">+ Aktifkan</button></div>';});c.innerHTML=h;}
 
-function addWaypointAtReticle(){map.stop();const c=getCrosshairLatLng()||map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
+function addWaypointAtReticle(){map.stop();const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
 function openAppSettings() {
     const modal = document.getElementById('settings-modal');
     if (modal) {
@@ -2238,7 +2215,21 @@ async function scanFilesFromHandle(dh){scannedKmzFiles=[];try{for await(const e 
 function renderKMZLibrary(){const c=document.getElementById('library-content');c.innerHTML='<div style="font-size:12px;color:#555;margin-bottom:8px;">Folder: <b>'+(defaultDirHandle?defaultDirHandle.name:'Belum diatur')+'</b></div><div id="kmz-file-list"></div>';renderKMZFileList();}
 function renderKMZFileList(){const lc=document.getElementById('kmz-file-list');if(!lc)return;if(!defaultDirHandle){lc.innerHTML='<p style="text-align:center;color:#666;font-size:13px;margin-top:20px;">Atur folder via Settings.</p>';return;}if(!scannedKmzFiles.length){lc.innerHTML='<p style="text-align:center;color:#666;font-size:13px;margin-top:20px;">Tidak ada file .kmz/.kml.</p>';return;}let h='';scannedKmzFiles.forEach((f,i)=>{h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#icon-file-code"></use></svg><span class="file-name">'+f.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="add-btn" onclick="activateKMZFile('+i+')">+ Aktifkan</button></div>';});lc.innerHTML=h;}
 async function activateKMZFile(i){const f=scannedKmzFiles[i];if(!f)return;try{const d=await f.arrayBuffer();const m={id:'map_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),name:f.name,type:f.name.endsWith('.kmz')?'kmz':'kml',fileData:d,geojson:{type:'FeatureCollection',features:[]},created:new Date().toISOString(),isActive:false,source:'folder'};await saveMapToDB(m);mapCollection.push(m);renderLibraryContent();renderPointsView();alert('✅ '+f.name+' disimpan!');}catch(e){alert('Gagal: '+e.message);}}
-
+// Deteksi perubahan ukuran layar (misal address bar Chrome muncul/hilang)
+// supaya Leaflet selalu tahu ukuran peta yang sebenarnya
+let viewportResizeTimer=null;
+function handleViewportResize(){
+    clearTimeout(viewportResizeTimer);
+    viewportResizeTimer=setTimeout(()=>{
+        if(map)map.invalidateSize();
+    },150);
+}
+if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', handleViewportResize);
+}
+window.addEventListener('resize', handleViewportResize);
+window.addEventListener('orientationchange', handleViewportResize);
+</parameter>
 function toggleOpacityPanel(){
     const e = document.getElementById('opacity-control');
     if (e) e.classList.toggle('collapsed');
