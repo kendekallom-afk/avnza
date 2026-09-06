@@ -513,8 +513,10 @@ body.in-points-view .toolbar .tool-btn {
 </div>
 <div class="crosshair"><div class="crosshair-center"></div></div>
 <div id="gps-overlay" class="gps-overlay map-only-control" style="visibility:hidden;">
-<div class="gps-item"><span class="label">Sinyal GPS:</span><span id="gps-status" class="value status-no-signal">Memeriksa...</span></div>
-<div class="gps-item"><span class="label">Akurasi GPS:</span><span id="gps-accuracy" class="value">-</span></div>
+<div class="gps-item"><button class="btn-header" onclick="refreshGPS()">🔄</button>
+<span class="label">Sat:</span><span id="gps-status" class="value status-no-signal">Memeriksa...</span>
+<span class="label"></span><span id="gps-accuracy" class="value">-</span>
+</div>
 </div>
 <button id="btn-fullscreen" class="fullscreen-btn map-only-control" onclick="toggleFullScreen()" title="Full Screen" style="visibility:hidden;">[ ]</button>
 <div id="opacity-control" class="opacity-control map-only-control collapsed" style="visibility:hidden;" title="Transparansi peta WebP" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
