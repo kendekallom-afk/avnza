@@ -911,15 +911,18 @@ function addMeasurePointFromCrosshair() {
     measureClosed = false;
 
     const bearing = (typeof map.getBearing === 'function') ? map.getBearing() : 0;
-    const center = map.getCenter();
+    const centerViaLeaflet = map.getCenter();
+    const centerViaCrosshair = getCrosshairLatLng();
+    const center = centerViaCrosshair || centerViaLeaflet;
 
     const dbg = document.getElementById('measure-debug');
     if (dbg) {
         dbg.style.display = 'block';
         dbg.textContent =
             'Bearing: ' + bearing.toFixed(2) + '\n' +
-            'Zoom: ' + map.getZoom() + '\n' +
-            'getCenter(): ' + center.lat.toFixed(6) + ', ' + center.lng.toFixed(6);
+            'getCenter(): ' + centerViaLeaflet.lat.toFixed(6) + ', ' + centerViaLeaflet.lng.toFixed(6) + '\n' +
+            'crosshair : ' + (centerViaCrosshair ? centerViaCrosshair.lat.toFixed(6)+', '+centerViaCrosshair.lng.toFixed(6) : 'GAGAL') + '\n' +
+            'dipakai   : ' + center.lat.toFixed(6) + ', ' + center.lng.toFixed(6);
     }
     const point = { lat: center.lat, lng: center.lng };
 
