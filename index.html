@@ -1105,16 +1105,35 @@ function updateHeadingPointer() {
     // Terapkan rotasi ke panah kompas
     wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
 }
+let lastAppliedRotation = 0; 
+
 function applyHeadingRotation(){
-    const w=document.getElementById('user-heading-wrapper');
-    if(!w)return;
-    const bearing=(typeof map.getBearing==='function')?map.getBearing():0;
-    const relative=((currentHeading+bearing)%360+360)%360;
-    w.style.transform='rotate('+relative+'deg)';
+    const w = document.getElementById('user-heading-wrapper');
+    if (!w) return;
+    
+    const bearing = (typeof map.getBearing === 'function') ? map.getBearing() : 0;
+    
+    // 1. Hitung target sudut mentah (0 - 359)
+    const targetRelative = ((currentHeading + bearing) % 360 + 360) % 360;
+    
+    // 2. Hitung selisih sudut dari rotasi terakhir yang sedang diterapkan
+    // Trik ini mendeteksi arah putaran terdekat (tidak akan melompat 360 derajat)
+    let diff = targetRelative - (lastAppliedRotation % 360);
+    
+    // Normalisasi selisih agar berada di rentang -180 sampai 180 derajat
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    
+    // 3. Akumulasikan nilai rotasi (nilainya bisa terus bertambah > 360 atau < 0 secara linear)
+    const newRotation = lastAppliedRotation + diff;
+    
+    // 4. Terapkan ke CSS dan simpan state terakhir
+    w.style.transform = 'rotate(' + newRotation + 'deg)';
+    lastAppliedRotation = newRotation;
 }
 function handleOrientation(e){let a=e.alpha,h=null;if(e.webkitCompassHeading)h=e.webkitCompassHeading;else if(a!==null)h=360-a;if(h!==null){currentHeading=h;applyHeadingRotation();}}
 function initOrientationWatcher(){if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}).catch(console.error);}else if('ondeviceorientationabsolute' in window)window.addEventListener('deviceorientationabsolute',handleOrientation,true);else if('ondeviceorientation' in window)window.addEventListener('deviceorientation',handleOrientation,true);}
-setInterval(applyHeadingRotation,150);
+setInterval(applyHeadingRotation,100);
 function initGPSWatcher(){
 const sE=document.getElementById('gps-status'),aE=document.getElementById('gps-accuracy');
 if('geolocation' in navigator){navigator.geolocation.watchPosition(pos=>{const lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Math.round(pos.coords.accuracy);latestCoords={lat,lng};updateUserMarker(lat,lng);aE.textContent='± '+acc+' m';if(acc<=10){sE.textContent='Sinyal Kuat';sE.className='value status-strong';}else if(acc<=30){sE.textContent='Sinyal Sedang';sE.className='value status-medium';}else{sE.textContent='Sinyal Lemah';sE.className='value status-weak';}},err=>{aE.textContent='-';sE.textContent=err.code===1?'Izin Ditolak':err.code===2?'GPS Tdk Terdeteksi':'Mencari Sinyal...';sE.className='value status-no-signal';},{enableHighAccuracy:true,timeout:15000,maximumAge:0});}
