@@ -40,7 +40,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .tool-btn { background: none; border: none; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
 .tool-btn svg.icon { width: 22px; height: 22px; }
 .tool-btn:active { opacity: 0.7; }
-.s-display { color: #ffffff; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.2; font-family: monospace; }
+.coords-display { color: #ffffff; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.2; font-family: monospace; }
 .view { display: none; flex: 1; position: relative; overflow: hidden; height: calc(100vh - 106px); }
 .view.active { display: flex; flex-direction: column; }
 #map-view { position: relative; width: 100%; height: 100%; background-color: #cccccc; }
@@ -208,7 +208,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .point-item:last-child { border-bottom: none; }
 .point-item .point-info { display: flex; flex-direction: column; }
 .point-item .point-name { font-weight: 600; color: #333; }
-.point-item .point-s { font-size: 11px; color: #888; font-family: monospace; }
+.point-item .point-coords { font-size: 11px; color: #888; font-family: monospace; }
 .point-item .point-actions { display: flex; gap: 4px; }
 .point-item .point-actions button { background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 14px; }
 .point-item .point-actions .btn-delete-point { color: #f44336; }
@@ -1001,6 +1001,7 @@ function closeMeasureShape() {
     redrawMeasureShape();
     updateMeasureDisplay();
 }
+// Pin teardrop merah — untuk titik di peta WebP
 const waypointIcon = L.divIcon({
     className: 'waypoint-pin-icon',
     html: '<svg viewBox="0 0 24 24" width="32" height="32" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.45));"><path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7z" fill="#e53935" stroke="#ffffff" stroke-width="1"/><circle cx="12" cy="9" r="2.3" fill="#ffffff"/></svg>',
@@ -1008,6 +1009,8 @@ const waypointIcon = L.divIcon({
     iconAnchor: [16, 32],
     popupAnchor: [0, -30]
 });
+// Pin teardrop biru standar Leaflet — untuk titik di peta KMZ/KML
+const kmzWaypointIcon = new L.Icon.Default();
 const BASEMAP_PROVIDERS = {
 'google_sat':{name:'Google Satellite',url:'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',icon:'icon-globe',maxNativeZoom:20},
 'google_map':{name:'Google Map',url:'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',icon:'icon-map',maxNativeZoom:20},
@@ -1631,8 +1634,9 @@ return{layer,bounds:ib};
 }
 function createPointsLayer(md) {
     const pointsLayer = L.layerGroup();
-
     const features = md.geojson?.features || [];
+    // WebP → teardrop merah | KMZ/KML → teardrop biru standar Leaflet
+    const icon = (md.type === 'webp_json') ? waypointIcon : kmzWaypointIcon;
 
     features.forEach((ft, index) => {
         if (!ft.geometry || ft.geometry.type !== 'Point') return;
@@ -1641,9 +1645,8 @@ function createPointsLayer(md) {
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
         const name = ft.properties?.name || 'Titik ' + (index + 1);
-        const note = ft.properties?.note || '';
 
-             const marker = L.marker([lat, lng], { icon: waypointIcon })
+        const marker = L.marker([lat, lng], { icon: icon })
             .bindPopup(
                 '<div style="cursor:pointer;text-align:center;padding:4px 10px;" onclick="openPointEdit(' + index + ')"><b>' + name + '</b></div>',
                 { closeButton: true }
