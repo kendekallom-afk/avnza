@@ -26,8 +26,8 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .coords-display { color: #ffffff; text-align: center; font-size: 14px; font-weight: 500; line-height: 1.2; font-family: monospace; }
 .view { display: none; flex: 1; position: relative; overflow: hidden; height: calc(100vh - 106px); }
 .view.active { display: flex; flex-direction: column; }
-#map-view { position: relative; width: 100%; height: 100%; background-color: #cccccc; }
-#map { width: 100%; height: 100%; z-index: 1; background: #e2e2e2; }
+#map-view { position: relative; width: 100%; height: 100%; background-color: #cccccc; overflow: hidden; }
+#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; z-index: 1; background: #e2e2e2; }
 /* Efek transisi untuk measure box */
 #measure-box {
     transition: opacity 0.25s ease, transform 0.25s ease;
@@ -884,7 +884,7 @@ function redrawMeasureShape() {
 function addMeasurePointFromCrosshair() {
     if (!measureActive) return;
     measureClosed = false;
-    const center = map.getCenter();
+    const center = getCrosshairLatLng() || map.getCenter();
     const point = { lat: center.lat, lng: center.lng };
 
     measurePoints.push(point);
@@ -953,7 +953,30 @@ initGPSWatcher();
 initOrientationWatcher();
 initGDAL();
 }
-function updateReticleCoordinates(){const c=map.getCenter();document.getElementById('lat').innerText=c.lat.toFixed(5);document.getElementById('lng').innerText=c.lng.toFixed(5);}
+// Koordinat tepat di pusat visual crosshair (perbaikan offset 1–2 m di Chrome HP)
+function getCrosshairLatLng() {
+    if (!map) return null;
+    try { map.invalidateSize({ animate: false, pan: false }); } catch (e) {}
+    const crosshair = document.querySelector('.crosshair');
+    const mapEl = map.getContainer();
+    if (crosshair && mapEl) {
+        const cRect = crosshair.getBoundingClientRect();
+        const mRect = mapEl.getBoundingClientRect();
+        const x = (cRect.left + cRect.width / 2) - mRect.left;
+        const y = (cRect.top + cRect.height / 2) - mRect.top;
+        const size = map.getSize();
+        const px = Math.max(0, Math.min(size.x, x));
+        const py = Math.max(0, Math.min(size.y, y));
+        return map.containerPointToLatLng([px, py]);
+    }
+    const size = map.getSize();
+    return map.containerPointToLatLng([size.x / 2, size.y / 2]);
+}
+function updateReticleCoordinates(){
+    const c = getCrosshairLatLng() || map.getCenter();
+    document.getElementById('lat').innerText = c.lat.toFixed(5);
+    document.getElementById('lng').innerText = c.lng.toFixed(5);
+}
 
 async function initGDAL(){
 try{
@@ -2029,7 +2052,7 @@ async function loadPointThumbnails(){
 }
 function addPointFromCrosshair(){
 const am=getActiveMap();if(!am){alert('Aktifkan peta terlebih dahulu.');return;}
-const c=map.getCenter();const name=prompt('Nama titik:','Waypoint '+waypointCount);if(!name)return;const note=prompt('Catatan (opsional):','');
+const c=getCrosshairLatLng()||map.getCenter();const name=prompt('Nama titik:','Waypoint '+waypointCount);if(!name)return;const note=prompt('Catatan (opsional):','');
 if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};
 am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name,note:note||'',timestamp:new Date().toISOString()}});
 saveMapToDB(am).then(()=>{waypointCount++;renderPointsView();renderLibraryContent();showNotification('✅ Titik "'+name+'" ditambahkan');});
@@ -2080,7 +2103,7 @@ function restoreLastView(view){
 function switchTab(tabName,event){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));event.currentTarget.classList.add('active');if(tabName==='basemap')renderLibraryBasemaps();else if(tabName==='kmz')renderLibraryContent();else if(tabName==='maps'){document.getElementById('library-content').innerHTML='<div style="font-size:13px;color:#555;margin-bottom:10px;">📄 File PDF referensi</div><div style="margin-top:12px;padding:12px;background:#fff3cd;border-radius:4px;font-size:13px;color:#856404;">⚠️ Gunakan Upload GeoPDF untuk peta interaktif.</div>';}}
 function renderLibraryBasemaps(){const c=document.getElementById('library-content');let h='';Object.keys(BASEMAP_PROVIDERS).forEach(k=>{const it=BASEMAP_PROVIDERS[k];h+='<div class="file-item"><div class="file-info"><svg class="icon"><use href="#'+it.icon+'"></use></svg><span class="file-name">'+it.name+'</span></div><button class="add-btn" onclick="setBasemap(\''+k+'\')">+ Aktifkan</button></div>';});c.innerHTML=h;}
 
-function addWaypointAtReticle(){const c=map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
+function addWaypointAtReticle(){const c=getCrosshairLatLng()||map.getCenter();waypointCount++;const am=getActiveMap();if(am){if(!am.geojson)am.geojson={type:'FeatureCollection',features:[]};am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.lng,c.lat]},properties:{name:'Waypoint '+(waypointCount-1),note:'',timestamp:new Date().toISOString()}});saveMapToDB(am);renderPointsView();renderLibraryContent();refreshActivePointsLayer();}}
 function openAppSettings() {
     const modal = document.getElementById('settings-modal');
     if (modal) {
