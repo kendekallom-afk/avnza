@@ -768,6 +768,9 @@ let editingPointIndex = null;
 let pePhotoObjectUrl = null;
 let modalBackStatePushed = false;
 let pointThumbUrls = [];
+let accumulatedHeading = 0;
+let lastHeading = null;
+
 // --- VARIABEL UNTUK MEASURE ---
 let measureActive = false;
 let measurePoints = [];          // [{lat, lng}, ...]
@@ -1265,10 +1268,7 @@ function updateHeadingPointer() {
 }
 function applyHeadingRotation() {
     const wrapper = document.getElementById('user-heading-wrapper');
-    if (!wrapper) {
-        console.warn('⚠️ user-heading-wrapper tidak ditemukan');
-        return;
-    }
+    if (!wrapper) return;
     
     // Dapatkan rotasi peta
     let mapBearing = 0;
@@ -1276,44 +1276,57 @@ function applyHeadingRotation() {
         mapBearing = map.getBearing() || 0;
     }
     
-    // Hitung heading relatif terhadap rotasi peta
-    let relativeHeading = currentHeading - mapBearing;
-    
-    // Normalisasi ke 0-360
+    // Gunakan accumulatedHeading (bukan currentHeading langsung)
+    let relativeHeading = accumulatedHeading - mapBearing;
     relativeHeading = ((relativeHeading % 360) + 360) % 360;
     
-    // Terapkan rotasi
     wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
-    
-    // Debug (opsional)
-    // console.log('Rotasi:', relativeHeading.toFixed(1) + '°');
 }
+// ===== VARIABEL GLOBAL (pastikan sudah ada) =====
+// let accumulatedHeading = 0;
+// let lastHeading = null;
+
 function handleOrientation(e) {
     let heading = null;
     
     // Coba dapatkan heading dari berbagai sumber
     if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
-        // iOS: webkitCompassHeading (sudut relatif terhadap utara)
+        // iOS: webkitCompassHeading
         heading = e.webkitCompassHeading;
     } else if (e.alpha !== null && e.alpha !== undefined) {
-        // Android/umum: alpha (sudut relatif terhadap utara)
-        // alpha: 0 = utara, 90 = timur, 180 = selatan, 270 = barat
-        heading = 360 - e.alpha; // Konversi ke arah kompas
+        // Android/umum: alpha
+        heading = 360 - e.alpha;
     }
     
-    // Jika heading valid, update
+    // Jika heading valid
     if (heading !== null && !isNaN(heading)) {
         // Normalisasi ke 0-360
         heading = ((heading % 360) + 360) % 360;
         
-        // Update heading global
-        currentHeading = heading;
+        // ===== PERBAIKAN: Akumulasi Diferensial =====
+        if (lastHeading === null) {
+            // Pertama kali: langsung set
+            accumulatedHeading = heading;
+        } else {
+            // Hitung selisih terkecil (dalam rentang -180..180)
+            let diff = heading - lastHeading;
+            diff = ((diff % 360) + 540) % 360 - 180; // Normalisasi ke -180..180
+            
+            // Tambahkan ke akumulasi
+            accumulatedHeading += diff;
+        }
+        
+        // Simpan heading terakhir
+        lastHeading = heading;
+        
+        // Update currentHeading (untuk keperluan lain)
+        currentHeading = accumulatedHeading;
         
         // Terapkan rotasi ke panah kompas
         applyHeadingRotation();
         
         // Debug (opsional, hapus setelah berhasil)
-        // console.log('Heading:', heading.toFixed(1) + '°');
+        // console.log('Heading:', heading.toFixed(1) + '° | Accum:', accumulatedHeading.toFixed(1) + '°');
     }
 }
 // Fungsi untuk mengecek status kompas
