@@ -1192,25 +1192,26 @@ function centerToGPS() {
         return;
     }
     
-    // Ambil posisi terakhir atau minta baru
+    const z = map.getZoom();
+    if (map.setBearing) map.setBearing(0);
+    
+    // Update panah kompas setelah mereset peta
+    updateHeadingPointer();
+    const w = document.getElementById('user-heading-wrapper');
+    if (w) w.style.transform = 'rotate(0deg)';
+    
     if (latestCoords) {
-        // Jika ada posisi terakhir, langsung pindah
-        map.setView([latestCoords.lat, latestCoords.lng], map.getZoom());
+        map.setView([latestCoords.lat, latestCoords.lng], z);
         updateUserMarker(latestCoords.lat, latestCoords.lng);
-        
-        // Aktifkan mode pelacakan (opsional)
-        startTrackingMode();
     } else {
-        // Minta posisi baru
         navigator.geolocation.getCurrentPosition(
             function(pos) {
                 latestCoords = {
                     lat: pos.coords.latitude,
                     lng: pos.coords.longitude
                 };
-                map.setView([latestCoords.lat, latestCoords.lng], map.getZoom());
+                map.setView([latestCoords.lat, latestCoords.lng], z);
                 updateUserMarker(latestCoords.lat, latestCoords.lng);
-                startTrackingMode();
             },
             function(err) {
                 let msg = "Gagal mendapatkan lokasi.";
