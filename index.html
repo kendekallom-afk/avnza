@@ -1270,40 +1270,21 @@ function applyHeadingRotation() {
     const w = document.getElementById('user-heading-wrapper');
     if (!w) return;
     
-    const bearing = (typeof map.getBearing === 'function') ? map.getBearing() : 0;
-    const relative = ((accumulatedHeading + bearing) % 360 + 360) % 360;
-    w.style.transform = 'rotate(' + relative + 'deg)';
-}
-// ===== VARIABEL GLOBAL (pastikan sudah ada) =====
-// let accumulatedHeading = 0;
-// let lastHeading = null;
-
-function handleOrientation(e) {
-    let heading = null;
-    
-    if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
-        heading = e.webkitCompassHeading;
-    } else if (e.alpha !== null && e.alpha !== undefined) {
-        heading = 360 - e.alpha;
+    // Dapatkan rotasi peta (bearing) dalam derajat
+    let mapBearing = 0;
+    if (map && typeof map.getBearing === 'function') {
+        mapBearing = map.getBearing() || 0;
     }
     
-    if (heading !== null && !isNaN(heading)) {
-        heading = ((heading % 360) + 360) % 360;
-        
-        // ===== PERBAIKAN UTAMA =====
-        if (lastHeading === null) {
-            accumulatedHeading = heading;
-        } else {
-            // Hitung selisih terkecil (tidak lebih dari 180°)
-            let diff = heading - lastHeading;
-            diff = ((diff % 360) + 540) % 360 - 180;
-            accumulatedHeading += diff;
-        }
-        
-        lastHeading = heading;
-        currentHeading = accumulatedHeading;
-        applyHeadingRotation();
-    }
+    // Heading relatif terhadap rotasi peta
+    // Saat peta berputar, panah harus ikut berputar dengan arah yang sama
+    let relativeHeading = accumulatedHeading - mapBearing;
+    
+    // Normalisasi ke 0-360
+    relativeHeading = ((relativeHeading % 360) + 360) % 360;
+    
+    // Terapkan rotasi
+    w.style.transform = 'rotate(' + relativeHeading + 'deg)';
 }
 // Fungsi untuk mengecek status kompas
 function checkCompassStatus() {
