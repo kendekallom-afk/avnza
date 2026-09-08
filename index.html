@@ -77,7 +77,100 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     z-index: 1240; pointer-events: none; overflow: visible;
 }
-.gps-overlay { position: absolute; bottom: 20px; left: 12px; z-index: 1000; background-color: rgba(0,0,0,0.8); color: #ffffff; padding: 8px 12px; border-radius: 6px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); pointer-events: none; }
+.gps-overlay {
+    position: absolute;
+    bottom: 20px;
+    left: 12px;
+    z-index: 1000;
+    
+    /* Background transparan */
+    background: transparent;
+    
+    /* Hapus semua efek bayangan */
+    box-shadow: none;
+    
+    color: #ffffff;
+    padding: 6px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+    transition: background 0.2s ease;
+    user-select: none;
+}
+
+/* Efek hover pada div - sedikit lebih terang */
+.gps-overlay:hover {
+    background: transparent;
+}
+
+/* Efek klik (aktif) */
+.gps-overlay:active {
+    transform: scale(0.97);
+}
+
+/* ========== OUTLINE HITAM PADA SEMUA ELEMEN ========== */
+
+/* Ikon GPS - Putih dengan Outline Hitam */
+#gps-icon {
+    display: inline-block;
+    font-size: 18px;
+    line-height: 1;
+    transition: color 0.3s;
+    color: #ffffff; /* Putih */
+    
+    /* Outline hitam menggunakan text-shadow */
+    text-shadow: 
+        -1px -1px 0 #000000,
+         1px -1px 0 #000000,
+        -1px  1px 0 #000000,
+         1px  1px 0 #000000,
+         0px  0px 6px rgba(0,0,0,0.5);
+}
+
+/* Status Sinyal - Outline Hitam */
+#gps-status {
+    font-weight: 600;
+    font-size: 13px;
+    
+    /* Outline hitam */
+    text-shadow: 
+        -1px -1px 0 #000000,
+         1px -1px 0 #000000,
+        -1px  1px 0 #000000,
+         1px  1px 0 #000000,
+         0px  0px 4px rgba(0,0,0,0.4);
+}
+
+/* Akurasi - Outline Hitam */
+#gps-accuracy {
+    font-size: 12px;
+    color: #ffffff;
+    white-space: nowrap;
+    
+    /* Outline hitam */
+    text-shadow: 
+        -1px -1px 0 #000000,
+         1px -1px 0 #000000,
+        -1px  1px 0 #000000,
+         1px  1px 0 #000000,
+         0px  0px 4px rgba(0,0,0,0.4);
+}
+
+/* Warna status sinyal (dengan outline hitam otomatis) */
+.status-no-signal { color: #ff6b6b; }  /* Merah */
+.status-weak      { color: #ffa94d; }  /* Oranye */
+.status-medium    { color: #ffd93d; }  /* Kuning */
+.status-strong    { color: #51cf66; }  /* Hijau */
+
+/* Pastikan semua elemen di dalamnya bisa diklik */
+.gps-overlay * {
+    pointer-events: auto;
+}
 .gps-item { display: flex; justify-content: space-between; gap: 10px; }
 .gps-overlay .label { color: #cccccc; }
 .gps-overlay .value { font-weight: 600; }
@@ -512,11 +605,23 @@ body.in-points-view .toolbar .tool-btn {
     </div>
 </div>
 <div class="crosshair"><div class="crosshair-center"></div></div>
-<div id="gps-overlay" class="gps-overlay map-only-control" style="visibility:hidden;">
-<div class="gps-item"><button class="btn-header" onclick="refreshGPS()">🔄</button>
-<div class="gps-item"><span class="label"></span><span id="gps-status" class="value status-no-signal">Memeriksa...</span></div>
-<div class="gps-item"><span class="label"></span><span id="gps-accuracy" class="value">-</span></div>
-</div>
+<div id="gps-overlay" class="gps-overlay map-only-control" 
+     style="visibility:hidden; cursor:pointer;" 
+     onclick="refreshGPS()"
+     title="Klik untuk refresh GPS">
+    <div style="display:flex; align-items:center; gap:1px; flex-wrap:nowrap;">
+        <!-- Ikon Satelit dengan warna dinamis -->
+        <span id="gps-icon" style="font-size:18px; line-height:1; transition: color 0.3s;">📡</span>
+        
+        <!-- Status Sinyal -->
+        <span id="gps-status" class="value status-no-signal" style="font-weight:600; font-size:12px;">Memeriksa...
+        </span>
+        
+        <!-- Akurasi -->
+        <span id="gps-accuracy" class="value" style="font-size:12px; color:#cccccc; white-space:nowrap;">
+            -
+        </span>
+    </div>
 </div>
 <button id="btn-fullscreen" class="fullscreen-btn map-only-control" onclick="toggleFullScreen()" title="Full Screen" style="visibility:hidden;">[ ]</button>
 <div id="opacity-control" class="opacity-control map-only-control collapsed" style="visibility:hidden;" title="Transparansi peta WebP" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
@@ -1026,23 +1131,30 @@ async function deletePhotoFromDB(id){const db=await openDB();return new Promise(
 async function deletePhotoQuiet(photoId){if(!photoId)return;try{await deletePhotoFromDB(photoId);}catch(e){}}
 
 function initMap(){
-map=L.map('map',{zoomControl:false,maxZoom:22,rotate:true,touchRotate:true}).setView([-2.66491,118.85193],15); map.createPane('measurePane');
+    map = L.map('map', {
+        zoomControl: false,
+        maxZoom: 22,
+        rotate: true,
+        touchRotate: true
+    }).setView([-2.66491, 118.85193], 15);
+    map.createPane('measurePane');
     map.getPane('measurePane').style.zIndex = 700;
-map.on('rotate', function() {
-    updateHeadingPointer();
-    updateMeasureDotPositions();
-});
-map.on('move', function(){
+    map.on('rotate', function() {
+        updateHeadingPointer();
+        updateMeasureDotPositions();
+    });
+    map.on('move', function(){
+        updateReticleCoordinates();
+        updateMeasureDotPositions();
+    });
+    map.on('zoom zoomend', updateMeasureDotPositions);
     updateReticleCoordinates();
-    updateMeasureDotPositions();
-});
-map.on('zoom zoomend', updateMeasureDotPositions);
-updateReticleCoordinates();
-setBasemap('osm');
-loadAllMapsFromDB();
-initGPSWatcher();
-initOrientationWatcher();
-initGDAL();
+    setBasemap('osm');
+    loadAllMapsFromDB();
+    window._gpsWatchId = null;
+    initGPSWatcher();
+    initOrientationWatcher();
+    initGDAL();
 }
 function updateReticleCoordinates(){
     if (!map) return;
@@ -1088,7 +1200,7 @@ else{const icon=L.divIcon({className:'custom-user-icon',html:`<div class="user-l
 // Fungsi untuk memperbarui arah panah kompas
 function updateHeadingPointer() {
     var wrapper = document.getElementById('user-heading-wrapper');
-    if (!wrapper) return; // Jika elemen tidak ada, berhenti
+    if (!wrapper) return;
     
     // Dapatkan rotasi peta saat ini (dalam derajat)
     var mapBearing = 0;
@@ -1096,34 +1208,163 @@ function updateHeadingPointer() {
         mapBearing = map.getBearing();
     }
     
-    // Hitung arah panah = arah sensor - rotasi peta
-    var relativeHeading = (currentHeading || 0) - mapBearing;
-    
-    // Terapkan rotasi ke panah kompas
+    // Gunakan accumulatedHeading
+    var relativeHeading = (accumulatedHeading || 0) - mapBearing;
     wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
 }
-function applyHeadingRotation(){
-    const w=document.getElementById('user-heading-wrapper');
-    if(!w)return;
-    const bearing=(typeof map.getBearing==='function')?map.getBearing():0;
-    const relative=((currentHeading+bearing)%360+360)%360;
-    w.style.transform='rotate('+relative+'deg)';
+function applyHeadingRotation() {
+    const w = document.getElementById('user-heading-wrapper');
+    if (!w) return;
+    
+    // Gunakan accumulatedHeading, bukan currentHeading
+    const bearing = (typeof map.getBearing === 'function') ? map.getBearing() : 0;
+    const relative = ((accumulatedHeading + bearing) % 360 + 360) % 360;
+    w.style.transform = 'rotate(' + relative + 'deg)';
 }
-function handleOrientation(e){let a=e.alpha,h=null;if(e.webkitCompassHeading)h=e.webkitCompassHeading;else if(a!==null)h=360-a;if(h!==null){currentHeading=h;applyHeadingRotation();}}
+function handleOrientation(e) {
+    let a = e.alpha;
+    let h = null;
+    
+    if (e.webkitCompassHeading) {
+        h = e.webkitCompassHeading;
+    } else if (a !== null) {
+        h = 360 - a;
+    }
+    
+    if (h !== null) {
+        // ===== PERBAIKAN: Deteksi perubahan terkecil =====
+        if (lastHeading === null) {
+            // Pertama kali, langsung set
+            accumulatedHeading = h;
+        } else {
+            // Hitung selisih terkecil
+            let diff = h - lastHeading;
+            
+            // Normalisasi ke rentang -180..180
+            diff = ((diff % 360) + 540) % 360 - 180;
+            
+            // Tambahkan ke akumulasi
+            accumulatedHeading += diff;
+        }
+        
+        // Simpan heading terakhir
+        lastHeading = h;
+        
+        // Update heading untuk GPS
+        currentHeading = accumulatedHeading;
+        
+        // Terapkan rotasi
+        applyHeadingRotation();
+    }
+}
 function initOrientationWatcher(){if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}).catch(console.error);}else if('ondeviceorientationabsolute' in window)window.addEventListener('deviceorientationabsolute',handleOrientation,true);else if('ondeviceorientation' in window)window.addEventListener('deviceorientation',handleOrientation,true);}
 setInterval(applyHeadingRotation,150);
 function refreshGPS() {
-            document.getElementById("lat").innerText = "Memperbarui...";
-            document.getElementById("lng").innerText = "Memperbarui...";
-            document.getElementById("sat-status").innerText = "Mencari...";
-            startGPS();
-        }
-function initGPSWatcher(){
-const sE=document.getElementById('gps-status'),aE=document.getElementById('gps-accuracy');
-if('geolocation' in navigator){navigator.geolocation.watchPosition(pos=>{const lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Math.round(pos.coords.accuracy);latestCoords={lat,lng};updateUserMarker(lat,lng);aE.textContent='± '+acc+' m';if(acc<=10){sE.textContent='Sinyal Kuat';sE.className='value status-strong';}else if(acc<=30){sE.textContent='Sinyal Sedang';sE.className='value status-medium';}else{sE.textContent='Sinyal Lemah';sE.className='value status-weak';}},err=>{aE.textContent='-';sE.textContent=err.code===1?'Izin Ditolak':err.code===2?'GPS Tdk Terdeteksi':'Mencari Sinyal...';sE.className='value status-no-signal';},{enableHighAccuracy:true,timeout:15000,maximumAge:0});}
-else{sE.textContent='Tidak Didukung';sE.className='value status-no-signal';aE.textContent='API tidak ada';}
+    // Beri umpan balik ke pengguna
+    const statusEl = document.getElementById('gps-status');
+    const accuracyEl = document.getElementById('gps-accuracy');
+    
+    if (statusEl) {
+        statusEl.textContent = 'Memperbarui...';
+        statusEl.className = 'value status-no-signal';
+    }
+    if (accuracyEl) {
+        accuracyEl.textContent = '-';
+    }
+    
+    // Hentikan watcher GPS yang lama jika ada
+    if (window._gpsWatchId) {
+        navigator.geolocation.clearWatch(window._gpsWatchId);
+        window._gpsWatchId = null;
+    }
+    
+    // Mulai ulang GPS
+    startGPS();
 }
-
+function startGPS() {
+    const statusEl = document.getElementById('gps-status');
+    const accuracyEl = document.getElementById('gps-accuracy');
+    const latEl = document.getElementById('lat');
+    const lngEl = document.getElementById('lng');
+    
+    if (!navigator.geolocation) {
+        if (statusEl) {
+            statusEl.textContent = 'Tidak Didukung';
+            statusEl.className = 'value status-no-signal';
+        }
+        if (accuracyEl) {
+            accuracyEl.textContent = 'API tidak ada';
+        }
+        return;
+    }
+    
+    // Mulai watch GPS baru
+    window._gpsWatchId = navigator.geolocation.watchPosition(
+        function(pos) {
+            // Update koordinat
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const acc = Math.round(pos.coords.accuracy);
+            
+            // Simpan koordinat terbaru
+            latestCoords = { lat: lat, lng: lng };
+            
+            // Update marker di peta
+            updateUserMarker(lat, lng);
+            
+            // Update tampilan koordinat di toolbar
+            if (latEl) latEl.innerText = lat.toFixed(6);
+            if (lngEl) lngEl.innerText = lng.toFixed(6);
+            
+            // Update akurasi
+            if (accuracyEl) {
+                accuracyEl.textContent = '± ' + acc + ' m';
+            }
+            
+            // Update status sinyal
+            if (statusEl) {
+                if (acc <= 10) {
+                    statusEl.textContent = 'Sinyal Kuat';
+                    statusEl.className = 'value status-strong';
+                } else if (acc <= 30) {
+                    statusEl.textContent = 'Sinyal Sedang';
+                    statusEl.className = 'value status-medium';
+                } else {
+                    statusEl.textContent = 'Sinyal Lemah';
+                    statusEl.className = 'value status-weak';
+                }
+            }
+        },
+        function(err) {
+            // Error handler
+            if (accuracyEl) {
+                accuracyEl.textContent = '-';
+            }
+            if (statusEl) {
+                if (err.code === 1) {
+                    statusEl.textContent = 'Izin Ditolak';
+                } else if (err.code === 2) {
+                    statusEl.textContent = 'GPS Tdk Terdeteksi';
+                } else {
+                    statusEl.textContent = 'Mencari Sinyal...';
+                }
+                statusEl.className = 'value status-no-signal';
+            }
+            console.warn('GPS Error:', err.message);
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+        }
+    );
+}
+function initGPSWatcher() {
+    // Hanya panggil startGPS() jika belum ada watcher yang berjalan
+    if (!window._gpsWatchId) {
+        startGPS();
+    }
+}
 function uploadKMZFile(){
 const input=document.createElement('input');input.type='file';input.accept='.kmz,.kml';input.multiple=true;
 input.onchange=async(e)=>{const files=Array.from(e.target.files);for(const file of files){try{const data=await file.arrayBuffer();const m={id:'map_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),name:file.name,type:file.name.endsWith('.kmz')?'kmz':'kml',fileData:data,geojson:{type:'FeatureCollection',features:[]},created:new Date().toISOString(),isActive:false,source:'upload'};await saveMapToDB(m);mapCollection.push(m);}catch(err){alert('Gagal upload: '+err.message);}}renderLibraryContent();renderPointsView();alert('✅ '+files.length+' file diupload!');};
