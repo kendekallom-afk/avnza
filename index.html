@@ -522,7 +522,7 @@ body.in-points-view .toolbar .tool-btn {
 <div id="opacity-control" class="opacity-control map-only-control collapsed" style="visibility:hidden;" title="Transparansi peta WebP" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
 <button type="button" class="opacity-toggle-btn" onclick="toggleOpacityPanel()" aria-label="Transparansi">◐</button>
 <div class="opacity-panel">
-<label for="opacity-slider">WebP</label>
+<label for="opacity-slider">PDF</label>
 <input type="range" id="opacity-slider" min="0" max="100" value="100" oninput="setWebPOpacity(this.value)" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
 <span class="opacity-value" id="opacity-value">100%</span>
 </div>
@@ -1045,9 +1045,8 @@ initOrientationWatcher();
 initGDAL();
 }
 function updateReticleCoordinates(){
-    function updateReticleCoordinates(){
     if (!map) return;
-    const c = map.getCenter();
+    const c = (typeof getCrosshairLatLng === 'function' && getCrosshairLatLng()) || map.getCenter();
     document.getElementById('lat').innerText = c.lat.toFixed(6);
     document.getElementById('lng').innerText = c.lng.toFixed(6);
 }
@@ -1088,9 +1087,20 @@ else{const icon=L.divIcon({className:'custom-user-icon',html:`<div class="user-l
 }
 // Fungsi untuk memperbarui arah panah kompas
 function updateHeadingPointer() {
-    // Fungsi lama — sekarang cuma "alias" ke applyHeadingRotation() yang sudah benar rumusnya
-function updateHeadingPointer() {
-    applyHeadingRotation();
+    var wrapper = document.getElementById('user-heading-wrapper');
+    if (!wrapper) return; // Jika elemen tidak ada, berhenti
+    
+    // Dapatkan rotasi peta saat ini (dalam derajat)
+    var mapBearing = 0;
+    if (map && typeof map.getBearing === 'function') {
+        mapBearing = map.getBearing();
+    }
+    
+    // Hitung arah panah = arah sensor - rotasi peta
+    var relativeHeading = (currentHeading || 0) - mapBearing;
+    
+    // Terapkan rotasi ke panah kompas
+    wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
 }
 function applyHeadingRotation(){
     const w=document.getElementById('user-heading-wrapper');
@@ -1102,6 +1112,12 @@ function applyHeadingRotation(){
 function handleOrientation(e){let a=e.alpha,h=null;if(e.webkitCompassHeading)h=e.webkitCompassHeading;else if(a!==null)h=360-a;if(h!==null){currentHeading=h;applyHeadingRotation();}}
 function initOrientationWatcher(){if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}).catch(console.error);}else if('ondeviceorientationabsolute' in window)window.addEventListener('deviceorientationabsolute',handleOrientation,true);else if('ondeviceorientation' in window)window.addEventListener('deviceorientation',handleOrientation,true);}
 setInterval(applyHeadingRotation,150);
+function refreshGPS() {
+            document.getElementById("lat").innerText = "Memperbarui...";
+            document.getElementById("lng").innerText = "Memperbarui...";
+            document.getElementById("sat-status").innerText = "Mencari...";
+            startGPS();
+        }
 function initGPSWatcher(){
 const sE=document.getElementById('gps-status'),aE=document.getElementById('gps-accuracy');
 if('geolocation' in navigator){navigator.geolocation.watchPosition(pos=>{const lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Math.round(pos.coords.accuracy);latestCoords={lat,lng};updateUserMarker(lat,lng);aE.textContent='± '+acc+' m';if(acc<=10){sE.textContent='Sinyal Kuat';sE.className='value status-strong';}else if(acc<=30){sE.textContent='Sinyal Sedang';sE.className='value status-medium';}else{sE.textContent='Sinyal Lemah';sE.className='value status-weak';}},err=>{aE.textContent='-';sE.textContent=err.code===1?'Izin Ditolak':err.code===2?'GPS Tdk Terdeteksi':'Mencari Sinyal...';sE.className='value status-no-signal';},{enableHighAccuracy:true,timeout:15000,maximumAge:0});}
@@ -2687,6 +2703,17 @@ if (undoBtn) {
     }
     console.log('✅ Semua event listener telah dipasang!');
 });
+
+// ==========================================
+// FUNGSI TUTUP POPUP WRENCH (PENDAMPING)
+// ==========================================
+
+function closeWrenchPopup() {
+    const popup = document.getElementById('tools-popup');
+    if (popup) {
+        popup.style.display = 'none';
+    }
+}
 
 window.onload = initMap;
 
