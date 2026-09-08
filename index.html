@@ -44,7 +44,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .view { display: none; flex: 1; position: relative; overflow: hidden; height: calc(100vh - 106px); }
 .view.active { display: flex; flex-direction: column; }
 #map-view { position: relative; width: 100%; height: 100%; background-color: #cccccc; }
-#map { width: 100%; height: 100%; z-index: 1; background: #e2e2e2; }
+#map { width: 100%; height: 100%; z-index: 1; background: #000; }
 /* Efek transisi untuk measure box */
 #measure-box {
     transition: opacity 0.25s ease, transform 0.25s ease;
@@ -1001,7 +1001,6 @@ function closeMeasureShape() {
     redrawMeasureShape();
     updateMeasureDisplay();
 }
-// Pin teardrop merah — untuk titik di peta WebP
 const waypointIcon = L.divIcon({
     className: 'waypoint-pin-icon',
     html: '<svg viewBox="0 0 24 24" width="32" height="32" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.45));"><path d="M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7z" fill="#e53935" stroke="#ffffff" stroke-width="1"/><circle cx="12" cy="9" r="2.3" fill="#ffffff"/></svg>',
@@ -1009,8 +1008,6 @@ const waypointIcon = L.divIcon({
     iconAnchor: [16, 32],
     popupAnchor: [0, -30]
 });
-// Pin teardrop biru standar Leaflet — untuk titik di peta KMZ/KML
-const kmzWaypointIcon = new L.Icon.Default();
 const BASEMAP_PROVIDERS = {
 'google_sat':{name:'Google Satellite',url:'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',icon:'icon-globe',maxNativeZoom:20},
 'google_map':{name:'Google Map',url:'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',icon:'icon-map',maxNativeZoom:20},
@@ -1048,8 +1045,9 @@ initOrientationWatcher();
 initGDAL();
 }
 function updateReticleCoordinates(){
+    function updateReticleCoordinates(){
     if (!map) return;
-    const c = (typeof getCrosshairLatLng === 'function' && getCrosshairLatLng()) || map.getCenter();
+    const c = map.getCenter();
     document.getElementById('lat').innerText = c.lat.toFixed(6);
     document.getElementById('lng').innerText = c.lng.toFixed(6);
 }
@@ -1090,20 +1088,10 @@ else{const icon=L.divIcon({className:'custom-user-icon',html:`<div class="user-l
 }
 // Fungsi untuk memperbarui arah panah kompas
 function updateHeadingPointer() {
-    var wrapper = document.getElementById('user-heading-wrapper');
-    if (!wrapper) return; // Jika elemen tidak ada, berhenti
-    
-    // Dapatkan rotasi peta saat ini (dalam derajat)
-    var mapBearing = 0;
-    if (map && typeof map.getBearing === 'function') {
-        mapBearing = map.getBearing();
-    }
-    
-    // Hitung arah panah = arah sensor - rotasi peta
-    var relativeHeading = (currentHeading || 0) - mapBearing;
-    
-    // Terapkan rotasi ke panah kompas
-    wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
+    // Fungsi lama — sekarang cuma "alias" ke applyHeadingRotation() yang sudah benar rumusnya
+function updateHeadingPointer() {
+    applyHeadingRotation();
+}
 }
 function applyHeadingRotation(){
     const w=document.getElementById('user-heading-wrapper');
@@ -1634,9 +1622,8 @@ return{layer,bounds:ib};
 }
 function createPointsLayer(md) {
     const pointsLayer = L.layerGroup();
+
     const features = md.geojson?.features || [];
-    // WebP → teardrop merah | KMZ/KML → teardrop biru standar Leaflet
-    const icon = (md.type === 'webp_json') ? waypointIcon : kmzWaypointIcon;
 
     features.forEach((ft, index) => {
         if (!ft.geometry || ft.geometry.type !== 'Point') return;
@@ -1645,8 +1632,9 @@ function createPointsLayer(md) {
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
         const name = ft.properties?.name || 'Titik ' + (index + 1);
+        const note = ft.properties?.note || '';
 
-        const marker = L.marker([lat, lng], { icon: icon })
+             const marker = L.marker([lat, lng], { icon: waypointIcon })
             .bindPopup(
                 '<div style="cursor:pointer;text-align:center;padding:4px 10px;" onclick="openPointEdit(' + index + ')"><b>' + name + '</b></div>',
                 { closeButton: true }
@@ -2276,38 +2264,6 @@ function goToMapView() {
     document.getElementById('btn-fullscreen').style.visibility = 'visible';
     document.getElementById('opacity-control').style.visibility = 'visible';
     
-    saveCurrentView(currentView);
-}
-
-// Pindah ke Points View
-function goToPointsView() {
-    const mv = document.getElementById('map-view');
-    const lv = document.getElementById('layers-view');
-    const pv = document.getElementById('points-view');
-    
-    // Sembunyikan semua view
-    mv.classList.remove('active');
-    lv.classList.remove('active');
-    pv.classList.remove('active');
-    
-    // Tampilkan Points View
-    pv.classList.add('active');
-    currentView = 'points';
-    
-    // Sembunyikan SEMUA tombol terlebih dahulu
-    document.getElementById('btn-location').style.display = 'none';
-    document.getElementById('btn-pin').style.display = 'none';
-    document.getElementById('coords-display').style.display = 'none';
-    document.getElementById('btn-manage-points').style.display = 'none';
-    document.getElementById('btn-goto-layers').style.display = 'none';
-    document.getElementById('btn-goto-map').style.display = 'none';
-    document.getElementById('tools-wrapper').style.display = 'none';
-    
-    // Tampilkan tombol untuk Points View: Tampilan Peta + Tampilan Layers
-    document.getElementById('btn-goto-map').style.display = 'inline-flex';
-    document.getElementById('btn-goto-layers').style.display = 'inline-flex';
-    
-    renderPointsView();
     saveCurrentView(currentView);
 }
 
