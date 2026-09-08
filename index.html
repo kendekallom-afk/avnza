@@ -320,6 +320,9 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .fullscreen-btn { position: absolute; bottom: 20px; right: 12px; z-index: 1000; background-color: rgba(0,0,0,0.31); color: #ffffff; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 .fullscreen-btn:active { background-color: rgba(0,0,0,0.9); }
 .opacity-control { position: absolute; bottom: 70px; right: 12px; z-index: 1000; background-color: rgba(0,0,0,0.75); color: #ffffff; border: 1px solid rgba(255,255,255,0.35); border-radius: 8px; padding: 8px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 44px; user-select: none; }
+.active-layers-overlay {position: absolute;top: 6px;left: 12px;right: 12px;z-index: 900;display: none;flex-direction: row;justify-content: flex-end;align-items: center;gap: 6px;overflow-x: auto;pointer-events: auto;}
+.active-layer-chip { background:transparent; color: #000; font-size: 11px; line-height: 1.3;-webkit-text-stroke: 0.5px white;paint-order: stroke fill;padding: 2px 6px; border-radius: 10px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 1px 4px rgba(0,0,0,0.35); }
+.active-layer-chip:active { opacity: 0.7; background-color: rgba(93,131,158,0.85); }
 .opacity-control.collapsed .opacity-panel { display: none; }
 .opacity-toggle-btn { background: none; border: none; color: #fff; cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 4px; display: flex; align-items: center; justify-content: center; }
 .opacity-toggle-btn:active { opacity: 0.7; }
@@ -605,6 +608,7 @@ body.in-points-view .toolbar .tool-btn {
     </div>
 </div>
 <div class="crosshair"><div class="crosshair-center"></div></div>
+<div id="active-layers-overlay" class="active-layers-overlay map-only-control" style="visibility:hidden;"></div>
 <div id="gps-overlay" class="gps-overlay map-only-control" 
      style="visibility:hidden; cursor:pointer;" 
      onclick="refreshGPS()"
@@ -1313,56 +1317,22 @@ else{const icon=L.divIcon({className:'custom-user-icon',html:`<div class="user-l
 function updateHeadingPointer() {
     const wrapper = document.getElementById('user-heading-wrapper');
     if (!wrapper) return;
-
     applyHeadingRotation();
 }
 function applyHeadingRotation() {
     const wrapper = document.getElementById('user-heading-wrapper');
     if (!wrapper) return;
-
-    /*
-     * Jika sensor belum memberikan heading,
-     * jangan mengubah posisi panah.
-     */
     if (currentHeading === null) {
         return;
     }
-
-    /*
-     * Heading asli dari sensor.
-     *
-     * 0   = Utara
-     * 90  = Timur
-     * 180 = Selatan
-     * 270 = Barat
-     */
     const heading = currentHeading;
-
-    /*
-     * Ambil bearing/rotasi peta.
-     *
-     * leaflet-rotate menggunakan bearing untuk
-     * menunjukkan rotasi peta.
-     */
     let mapBearing = 0;
-
     if (map && typeof map.getBearing === 'function') {
         mapBearing = map.getBearing() || 0;
     }
-
-    /*
-     * Panah berada di dalam peta yang ikut berotasi.
-     *
-     * Karena itu kita kompensasikan rotasi peta.
-     */
     let relativeHeading = heading + mapBearing;
-
-    /*
-     * Normalisasi ke 0 - 360
-     */
     relativeHeading =
         ((relativeHeading % 360) + 360) % 360;
-
     wrapper.style.transform =
         'rotate(' + relativeHeading + 'deg)';
 }
@@ -1378,33 +1348,12 @@ function checkCompassStatus() {
 }
 function handleOrientation(event) {
     let heading = null;
-
-    /*
-     * iPhone / iPad
-     * Safari menyediakan webkitCompassHeading
-     * yang langsung menunjukkan heading kompas.
-     */
     if (
         typeof event.webkitCompassHeading === 'number' &&
         !isNaN(event.webkitCompassHeading)
     ) {
         heading = event.webkitCompassHeading;
     }
-
-    /*
-     * Android / browser yang menggunakan deviceorientationabsolute
-     *
-     * alpha:
-     * 0   = utara
-     * 90  = timur
-     * 180 = selatan
-     * 270 = barat
-     *
-     * Karena arah alpha pada beberapa perangkat berlawanan
-     * dengan heading kompas, kita konversi menjadi:
-     *
-     * heading = 360 - alpha
-     */
     else if (
         typeof event.alpha === 'number' &&
         !isNaN(event.alpha)
@@ -1422,11 +1371,6 @@ function handleOrientation(event) {
 
     // Perbarui arah panah
     applyHeadingRotation();
-
-    /*
-     * Debug
-     * Bisa dilihat di console browser/WebView
-     */
     console.log(
         '🧭 Heading:',
         heading.toFixed(1) + '°',
@@ -1444,12 +1388,6 @@ function initOrientationWatcher() {
     }
 
     function startOrientationListeners() {
-
-        /*
-         * deviceorientationabsolute lebih baik untuk Android
-         * karena event ini dimaksudkan untuk orientasi absolut
-         * terhadap bumi.
-         */
         if ('ondeviceorientationabsolute' in window) {
 
             window.addEventListener(
@@ -1463,11 +1401,6 @@ function initOrientationWatcher() {
             );
 
         } else {
-
-            /*
-             * Fallback untuk browser/perangkat yang tidak
-             * menyediakan deviceorientationabsolute.
-             */
             window.addEventListener(
                 'deviceorientation',
                 handleOrientation,
@@ -1479,10 +1412,6 @@ function initOrientationWatcher() {
             );
         }
     }
-
-    /*
-     * iOS memerlukan permission.
-     */
     if (
         typeof DeviceOrientationEvent.requestPermission ===
         'function'
@@ -1516,10 +1445,6 @@ function initOrientationWatcher() {
             });
 
     } else {
-
-        /*
-         * Android / browser non-iOS
-         */
         startOrientationListeners();
     }
 }
@@ -2473,7 +2398,37 @@ async function deleteMap(mapId){const md=mapCollection.find(m=>m.id===mapId);if(
 if(md.geojson?.features)for(const ft of md.geojson.features)await deletePhotoQuiet(ft.properties?.photoId);
 await deleteMapFromDB(mapId);mapCollection=mapCollection.filter(m=>m.id!==mapId);if(activeMapId===mapId)activeMapId=null;updateActiveLayersUI();renderLibraryContent();renderPointsView();showNotification('🗑️ "'+md.name+'" dihapus');}catch(err){alert('Gagal menghapus: '+err.message);}
 }
-function updateActiveLayersUI(){const c=document.getElementById('active-layers');let h='';Object.keys(activeLayers).forEach(id=>{const it=activeLayers[id];h+='<div class="file-item"><div class="file-info"><svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg><span class="file-name">'+it.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="remove-btn" onclick="deactivateMap(\''+id+'\')">Hapus</button></div>';});c.innerHTML=h;}
+function updateActiveLayersUI(){const c=document.getElementById('active-layers');let h='';Object.keys(activeLayers).forEach(id=>{const it=activeLayers[id];h+='<div class="file-item"><div class="file-info"><svg class="icon" style="width:16px;height:16px;color:#5d839e"><use href="#icon-file-code"></use></svg><span class="file-name">'+it.name.replace(/\.[^/.]+$/,'')+'</span></div><button class="remove-btn" onclick="deactivateMap(\''+id+'\')">Hapus</button></div>';});c.innerHTML=h;updateMapActiveLayersOverlay();}
+
+function updateMapActiveLayersOverlay(){
+    const el=document.getElementById('active-layers-overlay');
+    if(!el)return;
+    let h='';
+    Object.keys(activeLayers).forEach(id=>{
+        if(id==='basemap')return; // basemap tidak punya bounds yang relevan untuk di-zoom
+        const it=activeLayers[id];
+        const label=(it.name||'').replace(/\.[^/.]+$/,'');
+        h+='<div class="active-layer-chip" title="Zoom ke '+label.replace(/"/g,'&quot;')+'" onclick="zoomToActiveLayer(\''+id+'\')">🔍 '+label+'</div>';
+    });
+    el.innerHTML=h;
+    el.style.display=h?'flex':'none';
+}
+
+function zoomToActiveLayer(mapId){
+    const entry=activeLayers[mapId];
+    if(!entry||!entry.layer){showNotification('⚠️ Layer tidak ditemukan.');return;}
+    const l=entry.layer;
+    try{
+        if(typeof l.getBounds==='function'){
+            const b=l.getBounds();
+            if(b&&(typeof b.isValid!=='function'||b.isValid())){
+                map.fitBounds(b,{padding:[30,30]});
+                return;
+            }
+        }
+    }catch(e){console.warn('zoomToActiveLayer error:',e);}
+    showNotification('⚠️ Layer ini tidak punya area yang bisa di-zoom.');
+}
 
 function kmlColorToLeaflet(kc){if(!kc||kc.trim().length!==8)return{color:'#3388ff',opacity:1};const h=kc.trim();const a=parseInt(h.substring(0,2),16)/255;return{color:'#'+h.substring(6,8)+h.substring(4,6)+h.substring(2,4),opacity:isNaN(a)?1:a};}
 function parseKMLToLeaflet(kmlText) {
@@ -2695,6 +2650,7 @@ function goToLayersView() {
     document.getElementById('gps-overlay').style.visibility = 'hidden';
     document.getElementById('btn-fullscreen').style.visibility = 'hidden';
     document.getElementById('opacity-control').style.visibility = 'hidden';
+    document.getElementById('active-layers-overlay').style.visibility = 'hidden';
     
     // Tampilkan tombol untuk Layers View: Tampilan Peta + Kelola Titik
     document.getElementById('btn-goto-map').style.display = 'inline-flex';
@@ -2734,6 +2690,7 @@ function goToPointsView() {
     document.getElementById('gps-overlay').style.visibility = 'hidden';
     document.getElementById('btn-fullscreen').style.visibility = 'hidden';
     document.getElementById('opacity-control').style.visibility = 'hidden';
+    document.getElementById('active-layers-overlay').style.visibility = 'hidden';
     
     // Tampilkan tombol untuk Points View: Tampilan Peta + Layers
     document.getElementById('btn-goto-map').style.display = 'inline-flex';
@@ -2783,6 +2740,8 @@ function goToMapView() {
     document.getElementById('gps-overlay').style.visibility = 'visible';
     document.getElementById('btn-fullscreen').style.visibility = 'visible';
     document.getElementById('opacity-control').style.visibility = 'visible';
+    document.getElementById('active-layers-overlay').style.visibility = 'visible';
+    updateMapActiveLayersOverlay();
     
     saveCurrentView(currentView);
 }
@@ -2821,6 +2780,7 @@ function restoreLastView(view) {
     document.getElementById('gps-overlay').style.visibility = 'hidden';
     document.getElementById('btn-fullscreen').style.visibility = 'hidden';
     document.getElementById('opacity-control').style.visibility = 'hidden';
+    document.getElementById('active-layers-overlay').style.visibility = 'hidden';
     
     if (view === 'map') {
         mv.classList.add('active');
@@ -2835,6 +2795,8 @@ function restoreLastView(view) {
         document.getElementById('gps-overlay').style.visibility = 'visible';
         document.getElementById('btn-fullscreen').style.visibility = 'visible';
         document.getElementById('opacity-control').style.visibility = 'visible';
+        document.getElementById('active-layers-overlay').style.visibility = 'visible';
+        updateMapActiveLayersOverlay();
         
         currentView = 'map';
         setTimeout(() => {
