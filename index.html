@@ -79,8 +79,8 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 }
 .gps-overlay {
     position: absolute;
-    bottom: 20px;
-    left: 12px;
+    bottom: 5px;
+    left: 1px;
     z-index: 1000;
     
     /* Background transparan */
@@ -395,6 +395,9 @@ body.in-points-view .toolbar {
 body.in-layers-view .toolbar .tool-btn,
 body.in-points-view .toolbar .tool-btn {
     margin: 0 !important;
+}
+.leaflet-control-attribution {
+    display: none !important;
 }
 </style>
 </head>
@@ -2418,11 +2421,15 @@ function zoomToActiveLayer(mapId){
     const entry=activeLayers[mapId];
     if(!entry||!entry.layer){showNotification('⚠️ Layer tidak ditemukan.');return;}
     const l=entry.layer;
+    const currentBearing=(map&&typeof map.getBearing==='function')?map.getBearing():0;
     try{
         if(typeof l.getBounds==='function'){
             const b=l.getBounds();
             if(b&&(typeof b.isValid!=='function'||b.isValid())){
+                const restoreBearing=()=>{ if(map.setBearing) map.setBearing(currentBearing); };
+                map.once('moveend', restoreBearing);
                 map.fitBounds(b,{padding:[30,30]});
+                setTimeout(restoreBearing, 350); // fallback kalau event moveend tidak terpicu
                 return;
             }
         }
