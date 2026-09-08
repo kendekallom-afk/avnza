@@ -2421,15 +2421,14 @@ function zoomToActiveLayer(mapId){
     const entry=activeLayers[mapId];
     if(!entry||!entry.layer){showNotification('⚠️ Layer tidak ditemukan.');return;}
     const l=entry.layer;
-    const currentBearing=(map&&typeof map.getBearing==='function')?map.getBearing():0;
     try{
         if(typeof l.getBounds==='function'){
             const b=l.getBounds();
             if(b&&(typeof b.isValid!=='function'||b.isValid())){
-                const restoreBearing=()=>{ if(map.setBearing) map.setBearing(currentBearing); };
-                map.once('moveend', restoreBearing);
+                const resetNorth=()=>{ if(map.setBearing) map.setBearing(0); };
+                map.once('moveend', resetNorth);
                 map.fitBounds(b,{padding:[30,30]});
-                setTimeout(restoreBearing, 350); // fallback kalau event moveend tidak terpicu
+                setTimeout(resetNorth, 350); // fallback kalau moveend tidak terpicu
                 return;
             }
         }
