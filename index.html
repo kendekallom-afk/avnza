@@ -1267,20 +1267,12 @@ function updateHeadingPointer() {
     wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
 }
 function applyHeadingRotation() {
-    const wrapper = document.getElementById('user-heading-wrapper');
-    if (!wrapper) return;
+    const w = document.getElementById('user-heading-wrapper');
+    if (!w) return;
     
-    // Dapatkan rotasi peta
-    let mapBearing = 0;
-    if (map && typeof map.getBearing === 'function') {
-        mapBearing = map.getBearing() || 0;
-    }
-    
-    // Gunakan accumulatedHeading (bukan currentHeading langsung)
-    let relativeHeading = accumulatedHeading - mapBearing;
-    relativeHeading = ((relativeHeading % 360) + 360) % 360;
-    
-    wrapper.style.transform = 'rotate(' + relativeHeading + 'deg)';
+    const bearing = (typeof map.getBearing === 'function') ? map.getBearing() : 0;
+    const relative = ((accumulatedHeading + bearing) % 360 + 360) % 360;
+    w.style.transform = 'rotate(' + relative + 'deg)';
 }
 // ===== VARIABEL GLOBAL (pastikan sudah ada) =====
 // let accumulatedHeading = 0;
@@ -1289,44 +1281,28 @@ function applyHeadingRotation() {
 function handleOrientation(e) {
     let heading = null;
     
-    // Coba dapatkan heading dari berbagai sumber
     if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
-        // iOS: webkitCompassHeading
         heading = e.webkitCompassHeading;
     } else if (e.alpha !== null && e.alpha !== undefined) {
-        // Android/umum: alpha
         heading = 360 - e.alpha;
     }
     
-    // Jika heading valid
     if (heading !== null && !isNaN(heading)) {
-        // Normalisasi ke 0-360
         heading = ((heading % 360) + 360) % 360;
         
-        // ===== PERBAIKAN: Akumulasi Diferensial =====
+        // ===== PERBAIKAN UTAMA =====
         if (lastHeading === null) {
-            // Pertama kali: langsung set
             accumulatedHeading = heading;
         } else {
-            // Hitung selisih terkecil (dalam rentang -180..180)
+            // Hitung selisih terkecil (tidak lebih dari 180°)
             let diff = heading - lastHeading;
-            diff = ((diff % 360) + 540) % 360 - 180; // Normalisasi ke -180..180
-            
-            // Tambahkan ke akumulasi
+            diff = ((diff % 360) + 540) % 360 - 180;
             accumulatedHeading += diff;
         }
         
-        // Simpan heading terakhir
         lastHeading = heading;
-        
-        // Update currentHeading (untuk keperluan lain)
         currentHeading = accumulatedHeading;
-        
-        // Terapkan rotasi ke panah kompas
         applyHeadingRotation();
-        
-        // Debug (opsional, hapus setelah berhasil)
-        // console.log('Heading:', heading.toFixed(1) + '° | Accum:', accumulatedHeading.toFixed(1) + '°');
     }
 }
 // Fungsi untuk mengecek status kompas
