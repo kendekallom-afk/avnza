@@ -2688,17 +2688,6 @@ if (undoBtn) {
     console.log('✅ Semua event listener telah dipasang!');
 });
 
-// ==========================================
-// FUNGSI TUTUP POPUP WRENCH (PENDAMPING)
-// ==========================================
-
-function closeWrenchPopup() {
-    const popup = document.getElementById('tools-popup');
-    if (popup) {
-        popup.style.display = 'none';
-    }
-}
-
 window.onload = initMap;
 
 window.addEventListener('popstate', function(){
