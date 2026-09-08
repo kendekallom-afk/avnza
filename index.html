@@ -761,7 +761,7 @@ body.in-points-view .toolbar .tool-btn {
 <input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-let map, userLocationMarker=null, currentHeading=0, currentView='layers', waypointCount=1, latestCoords=null, activeMapId=null;
+let map, userLocationMarker=null, currentHeading=null, currentView='layers', waypointCount=1, latestCoords=null, activeMapId=null;
 let gdalReady=false, gdal=null, activeLayers={}, scannedKmzFiles=[], defaultDirHandle=null, mapCollection=[], webpOpacity=1;
 let selectedNotebookId = null;
 let editingPointIndex = null;
