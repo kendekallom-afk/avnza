@@ -1136,11 +1136,41 @@ const waypointIcon = L.divIcon({
     popupAnchor: [0, -30]
 });
 const BASEMAP_PROVIDERS = {
-'google_sat':{name:'Google Satellite',url:'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',icon:'icon-globe',maxNativeZoom:20},
-'google_map':{name:'Google Map',url:'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',icon:'icon-map',maxNativeZoom:20},
-'google_hybrid':{name:'Google Hybrid',url:'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',icon:'icon-layers',maxNativeZoom:20},
-'google_terrain':{name:'Google Terrain',url:'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',icon:'icon-mountain',maxNativeZoom:16},
-'osm':{name:'OpenStreetMap (OSM)',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',icon:'icon-globe',maxNativeZoom:19}
+    'google_sat': {
+        name: 'Google Satellite',
+        url: 'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        subdomains: ['0', '1', '2', '3'],
+        icon: 'icon-globe',
+        maxNativeZoom: 20
+    },
+    'google_map': {
+        name: 'Google Map',
+        url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        subdomains: ['0', '1', '2', '3'],
+        icon: 'icon-map',
+        maxNativeZoom: 20
+    },
+    'google_hybrid': {
+        name: 'Google Hybrid',
+        url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        subdomains: ['0', '1', '2', '3'],
+        icon: 'icon-layers',
+        maxNativeZoom: 20
+    },
+    'google_terrain': {
+        name: 'Google Terrain',
+        url: 'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+        subdomains: ['0', '1', '2', '3'],
+        icon: 'icon-mountain',
+        maxNativeZoom: 16
+    },
+    'osm': {
+        name: 'OpenStreetMap (OSM)',
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        subdomains: ['a', 'b', 'c'],
+        icon: 'icon-globe',
+        maxNativeZoom: 19
+    }
 };
 const DB_NAME='AvenzaNavDB', STORE_NAME='maps', PHOTO_STORE='photos';
 function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,4);req.onupgradeneeded=(e)=>{const db=e.target.result;if(!db.objectStoreNames.contains(STORE_NAME))db.createObjectStore(STORE_NAME,{keyPath:'id'});if(!db.objectStoreNames.contains('config'))db.createObjectStore('config');if(!db.objectStoreNames.contains(PHOTO_STORE))db.createObjectStore(PHOTO_STORE,{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
@@ -2656,7 +2686,29 @@ function parseKMLToLeaflet(kmlText) {
     return lg;
 }
 
-function setBasemap(key){const p=BASEMAP_PROVIDERS[key];if(!p)return;if(activeLayers['basemap'])map.removeLayer(activeLayers['basemap'].layer);const tl=L.tileLayer(p.url,{maxZoom:22,maxNativeZoom:p.maxNativeZoom||19,attribution:p.name}).addTo(map);activeLayers['basemap']={name:p.name,layer:tl};updateActiveLayersUI();}
+function setBasemap(key) {
+    const p = BASEMAP_PROVIDERS[key];
+    if (!p) return;
+
+    // Hapus basemap lama jika ada
+    if (activeLayers['basemap']) {
+        map.removeLayer(activeLayers['basemap'].layer);
+    }
+
+    const tl = L.tileLayer(p.url, {
+        maxZoom: 22,                          // tetap 22 sesuai permintaan
+        maxNativeZoom: p.maxNativeZoom || 19,
+        subdomains: p.subdomains || ['a', 'b', 'c'],
+        attribution: p.name,
+        updateWhenZooming: false,             // jangan terus-menerus minta tile saat zoom
+        updateWhenIdle: true,                 // baru update setelah gerakan selesai
+        keepBuffer: 2,                        // simpan sedikit tile di luar layar
+        detectRetina: false                   // hindari request tile 2x di HP retina
+    }).addTo(map);
+
+    activeLayers['basemap'] = { name: p.name, layer: tl };
+    updateActiveLayersUI();
+}
 
 function renderPointsView(){
 const c=document.getElementById('points-list-container');const mn=document.getElementById('points-map-name');
