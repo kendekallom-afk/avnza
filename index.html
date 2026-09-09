@@ -2770,7 +2770,37 @@ am.geojson.features.push({type:'Feature',geometry:{type:'Point',coordinates:[c.l
 saveMapToDB(am).then(()=>{waypointCount++;renderPointsView();renderLibraryContent();showNotification('✅ Titik "'+name+'" ditambahkan');});
 refreshActivePointsLayer();
 }
-function flyToPoint(i){const am=getActiveMap();if(!am)return;const f=am.geojson?.features[i];if(!f)return;map.flyTo([f.geometry.coordinates[1],f.geometry.coordinates[0]],17);}
+function flyToPoint(i) {
+    const am = getActiveMap();
+    if (!am) return;
+    const f = am.geojson?.features[i];
+    if (!f || !f.geometry) return;
+
+    const lat = f.geometry.coordinates[1];
+    const lng = f.geometry.coordinates[0];
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    // Pindah ke tampilan peta dulu
+    goToMapView();
+
+    // Tunggu sebentar agar container peta sudah tampil & ukuran benar,
+    // lalu pusatakan titik tepat di tengah crosshair
+    setTimeout(function () {
+        if (!map) return;
+        map.invalidateSize();
+
+        // Reset orientasi ke utara agar lebih mudah dikenali
+        if (map.setBearing) {
+            map.setBearing(0);
+        }
+
+        // setView menempatkan koordinat di pusat peta = di bawah crosshair
+        const targetZoom = Math.max(map.getZoom(), 17);
+        map.setView([lat, lng], targetZoom, { animate: true });
+
+        updateReticleCoordinates();
+    }, 250);
+}
 async function deletePoint(i){const am=getActiveMap();if(!am)return false;if(!confirm('Hapus titik ini?'))return false;const photoId=am.geojson.features[i]?.properties?.photoId;am.geojson.features.splice(i,1);await saveMapToDB(am);await deletePhotoQuiet(photoId);renderPointsView();renderLibraryContent();refreshActivePointsLayer();showNotification('🗑️ Titik dihapus');return true;}
 async function clearAllPoints(){const am=getActiveMap();if(!am)return;const c=am.geojson?.features?.length||0;if(!c){alert('Tidak ada titik.');return;}if(!confirm('Hapus semua '+c+' titik?'))return;
 for(const ft of am.geojson.features){await deletePhotoQuiet(ft.properties?.photoId);}
