@@ -65,7 +65,9 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .crosshair::before, .crosshair::after { content: ""; position: absolute; background-color: #333333; }
 .crosshair::before { width: 2px; height: 76px; }
 .crosshair::after { width: 76px; height: 2px; }
-.crosshair-center { width: 4px; height: 4px; background-color: #333333; border-radius: 50%; z-index: 2; }
+.crosshair-center { width: 4px; height: 4px; background-color: #333333; border-radius: 50%; z-index: 2; background: 
+    linear-gradient(to right, transparent 7px, #ff6600 7px, #ff6600 9px, transparent 9px),
+    linear-gradient(to bottom, transparent 7px, #ff6600 7px, #ff6600 9px, transparent 9px);}
 .measure-dot {
     position: absolute; width: 12px; height: 12px;
     background: #a78bfa; border: 2px solid #fff; border-radius: 50%;
@@ -427,11 +429,11 @@ body.in-points-view .toolbar .tool-btn {
 <symbol id="icon-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
 <symbol id="icon-file-text" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></symbol>
 <symbol id="icon-file-kmz" viewBox="0 0 512 384">
-<symbol id="icon-setting" viewBox="0 0 1024 1024">
-    <path fill="currentColor" d="M600.704 64a32 32 0 0130.464 22.208l35.2 109.376c14.784 7.232 28.928 15.36 42.432 24.512l112.384-24.192a32 32 0 0134.432 15.36L944.32 364.8a32 32 0 01-4.032 37.504l-77.12 85.12a357.12 357.12 0 010 49.024l77.12 85.248a32 32 0 014.032 37.504l-88.704 153.6a32 32 0 01-34.432 15.296L708.8 803.904c-13.44 9.088-27.648 17.28-42.368 24.512l-35.264 109.376A32 32 0 01600.704 960H423.296a32 32 0 01-30.464-22.208L357.696 828.48a351.616 351.616 0 01-42.56-24.64l-112.32 24.256a32 32 0 01-34.432-15.36L79.68 659.2a32 32 0 014.032-37.504l77.12-85.248a357.12 357.12 0 010-48.896l-77.12-85.248A32 32 0 0179.68 364.8l88.704-153.6a32 32 0 0134.432-15.296l112.32 24.256c13.568-9.152 27.776-17.408 42.56-24.64l35.2-109.312A32 32 0 01423.232 64H600.64zm-23.424 64H446.72l-36.352 113.088-24.512 11.968a294.113 294.113 0 00-34.816 20.096l-22.656 15.36-116.224-25.088-65.28 113.152 79.68 88.192-1.92 27.136a293.12 293.12 0 000 40.192l1.92 27.136-79.808 88.192 65.344 113.152 116.224-25.024 22.656 15.296a294.113 294.113 0 0034.816 20.096l24.512 11.968L446.72 896h130.688l36.48-113.152 24.448-11.904a288.282 288.282 0 0034.752-20.096l22.592-15.296 116.288 25.024 65.28-113.152-79.744-88.192 1.92-27.136a293.12 293.12 0 000-40.256l-1.92-27.136 79.808-88.128-65.344-113.152-116.288 24.96-22.592-15.232a287.616 287.616 0 00-34.752-20.096l-24.448-11.904L577.344 128zM512 320a192 192 0 110 384 192 192 0 010-384zm0 64a128 128 0 100 256 128 128 0 000-256z"/>
-</symbol>
     <rect x="8" y="8" width="496" height="368" rx="48" fill="#ffffff" stroke="#555555" stroke-width="16" stroke-linejoin="round"/>
     <text x="256" y="260" font-family="Arial, sans-serif" font-size="220" font-weight="bold" fill="#000000" text-anchor="middle" textLength="420" lengthAdjust="spacingAndGlyphs">KMZ</text>
+</symbol>
+<symbol id="icon-setting" viewBox="0 0 1024 1024">
+    <path fill="currentColor" d="M600.704 64a32 32 0 0130.464 22.208l35.2 109.376c14.784 7.232 28.928 15.36 42.432 24.512l112.384-24.192a32 32 0 0134.432 15.36L944.32 364.8a32 32 0 01-4.032 37.504l-77.12 85.12a357.12 357.12 0 010 49.024l77.12 85.248a32 32 0 014.032 37.504l-88.704 153.6a32 32 0 01-34.432 15.296L708.8 803.904c-13.44 9.088-27.648 17.28-42.368 24.512l-35.264 109.376A32 32 0 01600.704 960H423.296a32 32 0 01-30.464-22.208L357.696 828.48a351.616 351.616 0 01-42.56-24.64l-112.32 24.256a32 32 0 01-34.432-15.36L79.68 659.2a32 32 0 014.032-37.504l77.12-85.248a357.12 357.12 0 010-48.896l-77.12-85.248A32 32 0 0179.68 364.8l88.704-153.6a32 32 0 0134.432-15.296l112.32 24.256c13.568-9.152 27.776-17.408 42.56-24.64l35.2-109.312A32 32 0 01423.232 64H600.64zm-23.424 64H446.72l-36.352 113.088-24.512 11.968a294.113 294.113 0 00-34.816 20.096l-22.656 15.36-116.224-25.088-65.28 113.152 79.68 88.192-1.92 27.136a293.12 293.12 0 000 40.192l1.92 27.136-79.808 88.192 65.344 113.152 116.224-25.024 22.656 15.296a294.113 294.113 0 0034.816 20.096l24.512 11.968L446.72 896h130.688l36.48-113.152 24.448-11.904a288.282 288.282 0 0034.752-20.096l22.592-15.296 116.288 25.024 65.28-113.152-79.744-88.192 1.92-27.136a293.12 293.12 0 000-40.256l-1.92-27.136 79.808-88.128-65.344-113.152-116.288 24.96-22.592-15.232a287.616 287.616 0 00-34.752-20.096l-24.448-11.904L577.344 128zM512 320a192 192 0 110 384 192 192 0 010-384zm0 64a128 128 0 100 256 128 128 0 000-256z"/>
 </symbol>
 <symbol id="icon-pdf" viewBox="0 0 384 512">
   <path d="M0 64C0 28.7 28.7 0 64 0H224L384 160V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64z" fill="#e63946" stroke="#555555" stroke-width="16"/>
@@ -441,7 +443,7 @@ body.in-points-view .toolbar .tool-btn {
 </defs>
 </svg>
 <div class="top-bar"></div>
-<div class="toolbar"style="display:flex; align-items:center; justify-content:space-between; padding:0 10px;">
+<div class="toolbar" style="display:flex; align-items:center; justify-content:space-between; padding:0 10px;">
     <!-- 1. Pusatkan GPS (hanya di Map) -->
     <button class="tool-btn" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS" style="display:none;">
         <svg class="icon"><use href="#icon-crosshair"></use></svg>
@@ -453,7 +455,7 @@ body.in-points-view .toolbar .tool-btn {
     </button>
     
     <!-- 3. Display Koordinat (hanya di Map) -->
-    <div id="coords-display" style="color:#ffffff;text-align:center;font-size:14px;font-weight:500;line-height:1.3;font-family:monospace;display:none;padding:0 4px;flex-direction:column;align-items:center;justify-content:center;">
+    <div id="coords-display" style="color:#ffffff;text-align:center;font-size:14px;font-weight:500;line-height:1.3;font-family:monospace;display:none;padding:0 4px;flex-direction:column;align-items:center;justify-content:center;gap:1px;">
         <div id="lng">0.000000</div>
 		<div id="lat">0.000000</div>
     </div>
@@ -763,6 +765,15 @@ body.in-points-view .toolbar .tool-btn {
             <button class="add-btn" style="background:#9e9e9e;" onclick="closeCoordEditPopup()">Batal</button>
             <button class="on-btn" onclick="saveCoordEdit()">OK</button>
         </div>
+    </div>
+</div>
+<div class="modal-overlay" id="geopdf-select-modal" onclick="if(event.target===this)cancelGeoSelection()">
+    <div class="modal-content" style="max-width:440px;">
+        <div class="modal-header">
+            <span>🗺️ Pilih Georeferensi GeoPDF</span>
+            <button class="modal-close" onclick="cancelGeoSelection()">&times;</button>
+        </div>
+        <div id="geo-select-list" style="max-height:60vh;overflow-y:auto;"></div>
     </div>
 </div>
 <input type="file" id="folder-fallback-input" webkitdirectory directory multiple style="display:none" onchange="handleFallbackFolderSelect(event)">
@@ -1374,14 +1385,6 @@ function handleOrientation(event) {
 
     // Perbarui arah panah
     applyHeadingRotation();
-    console.log(
-        '🧭 Heading:',
-        heading.toFixed(1) + '°',
-        'Map bearing:',
-        map && typeof map.getBearing === 'function'
-            ? map.getBearing().toFixed(1) + '°'
-            : '0°'
-    );
 }
 // Panggil dari console jika perlu: checkCompassStatus()
 function initOrientationWatcher() {
@@ -2255,38 +2258,128 @@ async function refreshPhotoPreview(){
     img.removeAttribute('src');
     delBtn.style.display='none';
 }
-async function handlePhotoSelected(event){
-    const file=event.target.files[0];
-    event.target.value='';
-    if(!file)return;
-    if(editingPointIndex===null)return;
-    const am=getActiveMap();if(!am)return;
-    const f=am.geojson?.features[editingPointIndex];if(!f)return;
-    try{
-        showNotification('⏳ Menyimpan foto...',1500);
-        const oldId=f.properties?.photoId;
-        const newId='photo_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
-        const mode=await getPhotoStorageMode();
-        const folderHandle=(mode==='folder')?await getPhotoFolderHandle():null;
-        const canUseFolder=folderHandle&&await hasFolderPermission(folderHandle);
-        if(canUseFolder){
-            const ext=(file.name&&file.name.includes('.'))?file.name.split('.').pop():'jpg';
-            const filename=newId+'.'+ext;
-            await savePhotoToFolder(folderHandle,file,filename);
-            f.properties=f.properties||{};
-            f.properties.photoId='folder:'+filename;
-        }else{
-            await savePhotoToDB({id:newId,blob:file,created:new Date().toISOString()});
-            f.properties=f.properties||{};
-            f.properties.photoId=newId;
+/**
+ * Kompres gambar sebelum disimpan ke IndexedDB / folder.
+ * - Max lebar/tinggi: 1280px (sisi terpanjang)
+ * - Format keluaran: selalu JPEG
+ * - Kualitas: 0.75
+ * - File < 350 KB tetap diproses agar format konsisten (JPEG)
+ */
+function compressImage(file, maxSize = 1280, quality = 0.75) {
+    return new Promise((resolve, reject) => {
+        if (!file || !file.type.startsWith('image/')) {
+            reject(new Error('File bukan gambar'));
+            return;
         }
+
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+
+            let width = img.naturalWidth || img.width;
+            let height = img.naturalHeight || img.height;
+
+            // Scale agar sisi terpanjang tidak melebihi maxSize
+            if (width > maxSize || height > maxSize) {
+                if (width > height) {
+                    height = Math.round((height * maxSize) / width);
+                    width = maxSize;
+                } else {
+                    width = Math.round((width * maxSize) / height);
+                    height = maxSize;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            // Latar putih agar PNG transparan tidak menjadi hitam
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(
+                (blob) => {
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error('Gagal mengompres gambar'));
+                    }
+                },
+                'image/jpeg',
+                quality
+            );
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Gagal memuat gambar untuk kompresi'));
+        };
+
+        img.src = url;
+    });
+}
+
+async function handlePhotoSelected(event){
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (editingPointIndex === null) return;
+    const am = getActiveMap();
+    if (!am) return;
+    const f = am.geojson?.features[editingPointIndex];
+    if (!f) return;
+
+    try {
+        showNotification('⏳ Mengompres & menyimpan foto...', 2500);
+
+        // Kompres foto dulu
+        const compressedBlob = await compressImage(file, 1280, 0.75);
+
+        const oldId = f.properties?.photoId;
+        const newId = 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        const mode = await getPhotoStorageMode();
+        const folderHandle = (mode === 'folder') ? await getPhotoFolderHandle() : null;
+        const canUseFolder = folderHandle && await hasFolderPermission(folderHandle);
+
+        if (canUseFolder) {
+            // Mode folder: simpan sebagai .jpg karena sudah dikompres ke JPEG
+            const filename = newId + '.jpg';
+            await savePhotoToFolder(folderHandle, compressedBlob, filename);
+            f.properties = f.properties || {};
+            f.properties.photoId = 'folder:' + filename;
+        } else {
+            // Mode auto (IndexedDB)
+            await savePhotoToDB({
+                id: newId,
+                blob: compressedBlob,
+                created: new Date().toISOString(),
+                originalName: file.name || '',
+                size: compressedBlob.size
+            });
+            f.properties = f.properties || {};
+            f.properties.photoId = newId;
+        }
+
         await saveMapToDB(am);
-        if(oldId&&!oldId.startsWith('folder:'))await deletePhotoFromDB(oldId).catch(()=>{});
+
+        // Hapus foto lama jika ada
+        if (oldId && !oldId.startsWith('folder:')) {
+            await deletePhotoFromDB(oldId).catch(() => {});
+        }
+
         await refreshPhotoPreview();
         renderPointsView();
-        showNotification('✅ Foto tersimpan');
-    }catch(err){
-        alert('Gagal menyimpan foto: '+err.message);
+
+        const sizeKB = Math.round(compressedBlob.size / 1024);
+        showNotification('✅ Foto tersimpan (' + sizeKB + ' KB)');
+    } catch (err) {
+        console.error(err);
+        alert('Gagal menyimpan foto: ' + err.message);
     }
 }
 async function removePointPhoto(){
@@ -2734,7 +2827,7 @@ function goToMapView() {
     // ===== MUNCULKAN KEMBALI 6 TOMBOL/ELEMEN UNTUK VIEW PETA (RATA TENGAH) =====
     document.getElementById('btn-location').style.display = 'inline-flex';
     document.getElementById('btn-pin').style.display = 'inline-flex';
-    document.getElementById('coords-display').style.display = 'block'; // atau 'inline-block' sesuai display asli koordinat Anda
+    document.getElementById('coords-display').style.display = 'flex';
     document.getElementById('btn-manage-points').style.display = 'inline-flex';
     document.getElementById('btn-goto-layers').style.display = 'inline-flex';
     document.getElementById('tools-wrapper').style.display = 'inline-flex'; // Jika tools-wrapper adalah ikon ke-6 Anda
@@ -2792,7 +2885,7 @@ function restoreLastView(view) {
         mv.classList.add('active');
         document.getElementById('btn-location').style.display = 'inline-flex';
         document.getElementById('btn-pin').style.display = 'inline-flex';
-        document.getElementById('coords-display').style.display = 'inline-flex';
+        document.getElementById('coords-display').style.display = 'flex';
         document.getElementById('btn-manage-points').style.display = 'inline-flex';
         document.getElementById('btn-goto-layers').style.display = 'inline-flex';
         document.getElementById('tools-wrapper').style.display = 'inline-flex';
@@ -3029,8 +3122,6 @@ function setWebPOpacity(pct){
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🔧 Memasang semua event listener...');
-    
     // --- 1. LOGIKA POPUP MENU TOOLS (WRENCH) ---
     const btnTools = document.getElementById('btn-tools');
     const toolsPopup = document.getElementById('tools-popup');
@@ -3040,7 +3131,6 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
             const isHidden = toolsPopup.style.display === 'none' || toolsPopup.style.display === '';
             toolsPopup.style.display = isHidden ? 'block' : 'none';
-            console.log('🔄 Tombol Wrench diklik, popup:', isHidden ? 'Muncul' : 'Sembunyi');
         });
 
         document.addEventListener('click', function(e) {
@@ -3067,32 +3157,24 @@ document.addEventListener('DOMContentLoaded', function() {
             newItem.addEventListener('click', function(e) {
                 e.stopPropagation();
                 e.preventDefault();
-                console.log('🖱️ Menu Measure diklik');
                 toggleMeasure();
                 closeWrenchPopup();
             });
-            console.log('✅ Tombol Measure di Wrench siap');
         }
     });
     
     // --- 3. TOMBOL UNDO (hapus titik terakhir) ---
-const undoBtn = document.getElementById('measure-undo-btn');
-if (undoBtn) {
-    const newUndoBtn = undoBtn.cloneNode(true);
-    undoBtn.parentNode.replaceChild(newUndoBtn, undoBtn);
+    const undoBtn = document.getElementById('measure-undo-btn');
+    if (undoBtn) {
+        const newUndoBtn = undoBtn.cloneNode(true);
+        undoBtn.parentNode.replaceChild(newUndoBtn, undoBtn);
 
-    // Gunakan pointerdown supaya langsung bereaksi di mobile & desktop
-    // (menghindari kasus harus 2× klik/tap)
-    newUndoBtn.addEventListener('pointerdown', function(e) {
-        e.stopPropagation();
-        e.preventDefault();
-        console.log('🖱️ Tombol Undo diklik (SEKALI)');
-        undoLastPoint();
-    }, { passive: false });
-
-    console.log('✅ Tombol Undo siap');
-	} else {
-        console.warn('⚠️ Tombol Undo tidak ditemukan');
+        // Gunakan pointerdown supaya langsung bereaksi di mobile & desktop
+        newUndoBtn.addEventListener('pointerdown', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            undoLastPoint();
+        }, { passive: false });
     }
     
     // --- 4. TOMBOL CLEAR (hapus semua titik) ---
@@ -3104,31 +3186,22 @@ if (undoBtn) {
         newClearBtn.addEventListener('pointerdown', function(e) {
             e.stopPropagation();
             e.preventDefault();
-            console.log('🖱️ Tombol Clear diklik');
             
             if (measureActive) {
                 clearMeasure();
                 updateMeasureDisplay();
                 
-                const hint = document.getElementById('measure-hint');
                 const undoBtn2 = document.getElementById('measure-undo-btn');
                 const clearBtn2 = document.getElementById('measure-clear-btn');
                 const distRow = document.getElementById('measure-dist-row');
                 const areaRow = document.getElementById('measure-area-row');
                 
-                if (hint) {
-                    hint.style.display = 'inline';
-                    hint.textContent = '👆 Klik peta';
-                }
                 if (undoBtn2) undoBtn2.style.display = 'none';
                 if (clearBtn2) clearBtn2.style.display = 'none';
                 if (distRow) distRow.style.display = 'none';
                 if (areaRow) areaRow.style.display = 'none';
             }
         });
-        console.log('✅ Tombol Clear siap');
-    } else {
-        console.warn('⚠️ Tombol Clear tidak ditemukan');
     }
     
     // --- 5. TOMBOL CLOSE (X) - tutup mode measure ---
@@ -3140,14 +3213,10 @@ if (undoBtn) {
         newCloseBtn.addEventListener('pointerdown', function(e) {
             e.stopPropagation();
             e.preventDefault();
-            console.log('🖱️ Tombol Close (X) diklik');
             closeMeasure();
         });
-        console.log('✅ Tombol Close siap');
-    } else {
-        console.warn('⚠️ Tombol Close tidak ditemukan');
     }
-        // --- 6. TOMBOL TAMBAH TITIK (+) DARI CROSSHAIR ---
+    // --- 6. TOMBOL TAMBAH TITIK (+) DARI CROSSHAIR ---
     const addBtn = document.getElementById('measure-add-btn');
     if (addBtn) {
         const newAddBtn = addBtn.cloneNode(true);
@@ -3158,7 +3227,6 @@ if (undoBtn) {
             e.preventDefault();
             addMeasurePointFromCrosshair();
         }, { passive: false });
-        console.log('✅ Tombol Tambah Titik (+) siap');
     }
     
     // --- 7. TOMBOL TUTUP GARIS/POLIGON (=) ---
@@ -3172,9 +3240,7 @@ if (undoBtn) {
             e.preventDefault();
             closeMeasureShape();
         }, { passive: false });
-        console.log('✅ Tombol Tutup Garis/Poligon (=) siap');
     }
-    console.log('✅ Semua event listener telah dipasang!');
 });
 
 // ==========================================
