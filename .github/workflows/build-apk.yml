@@ -35,6 +35,27 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Add GPS permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          content = manifest.read_text()
+
+          permissions = """    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+          """
+
+          content = content.replace(
+              "    <application",
+              permissions + "    <application",
+              1
+          )
+
+          manifest.write_text(content)
+          PY
+
       - name: Sync Capacitor
         run: npx cap sync android
 
