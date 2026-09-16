@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - capacitor-setup
+      
+concurrency:
+  group: android-build
+  cancel-in-progress: true
 
 jobs:
   build:
