@@ -167,7 +167,16 @@ function centerToGPS() {
                 updateUserMarker(latestCoords.lat, latestCoords.lng);
                 applyHeadingRotation();
             },
-            function(err) { console.warn("Gagal GPS:", err); alert("Tidak dapat mendapatkan lokasi GPS."); },
+            function(err) {
+                console.warn("Gagal GPS:", err);
+                if (err.code === 1) {
+                    alert("Izin lokasi ditolak. Aktifkan izin Lokasi untuk aplikasi ini di Pengaturan Android, lalu coba lagi.");
+                } else if (err.code === 2) {
+                    alert("Lokasi belum tersedia. Pastikan GPS aktif dan coba lagi di area terbuka.");
+                } else {
+                    alert("Tidak dapat mendapatkan lokasi GPS. Pastikan izin lokasi sudah diberikan.");
+                }
+            },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
     }
@@ -312,7 +321,10 @@ function startGPS() {
                 else statusEl.textContent = 'Mencari Sinyal...';
                 statusEl.className = 'value status-no-signal';
             }
-            console.warn('GPS Error:', err.message);
+            console.warn('GPS Error:', err.code, err.message);
+            if (err.code === 1) {
+                statusEl && statusEl.setAttribute('title', 'Aktifkan izin Lokasi di Pengaturan Android, lalu klik untuk mencoba lagi');
+            }
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
