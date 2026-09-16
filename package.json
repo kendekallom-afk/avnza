@@ -1,0 +1,16 @@
+{
+  "name": "mMaps",
+  "version": "1.0.0",
+  "description": "Static PWA dengan Capacitor untuk Android",
+  "scripts": {
+    "build": "echo Static PWA: no build step",
+    "sync": "cap sync",
+    "open:android": "cap open android",
+    "run:android": "cap run android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}
