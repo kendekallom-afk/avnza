@@ -33,6 +33,96 @@ let trackIntervalId = null;
 // ===== PENDING FIT BOUNDS =====
 let pendingFitBounds = null;
 
+// ===== OTA / LIVE UPDATE =====
+// Konfigurasi: URL raw version.json di GitHub Anda
+const OTA_GITHUB_OWNER = 'kendekallom-afk';
+const OTA_GITHUB_REPO  = 'avnza';
+const OTA_GITHUB_BRANCH = 'capacitor-setup';
+const OTA_VERSION_URL  = 'https://raw.githubusercontent.com/' + OTA_GITHUB_OWNER + '/' + OTA_GITHUB_REPO + '/' + OTA_GITHUB_BRANCH + '/www/version.json';
+// URL download bundle zip dari GitHub Releases (tag: ota-latest)
+const OTA_BUNDLE_URL   = 'https://github.com/' + OTA_GITHUB_OWNER + '/' + OTA_GITHUB_REPO + '/releases/download/ota-latest/update.zip';
+
+/**
+ * Mendapatkan plugin CapacitorUpdater dengan aman.
+ * Mengembalikan null jika berjalan di browser biasa (bukan Capacitor/Android).
+ */
+function getCapacitorUpdater() {
+    try {
+        const cu = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater;
+        return cu || null;
+    } catch(e) { return null; }
+}
+
+/**
+ * Memberitahu sistem native bahwa aplikasi berhasil dimuat.
+ * Wajib dipanggil agar update OTA tidak di-rollback oleh sistem.
+ */
+async function notifyOTAReady() {
+    const cu = getCapacitorUpdater();
+    if (!cu) return; // Bukan di dalam APK, abaikan
+    try {
+        await cu.notifyAppReady();
+        console.log('[OTA] notifyAppReady terpanggil — update dianggap stabil.');
+    } catch(e) {
+        console.warn('[OTA] notifyAppReady gagal:', e);
+    }
+}
+
+/**
+ * Memeriksa versi terbaru di GitHub dan mengunduh update OTA jika tersedia.
+ * @param {boolean} showResult - Jika true, tampilkan notifikasi meski tidak ada update.
+ */
+async function checkForOTAUpdate(showResult = false) {
+    const cu = getCapacitorUpdater();
+    if (!cu) {
+        if (showResult) showNotification('ℹ️ Update OTA hanya aktif di aplikasi Android.', 3000);
+        return;
+    }
+    try {
+        // Baca versi lokal dari version.json yang dibundel di dalam app
+        let localVersion = '0.0.0';
+        try {
+            const localRes = await fetch('version.json?_=' + Date.now());
+            if (localRes.ok) {
+                const localData = await localRes.json();
+                localVersion = localData.version || '0.0.0';
+            }
+        } catch(e) { /* gunakan default */ }
+
+        // Ambil versi terbaru dari GitHub
+        const remoteRes = await fetch(OTA_VERSION_URL + '?_=' + Date.now(), { cache: 'no-store' });
+        if (!remoteRes.ok) throw new Error('Gagal cek versi: HTTP ' + remoteRes.status);
+        const remoteData = await remoteRes.json();
+        const remoteVersion = remoteData.version || '0.0.0';
+
+        console.log('[OTA] Versi lokal:', localVersion, '| Versi remote:', remoteVersion);
+
+        if (remoteVersion === localVersion) {
+            if (showResult) showNotification('✅ Aplikasi sudah versi terbaru (' + localVersion + ')', 3000);
+            return;
+        }
+
+        // Ada versi baru — unduh dan pasang
+        showNotification('⬇️ Mengunduh pembaruan mMaps v' + remoteVersion + '...', 0);
+        const bundle = await cu.download({ url: OTA_BUNDLE_URL, version: remoteVersion });
+        showNotification('✅ Pembaruan siap! Memuat ulang aplikasi...', 2000);
+        setTimeout(async function() {
+            try {
+                await cu.set(bundle);
+            } catch(e) {
+                console.error('[OTA] Gagal menerapkan bundle:', e);
+                showNotification('❌ Gagal menerapkan pembaruan: ' + e.message, 5000);
+            }
+        }, 1500);
+
+    } catch(e) {
+        console.warn('[OTA] Pengecekan update gagal:', e);
+        if (showResult) showNotification('⚠️ Gagal cek pembaruan: ' + e.message, 4000);
+    }
+}
+
+window.checkForOTAUpdate = checkForOTAUpdate;
+
 // ===== SPLASH SCREEN =====
 let _splashDone = false;
 let _splashMinElapsed = false;
@@ -112,6 +202,10 @@ function initMap(){
     initGPSWatcher();
     initOrientationWatcher();
     initGDAL();
+    // OTA: beritahu sistem native bahwa app berhasil dimuat (cegah rollback)
+    notifyOTAReady();
+    // OTA: cek update secara diam-diam 4 detik setelah app siap
+    setTimeout(function() { checkForOTAUpdate(false); }, 4000);
 }
 
 function updateReticleCoordinates(){
@@ -350,6 +444,33 @@ function closeWrenchPopup() {
     const popup = document.getElementById('tools-popup');
     if (popup) popup.style.display = 'none';
 }
+function openCoordinateSearch() {
+    closeWrenchPopup();
+    const modal = document.getElementById('coordinate-search-modal');
+    if (!modal) return;
+    modal.classList.add('active');
+    const latitude = document.getElementById('search-latitude');
+    if (latitude) {
+        latitude.focus();
+        latitude.select();
+    }
+}
+function closeCoordinateSearch() {
+    const modal = document.getElementById('coordinate-search-modal');
+    if (modal) modal.classList.remove('active');
+}
+function findCoordinate() {
+    const latitude = Number(document.getElementById('search-latitude')?.value);
+    const longitude = Number(document.getElementById('search-longitude')?.value);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        showNotification('⚠️ Koordinat tidak valid. Masukkan latitude -90 s/d 90 dan longitude -180 s/d 180.', 4000);
+        return;
+    }
+    closeCoordinateSearch();
+    if (currentView !== 'map') goToMapView();
+    map.flyTo([latitude, longitude], Math.max(map.getZoom(), 15), { animate: true, duration: 0.8 });
+    updateReticleCoordinates();
+}
 function toggleMeasure() {
     const box = document.getElementById('measure-box');
     measureActive = !measureActive;
@@ -586,22 +707,28 @@ async function convertGeoPDFToWebP(fileData, filename, onProgress) {
     if (gdalReady && gdal) {
         try {
             const file = new File([bytesForGdal], filename, { type: 'application/pdf' });
+            console.log('[GDAL TEST] → gdal.open()');
             const opened = await gdal.open(file);
+            console.log('[GDAL TEST] ← gdal.open()', opened);
             updateProgress(30);
             if (opened?.datasets?.length) {
                 const sourceDataset = opened.datasets[0];
+                console.log('[GDAL TEST] → gdal.getInfo()');
                 const sourceInfo = await gdal.getInfo(sourceDataset);
+                console.log('[GDAL TEST] ← gdal.getInfo()', sourceInfo);
                 const sourceWkt = sourceInfo?.projectionWkt || '';
                 const isProjected = /(?:PROJCS|PROJCRS|PROJECTEDCRS)/i.test(sourceWkt);
                 let dataset = sourceDataset;
                 let info = sourceInfo;
 
                 if (isProjected && typeof gdal.gdalwarp === 'function') {
+                    console.log('[GDAL TEST] → gdalwarp()');
                     const warped = await gdal.gdalwarp(sourceDataset, [
                         '-of', 'GTiff',
                         '-t_srs', 'EPSG:4326',
                         '-r', 'bilinear'
                     ], filename.replace(/\.[^/.]+$/, '') + '_wgs84');
+                    console.log('[GDAL TEST] ← gdalwarp()', warped);
                     const warpedOpened = await gdal.open(warped.local);
                     if (!warpedOpened?.datasets?.length) throw new Error('GDAL: hasil warp WGS84 tidak dapat dibuka.');
                     dataset = warpedOpened.datasets[0];
@@ -610,8 +737,10 @@ async function convertGeoPDFToWebP(fileData, filename, onProgress) {
                 }
 
                 if (info?.type === 'raster' && info.corners?.length) {
+                    console.log('[GDAL TEST] → gdal_translate()');
                     const webpPath = await gdal.gdal_translate(dataset, ['-of', 'WEBP', '-co', 'QUALITY=90'], filename.replace(/\.[^/.]+$/, ''));
                     const webpBytes = await gdal.getFileBytes(webpPath);
+                    console.log('[GDAL TEST] ← gdal_translate()', webpPath);
                     const bounds = await cornersToLeafletBounds(info.corners, info.projectionWkt);
                     if (!bounds) throw new Error('GDAL: georeferensi tidak valid.');
                     updateProgress(90);
@@ -623,7 +752,14 @@ async function convertGeoPDFToWebP(fileData, filename, onProgress) {
                     return { webpData: toArrayBuffer(webpBytes), metadata: { name: filename, bounds, width: info.width, height: info.height, projectionWkt: info.projectionWkt || '', source: isProjected ? 'gdal3.js + gdalwarp EPSG:4326' : 'gdal3.js', format: 'webp', scheme: 'image-overlay', jsonVersion: 1 } };
                 }
             }
-        } catch (err) { console.warn('Jalur GDAL gagal, lanjut PDF.js:', err); }
+        } catch (err) {
+    console.error('❌ GDAL ERROR:', err);
+    console.error('❌ message:', err?.message);
+    console.error('❌ stack:', err?.stack);
+    console.error('❌ detail:', JSON.stringify(err, null, 2));
+
+    console.warn('Jalur GDAL gagal, lanjut PDF.js:', err);
+}
     }
 
     const geoCandidates = await extractAllGeoPDFGeoreferences(bytesForGeo);
@@ -1246,6 +1382,32 @@ function compressImage(file, maxSize = 1280, quality = 0.75) {
     });
 }
 
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result).split(',')[1] || '');
+        reader.onerror = () => reject(reader.error || new Error('Gagal membaca foto'));
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function savePhotoToAndroidGallery(blob, fileName) {
+    const capacitor = window.Capacitor;
+    const mediaStore = capacitor?.Plugins?.MMapsMediaStore;
+    if (!mediaStore?.savePhoto) return false;
+    try {
+        await mediaStore.savePhoto({
+            fileName,
+            base64: await blobToBase64(blob),
+            mimeType: 'image/jpeg'
+        });
+        return true;
+    } catch (error) {
+        console.warn('Foto gagal disalin ke DCIM/mMaps:', error);
+        return false;
+    }
+}
+
 async function handlePhotoSelected(event){
     const file = event.target.files[0];
     event.target.value = '';
@@ -1260,6 +1422,7 @@ async function handlePhotoSelected(event){
         const compressedBlob = await compressImage(file, 1280, 0.75);
         const oldId = f.properties?.photoId;
         const newId = 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        await savePhotoToAndroidGallery(compressedBlob, 'mMaps_' + Date.now() + '.jpg');
         const mode = await getPhotoStorageMode();
         const folderHandle = (mode === 'folder') ? await getPhotoFolderHandle() : null;
         const canUseFolder = folderHandle && await hasFolderPermission(folderHandle);
@@ -1366,12 +1529,12 @@ function renderLibraryFileList(){
     const lc=document.getElementById('library-file-list');if(!lc)return;
     if(!mapCollection.length){lc.innerHTML='<p style="text-align:center;color:#666;font-size:13px;margin-top:20px;">📭 Belum ada file.</p>';return;}
     let h='';
-    mapCollection.forEach(md=>{
+    [...mapCollection].reverse().forEach(md=>{
         const isActive=activeLayers[md.id]!==undefined;
         const icon=getMapFileIconId(md);
         const pc=md.geojson?.features?.length||0;
         const displayName = md.name.replace(/\.[^/.]+$/, '');
-        h+='<div class="file-item" style="'+(isActive?'border-left:3px solid #4CAF50;':'')+'">'
+        h+='<div class="file-item'+(isActive?' is-active':'')+'">'
             +'<div class="file-info">'
             +'<svg class="icon"><use href="#'+icon+'"></use></svg>'
             +'<span class="file-name" title="'+md.name+'">'+displayName+'</span>'
@@ -1404,6 +1567,36 @@ function fitMapToBoundsSafe(bounds, maxZoomCap) {
         updateReticleCoordinates();
         pendingFitBounds = null;
     } catch (e) { console.warn('fitMapToBoundsSafe:', e); }
+}
+function fitWebPToMapWidth(bounds) {
+    if (!map || !bounds) return;
+    try {
+        const b = bounds.getSouthWest ? bounds : L.latLngBounds([bounds[0], bounds[1]], [bounds[2], bounds[3]]);
+        if (typeof b.isValid === 'function' && !b.isValid()) return;
+        map.invalidateSize();
+        const northWest = map.project(b.getNorthWest(), 0);
+        const southEast = map.project(b.getSouthEast(), 0);
+        const widthAtZoomZero = Math.abs(southEast.x - northWest.x);
+        const targetWidth = map.getSize().x * 0.9;
+        const zoom = Math.max(map.getMinZoom(), Math.min(
+            Math.log2(targetWidth / widthAtZoomZero),
+            map.getMaxZoom()
+        ));
+        map.setView(b.getCenter(), zoom, { animate: false });
+        updateReticleCoordinates();
+        pendingFitBounds = null;
+    } catch (e) { console.warn('fitWebPToMapWidth:', e); }
+}
+function fitActiveMapForMapView() {
+    const activeMap = getActiveMap();
+    if (activeMap && activeLayers[activeMap.id]?.type === 'webp_json') {
+        const layer = activeLayers[activeMap.id].layer;
+        if (layer?.getBounds && layer.getBounds().isValid()) {
+            fitWebPToMapWidth(layer.getBounds());
+            return true;
+        }
+    }
+    return false;
 }
 
 // ===== ACTIVATE / DEACTIVATE / DELETE MAP =====
@@ -1520,7 +1713,8 @@ function zoomToActiveLayer(mapId){
             if(b&&(typeof b.isValid!=='function'||b.isValid())){
                 const resetNorth=()=>{ if(map.setBearing) map.setBearing(0); };
                 map.once('moveend', resetNorth);
-                map.fitBounds(b,{padding:[30,30]});
+                if (entry.type === 'webp_json') fitWebPToMapWidth(b);
+                else map.fitBounds(b,{padding:[30,30]});
                 setTimeout(resetNorth, 350);
                 return;
             }
@@ -1792,7 +1986,6 @@ function goToLayersView() {
     document.getElementById('btn-goto-map').style.display = 'none';
     document.getElementById('tools-wrapper').style.display = 'none';
     document.getElementById('gps-overlay').style.visibility = 'hidden';
-    document.getElementById('btn-fullscreen').style.visibility = 'hidden';
     document.getElementById('opacity-control').style.visibility = 'hidden';
     document.getElementById('active-layers-overlay').style.visibility = 'hidden';
     document.getElementById('btn-goto-map').style.display = 'inline-flex';
@@ -1817,7 +2010,6 @@ function goToPointsView() {
     document.getElementById('btn-goto-map').style.display = 'none';
     document.getElementById('tools-wrapper').style.display = 'none';
     document.getElementById('gps-overlay').style.visibility = 'hidden';
-    document.getElementById('btn-fullscreen').style.visibility = 'hidden';
     document.getElementById('opacity-control').style.visibility = 'hidden';
     document.getElementById('active-layers-overlay').style.visibility = 'hidden';
     document.getElementById('btn-goto-map').style.display = 'inline-flex';
@@ -1848,7 +2040,6 @@ function goToMapView() {
     document.getElementById('tools-wrapper').style.display = 'inline-flex';
     document.getElementById('btn-goto-map').style.display = 'none';
     document.getElementById('gps-overlay').style.visibility = 'visible';
-    document.getElementById('btn-fullscreen').style.visibility = 'visible';
     document.getElementById('opacity-control').style.visibility = 'visible';
     document.getElementById('active-layers-overlay').style.visibility = 'visible';
     updateMapActiveLayersOverlay();
@@ -1856,7 +2047,7 @@ function goToMapView() {
     setTimeout(function () {
         if (!map) return;
         map.invalidateSize();
-        if (pendingFitBounds) fitMapToBoundsSafe(pendingFitBounds.bounds, pendingFitBounds.maxZoom || 18);
+        if (!fitActiveMapForMapView() && pendingFitBounds) fitMapToBoundsSafe(pendingFitBounds.bounds, pendingFitBounds.maxZoom || 18);
         updateReticleCoordinates();
     }, 120);
 }
@@ -1877,7 +2068,6 @@ function restoreLastView(view) {
     document.getElementById('btn-goto-map').style.display = 'none';
     document.getElementById('tools-wrapper').style.display = 'none';
     document.getElementById('gps-overlay').style.visibility = 'hidden';
-    document.getElementById('btn-fullscreen').style.visibility = 'hidden';
     document.getElementById('opacity-control').style.visibility = 'hidden';
     document.getElementById('active-layers-overlay').style.visibility = 'hidden';
     if (view === 'map') {
@@ -1889,21 +2079,14 @@ function restoreLastView(view) {
         document.getElementById('btn-goto-layers').style.display = 'inline-flex';
         document.getElementById('tools-wrapper').style.display = 'inline-flex';
         document.getElementById('gps-overlay').style.visibility = 'visible';
-        document.getElementById('btn-fullscreen').style.visibility = 'visible';
         document.getElementById('opacity-control').style.visibility = 'visible';
         document.getElementById('active-layers-overlay').style.visibility = 'visible';
         updateMapActiveLayersOverlay();
         currentView = 'map';
         setTimeout(() => {
             map.invalidateSize();
-            if (pendingFitBounds) fitMapToBoundsSafe(pendingFitBounds.bounds, pendingFitBounds.maxZoom || 18);
-            else {
-                const am = getActiveMap();
-                if (am && activeLayers[am.id] && activeLayers[am.id].type === 'webp_json') {
-                    const l = activeLayers[am.id].layer;
-                    if (l && l.getBounds && l.getBounds().isValid()) fitMapToBoundsSafe(l.getBounds(), 18);
-                }
-            }
+            const fittedWebP = fitActiveMapForMapView();
+            if (!fittedWebP && pendingFitBounds) fitMapToBoundsSafe(pendingFitBounds.bounds, pendingFitBounds.maxZoom || 18);
             updateReticleCoordinates();
         }, 400);
     } else if (view === 'points') {
@@ -2213,33 +2396,10 @@ if(window.visualViewport){
 window.addEventListener('resize', handleViewportResize);
 window.addEventListener('orientationchange', handleViewportResize);
 
-// ===== OPACITY & FULLSCREEN =====
+// ===== OPACITY =====
 function toggleOpacityPanel(){
     const e = document.getElementById('opacity-control');
     if (e) e.classList.toggle('collapsed');
-}
-
-function toggleFullScreen(){
-    const el = document.documentElement;
-    const btn = document.getElementById('btn-fullscreen');
-    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
-    if (!isFs) {
-        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-        if (req) {
-            req.call(el).then(function(){
-                if (btn) btn.textContent = '[×]';
-                setTimeout(function(){ if (map) map.invalidateSize(); }, 200);
-            }).catch(function(){});
-        }
-    } else {
-        const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
-        if (exit) {
-            exit.call(document).then(function(){
-                if (btn) btn.textContent = '[ ]';
-                setTimeout(function(){ if (map) map.invalidateSize(); }, 200);
-            }).catch(function(){});
-        }
-    }
 }
 
 function setWebPOpacity(pct){
@@ -2395,6 +2555,9 @@ window.goToMapView = goToMapView;
 window.switchTab = switchTab;
 window.toggleMeasure = toggleMeasure;
 window.closeWrenchPopup = closeWrenchPopup;
+window.openCoordinateSearch = openCoordinateSearch;
+window.closeCoordinateSearch = closeCoordinateSearch;
+window.findCoordinate = findCoordinate;
 window.openSettings = openAppSettings;
 window.openAppSettings = openAppSettings;
 window.closeSettings = closeSettings;
@@ -2433,7 +2596,6 @@ window.uploadMaps = uploadMaps;
 window.uploadKMZFile = uploadKMZFile;
 window.uploadGeoPDF = uploadGeoPDF;
 window.uploadWebPJSON = uploadWebPJSON;
-window.toggleFullScreen = toggleFullScreen;
 window.toggleOpacityPanel = toggleOpacityPanel;
 window.setWebPOpacity = setWebPOpacity;
 window.refreshGPS = refreshGPS;
