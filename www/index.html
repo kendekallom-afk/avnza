@@ -67,7 +67,6 @@
 </defs>
 </svg>
 
-<div class="top-bar"></div>
 <div class="toolbar" style="display:flex; align-items:center; justify-content:space-between; padding:0 10px;">
     <button class="tool-btn" id="btn-location" onclick="centerToGPS()" title="Pusatkan GPS" style="display:none;">
         <svg class="icon"><use href="#icon-crosshair"></use></svg>
@@ -93,7 +92,7 @@
             <svg class="icon"><use href="#icon-wrench"></use></svg>
         </button>
         <div id="tools-popup" class="tools-popup" style="display: none;">
-            <div class="popup-item" onclick="alert('Fitur Cari Koordinat')">Find By Coordinates</div>
+            <div class="popup-item" onclick="openCoordinateSearch()">Find By Coordinates</div>
             <div class="popup-item" onclick="alert('Fitur Rekam GPS')">Record GPS Tracks</div>
             <div class="popup-item" onclick="toggleMeasure(); closeWrenchPopup();">Measure Distance or Area</div>
             <div class="popup-item" onclick="openSettings()">Map Features</div>
@@ -132,7 +131,6 @@
             <span id="gps-accuracy" class="value" style="font-size:12px; color:#cccccc; white-space:nowrap;">-</span>
         </div>
     </div>
-    <button id="btn-fullscreen" class="fullscreen-btn map-only-control" onclick="toggleFullScreen()" title="Full Screen" style="visibility:hidden;">[ ]</button>
     <div id="opacity-control" class="opacity-control map-only-control collapsed" style="visibility:hidden;" title="Transparansi peta WebP" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
         <button type="button" class="opacity-toggle-btn" onclick="toggleOpacityPanel()" aria-label="Transparansi">◐</button>
         <div class="opacity-panel">
@@ -204,6 +202,32 @@
                 <span id="photo-folder-path-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;">Belum dipilih</span>
                 <button class="action-btn" onclick="selectPhotoFolder()">Pilih Folder</button>
             </div>
+        </div>
+        <div class="setting-group" style="border-top:1px solid #ddd; padding-top:12px; margin-top:4px;">
+            <span class="setting-label">Pembaruan Aplikasi (OTA):</span>
+            <div class="setting-value-box" style="justify-content:space-between; align-items:center;">
+                <span id="ota-version-text" style="font-size:12px; color:#666;">Versi: memeriksa...</span>
+                <button class="action-btn" onclick="checkForOTAUpdate(true)">🔄 Periksa Pembaruan</button>
+            </div>
+            <span style="font-size:11px; color:#777;">Perbarui tampilan &amp; fitur tanpa perlu install ulang APK.</span>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="coordinate-search-modal" onclick="if(event.target===this)closeCoordinateSearch()">
+    <div class="modal-content" style="max-width:320px;">
+        <div class="modal-header"><span>Find By Coordinates</span><button class="modal-close" onclick="closeCoordinateSearch()">&times;</button></div>
+        <div class="setting-group">
+            <span class="setting-label">Latitude:</span>
+            <input type="number" id="search-latitude" step="any" placeholder="Contoh: -6.200000" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+        </div>
+        <div class="setting-group">
+            <span class="setting-label">Longitude:</span>
+            <input type="number" id="search-longitude" step="any" placeholder="Contoh: 106.816666" style="padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="add-btn" style="background:#9e9e9e;" onclick="closeCoordinateSearch()">Batal</button>
+            <button class="on-btn" onclick="findCoordinate()">Cari</button>
         </div>
     </div>
 </div>
